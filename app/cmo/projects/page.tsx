@@ -253,34 +253,79 @@ export default function CmoProjectsPage() {
                 <div className="text-sm text-white/60">No projects yet.</div>
               ) : (
                 projects.map((p) => (
-                  <button
+                  <div
                     key={p.id}
                     className={[
-                      "glass-inset w-full rounded-2xl p-3 text-left transition",
-                      p.id === projectId ? "border border-white/20" : "border border-transparent"
+                      "group relative w-full overflow-hidden rounded-2xl border text-left transition",
+                      "hover:-translate-y-[1px] hover:border-white/15 hover:bg-white/[0.03]",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0",
+                      p.id === projectId
+                        ? "border-white/25 bg-white/[0.035] shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_14px_50px_rgba(59,130,246,0.12)]"
+                        : "border-white/5 bg-white/[0.02]"
                     ].join(" ")}
+                    role="option"
+                    tabIndex={0}
+                    aria-selected={p.id === projectId}
                     onClick={() => setProjectId(p.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setProjectId(p.id);
+                      }
+                    }}
                   >
+                    {/* selected accent */}
+                    <div
+                      aria-hidden="true"
+                      className={[
+                        "pointer-events-none absolute inset-0 opacity-0 transition-opacity",
+                        p.id === projectId ? "opacity-100" : "group-hover:opacity-60"
+                      ].join(" ")}
+                      style={{
+                        background:
+                          "radial-gradient(600px 120px at 20% 0%, rgba(59,130,246,0.22), transparent 60%), radial-gradient(600px 120px at 85% 100%, rgba(124,58,237,0.18), transparent 60%)"
+                      }}
+                    />
+
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-white/85">{p.name}</div>
-                        <div className="text-xs text-white/45">ID: {p.id.slice(0, 8)}…</div>
+                      <div className="relative p-3">
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-semibold text-white/90">{p.name}</div>
+                          {p.id === projectId ? (
+                            <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/75">
+                              Selected
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 text-xs text-white/45">ID: {p.id.slice(0, 8)}…</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`text-xs ${p.is_active ? "text-emerald-200" : "text-white/40"}`}>
+                      <div className="relative flex items-center gap-2 pr-3">
+                        <div
+                          className={[
+                            "rounded-full border px-2 py-0.5 text-[11px]",
+                            p.is_active
+                              ? "border-emerald-300/20 bg-emerald-500/10 text-emerald-200"
+                              : "border-white/10 bg-white/[0.03] text-white/50"
+                          ].join(" ")}
+                        >
                           {p.is_active ? "Active" : "Inactive"}
                         </div>
                         <Button
                           size="sm"
                           variant="flat"
                           className="glass-inset text-white/80"
-                          onPress={() => onToggleActive(p.id, !p.is_active)}
+                          onPress={(ev) => {
+                            // don't change selection when toggling
+                            // @ts-expect-error heroui event type
+                            ev?.stopPropagation?.();
+                            onToggleActive(p.id, !p.is_active);
+                          }}
                         >
                           {p.is_active ? "Disable" : "Enable"}
                         </Button>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
