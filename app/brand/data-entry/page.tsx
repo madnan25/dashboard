@@ -373,7 +373,8 @@ export default function BrandDataEntryPage() {
   const budgetCap = targets?.total_budget ?? 0;
   const remainingBudget = Math.max(0, budgetCap - allocatedTotal);
 
-  const canEditPlan = activeVersion?.status === "draft" || activeVersion?.status === "rejected";
+  const isCmo = profile?.role === "cmo";
+  const canEditPlan = isCmo || activeVersion?.status === "draft" || activeVersion?.status === "rejected";
 
   return (
     <main className="min-h-screen p-6">
@@ -512,11 +513,15 @@ export default function BrandDataEntryPage() {
           </div>
         ) : null}
 
-        {profile?.role === "brand_manager" ? (
+        {profile?.role === "brand_manager" || isCmo ? (
           <div className="grid gap-4 md:grid-cols-12">
             <Surface className="md:col-span-5">
-              <div className="text-lg font-semibold text-white/90">Brand Manager – Targets</div>
-              <div className="mt-1 text-sm text-white/55">Read-only caps set by CMO.</div>
+              <div className="text-lg font-semibold text-white/90">
+                {isCmo ? "Brand Plan – Targets" : "Brand Manager – Targets"}
+              </div>
+              <div className="mt-1 text-sm text-white/55">
+                {isCmo ? "View caps and create/select plan versions." : "Read-only caps set by CMO."}
+              </div>
 
               <div className="mt-4 grid gap-3 text-sm">
                 <div className="glass-inset rounded-xl p-3">
@@ -537,6 +542,30 @@ export default function BrandDataEntryPage() {
                 <Button color="primary" onPress={onCreateDraft}>
                   Create new draft
                 </Button>
+
+                {isCmo ? (
+                  <div className="glass-inset rounded-xl p-3">
+                    <div className="text-xs uppercase tracking-widest text-white/45">Plan version</div>
+                    <select
+                      className="mt-2 w-full glass-inset rounded-lg px-3 py-2 text-sm text-white/85"
+                      value={activePlanVersionId ?? ""}
+                      onChange={(e) => setActivePlanVersionId(e.target.value || null)}
+                    >
+                      <option value="" className="bg-zinc-900">
+                        — Select —
+                      </option>
+                      {planVersions.map((v) => (
+                        <option key={v.id} value={v.id} className="bg-zinc-900">
+                          {v.status.toUpperCase()}
+                          {v.active ? " (ACTIVE)" : ""} · {new Date(v.created_at).toLocaleString()}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-2 text-xs text-white/45">
+                      CMO can edit any version (including approved). Changes apply immediately.
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </Surface>
 
@@ -615,9 +644,11 @@ export default function BrandDataEntryPage() {
                     >
                       Save draft
                     </Button>
-                    <Button color="primary" onPress={onSubmitForApproval} isDisabled={!canEditPlan}>
-                      Submit for approval
-                    </Button>
+                    {!isCmo ? (
+                      <Button color="primary" onPress={onSubmitForApproval} isDisabled={!canEditPlan}>
+                        Submit for approval
+                      </Button>
+                    ) : null}
                   </div>
                 </>
               )}
@@ -625,12 +656,16 @@ export default function BrandDataEntryPage() {
           </div>
         ) : null}
 
-        {profile?.role === "sales_ops" ? (
+        {profile?.role === "sales_ops" || isCmo ? (
           <Surface>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-lg font-semibold text-white/90">Sales Ops – Actuals</div>
-                <div className="mt-1 text-sm text-white/55">These are locked from Brand edits.</div>
+                <div className="text-lg font-semibold text-white/90">
+                  {isCmo ? "Sales Ops – Actuals (CMO override)" : "Sales Ops – Actuals"}
+                </div>
+                <div className="mt-1 text-sm text-white/55">
+                  {isCmo ? "CMO can edit actuals if needed." : "These are locked from Brand edits."}
+                </div>
               </div>
               <Button color="primary" onPress={onSaveActuals}>
                 Save actuals
