@@ -16,6 +16,16 @@ function base64UrlDecode(input: string) {
   return atob(padded);
 }
 
+function decodeSupabaseCookieValue(raw: string): string {
+  // @supabase/ssr uses "base64url" cookieEncoding by default and prefixes values with "base64-".
+  // See node_modules/@supabase/ssr/src/cookies.ts
+  const BASE64_PREFIX = "base64-";
+  if (raw.startsWith(BASE64_PREFIX)) {
+    return base64UrlDecode(raw.slice(BASE64_PREFIX.length));
+  }
+  return raw;
+}
+
 function isJwtNotExpired(jwt: string) {
   const parts = jwt.split(".");
   if (parts.length < 2) return false;
@@ -31,9 +41,12 @@ function isJwtNotExpired(jwt: string) {
 }
 
 function tryParseSupabaseAuthCookie(raw: string): { access_token?: string } | null {
-  const candidates = [raw];
+  const candidates: string[] = [];
+  // raw / decoded / base64-decoded variants
+  candidates.push(raw, decodeSupabaseCookieValue(raw));
   try {
-    candidates.push(decodeURIComponent(raw));
+    const dec = decodeURIComponent(raw);
+    candidates.push(dec, decodeSupabaseCookieValue(dec));
   } catch {
     // ignore
   }
