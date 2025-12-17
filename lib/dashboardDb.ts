@@ -35,6 +35,7 @@ export type PlanVersion = {
   active: boolean;
   approved_by: string | null;
   approved_at: string | null;
+  rejected_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -123,7 +124,7 @@ export async function listPlanVersions(projectId: string, year: number, month: n
   const { data, error } = await supabase
     .from("project_plan_versions")
     .select(
-      "id, project_id, year, month, created_by, status, active, approved_by, approved_at, created_at, updated_at"
+      "id, project_id, year, month, created_by, status, active, approved_by, approved_at, rejected_at, created_at, updated_at"
     )
     .eq("project_id", projectId)
     .eq("year", year)
@@ -149,7 +150,7 @@ export async function createDraftPlanVersion(projectId: string, year: number, mo
       active: false
     })
     .select(
-      "id, project_id, year, month, created_by, status, active, approved_by, approved_at, created_at, updated_at"
+      "id, project_id, year, month, created_by, status, active, approved_by, approved_at, rejected_at, created_at, updated_at"
     )
     .single();
   if (error) throw error;
@@ -173,6 +174,7 @@ export async function approvePlanVersion(planVersionId: string): Promise<void> {
       status: "approved",
       approved_by: userRes.user.id,
       approved_at: new Date().toISOString(),
+      rejected_at: null,
       active: true
     })
     .eq("id", planVersionId);
@@ -189,7 +191,7 @@ export async function rejectPlanVersion(planVersionId: string): Promise<void> {
     .update({
       status: "rejected",
       approved_by: userRes.user.id,
-      approved_at: new Date().toISOString(),
+      rejected_at: new Date().toISOString(),
       active: false
     })
     .eq("id", planVersionId);

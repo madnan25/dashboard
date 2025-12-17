@@ -466,14 +466,20 @@ export default function CmoProjectsPage() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {v.status === "submitted" ? (
+                          {v.status !== "approved" ? (
                             <>
                               <Button color="primary" onPress={() => onApprove(v.id)}>
-                                Approve
+                                Approve now
                               </Button>
-                              <Button variant="flat" className="glass-inset text-white/80" onPress={() => onReject(v.id)}>
-                                Reject
-                              </Button>
+                              {v.status !== "rejected" ? (
+                                <Button
+                                  variant="flat"
+                                  className="glass-inset text-white/80"
+                                  onPress={() => onReject(v.id)}
+                                >
+                                  Reject
+                                </Button>
+                              ) : null}
                             </>
                           ) : (
                             <Button as={Link} href={`/brand/data-entry`} variant="flat" className="glass-inset text-white/80">
