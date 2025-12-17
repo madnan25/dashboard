@@ -12,7 +12,8 @@ function isValidEmail(email: string) {
 async function userExistsByEmail(email: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRole) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL.");
+  if (!url) throw new Error("missing_url");
+  if (!serviceRole) throw new Error("missing_service_role");
 
   const admin = createClient(url, serviceRole, { auth: { persistSession: false } });
 
@@ -33,7 +34,8 @@ async function userExistsByEmail(email: string) {
 export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !anonKey) return json(500, { error: "server_not_configured" });
+  if (!supabaseUrl || !anonKey) return json(500, { error: "missing_public_env" });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return json(500, { error: "missing_service_role" });
 
   const body = (await request.json().catch(() => null)) as null | {
     email?: string;
@@ -51,9 +53,11 @@ export async function POST(request: NextRequest) {
   try {
     const exists = await userExistsByEmail(email);
     if (!exists) return json(404, { error: "user_not_found" });
-  } catch {
-    // Avoid leaking details; treat as server config/availability issue.
-    return json(500, { error: "server_not_configured" });
+  } catch (e) {
+    // Avoid leaking details; use coarse error codes
+    if (e instanceof Error && e.message === "missing_service_role") return json(500, { error: "missing_service_role" });
+    if (e instanceof Error && e.message === "missing_url") return json(500, { error: "missing_public_env" });
+    return json(500, { error: "admin_lookup_failed" });
   }
 
   // 2) Send magic link (still via anon client, so Supabase sends the email)
