@@ -1,15 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
+import { getSupabaseEnv } from "@/lib/supabase/env";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type"); // e.g. "magiclink" | "recovery" | "invite"
-  const redirectTo = requestUrl.searchParams.get("redirectTo") ?? "/";
+  const redirectToRaw = requestUrl.searchParams.get("redirectTo") ?? "/";
+  const redirectTo = redirectToRaw.startsWith("/") ? redirectToRaw : "/";
+
+  const redirectUrl = new URL(redirectTo, requestUrl.origin);
+  const response = NextResponse.redirect(redirectUrl);
 
   try {
-    const supabase = await createClient();
+    const { url, anonKey } = getSupabaseEnv();
+    const supabase = createServerClient(url, anonKey, {
+      auth: { flowType: "pkce" },
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        }
+      }
+    });
     if (code) {
       // PKCE flow (most common for magic links)
       await supabase.auth.exchangeCodeForSession(code);
@@ -22,9 +38,6 @@ export async function GET(request: NextRequest) {
     // Swallow auth callback errors and continue redirecting to login/home.
   }
 
-  const url = requestUrl;
-  url.pathname = redirectTo;
-  url.search = "";
-  return NextResponse.redirect(url);
+  return response;
 }
 
