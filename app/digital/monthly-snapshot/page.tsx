@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import {
+  Button,
   Table,
   TableBody,
   TableCell,
   TableColumn,
   TableHeader,
-  TableRow,
-  Button
+  TableRow
 } from "@heroui/react";
 import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
@@ -18,10 +18,22 @@ import { KpiCard } from "@/components/ds/KpiCard";
 import { PageShell, Surface } from "@/components/ds/Surface";
 import { MONTHS, clampPercent, monthLabel } from "@/lib/digitalSnapshot";
 import { formatNumber, formatPKR, formatPKRCompact } from "@/lib/format";
+import {
+  PlanChannelInputs,
+  PlanVersion,
+  Project,
+  ProjectActuals,
+  ProjectTargets,
+  getPlanChannelInputs,
+  getProjectActuals,
+  getProjectTargets,
+  listPlanVersions,
+  listProjects
+} from "@/lib/dashboardDb";
 import { useEffect, useMemo, useState } from "react";
-import { computeBrandTargets, loadBrandMonthlyActuals, loadBrandMonthlyPlan } from "@/lib/brandStorage";
 
 type MetricRow = { metric: string; value: string };
+
 type ContributionRow = {
   stage: string;
   target: number;
@@ -29,15 +41,56 @@ type ContributionRow = {
   variance: number;
 };
 
+function monthNumber(monthIndex: number) {
+  return monthIndex + 1;
+}
+
+function computeTargetsFrom(
+  targets: ProjectTargets | null,
+  digital: PlanChannelInputs | null
+): {
+  dealsRequired: number;
+  digitalDealsRequired: number;
+  targetLeads: number;
+  targetQualifiedLeads: number;
+  digitalQualifiedMeetingsRequired: number;
+} {
+  const salesTargetSqft = targets?.sales_target_sqft ?? 0;
+  const avgSqft = targets?.avg_sqft_per_deal ?? 0;
+  const dealsRequired = Math.max(0, Math.ceil(salesTargetSqft / Math.max(avgSqft, 1)));
+
+  const digitalPct = digital?.target_contribution_percent ?? 0;
+  const digitalDealsRequired = Math.max(0, Math.ceil(dealsRequired * (digitalPct / 100)));
+  const digitalQualifiedMeetingsRequired = Math.max(0, digitalDealsRequired * 2);
+
+  const targetLeads = Math.max(0, Math.round(digital?.expected_leads ?? 0));
+  const qPct = digital?.qualification_percent ?? 0;
+  const targetQualifiedLeads = Math.max(0, Math.round(targetLeads * (qPct / 100)));
+
+  return { dealsRequired, digitalDealsRequired, targetLeads, targetQualifiedLeads, digitalQualifiedMeetingsRequired };
+}
+
 export default function DigitalMonthlySnapshotPage() {
   const [selectedYear, setSelectedYear] = useState(2025);
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(11); // Dec
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(11);
   const [computedExpanded, setComputedExpanded] = useState(false);
 
-  const [savedPlanThisMonth, setSavedPlanThisMonth] = useState<ReturnType<typeof loadBrandMonthlyPlan>>(null);
-  const [savedActualsThisMonth, setSavedActualsThisMonth] = useState<ReturnType<typeof loadBrandMonthlyActuals>>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState<string>("");
+
+  const [targets, setTargets] = useState<ProjectTargets | null>(null);
+  const [activePlanVersion, setActivePlanVersion] = useState<PlanVersion | null>(null);
+  const [digitalInputs, setDigitalInputs] = useState<PlanChannelInputs | null>(null);
+  const [actuals, setActuals] = useState<ProjectActuals | null>(null);
+  const [status, setStatus] = useState<string>("");
+
+  const envMissing =
+    typeof window !== "undefined" &&
+    (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+  const month = useMemo(() => monthNumber(selectedMonthIndex), [selectedMonthIndex]);
+
   const [trend, setTrend] = useState(() => {
-    // SSR-safe initial trend: correct labels, zero values.
     const labels: string[] = [];
     const spend: number[] = [];
     const qualified: number[] = [];
@@ -56,58 +109,108 @@ export default function DigitalMonthlySnapshotPage() {
   });
 
   useEffect(() => {
-    setSavedPlanThisMonth(loadBrandMonthlyPlan(selectedMonthIndex, selectedYear));
+    let cancelled = false;
+    async function boot() {
+      if (envMissing) return;
+      try {
+        const projs = await listProjects();
+        if (cancelled) return;
+        setProjects(projs);
+        if (!projectId && projs.length > 0) setProjectId(projs[0]!.id);
+      } catch (e) {
+        if (cancelled) return;
+        setStatus(e instanceof Error ? e.message : "Failed to load projects");
+      }
+    }
+    boot();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [envMissing]);
 
-    setSavedActualsThisMonth(loadBrandMonthlyActuals(selectedMonthIndex, selectedYear));
+  useEffect(() => {
+    let cancelled = false;
 
-    // Build a real trend window from saved actuals only (no dummy).
-    const monthsBack = 6;
-    const labels: string[] = [];
-    const spend: number[] = [];
-    const qualified: number[] = [];
-    const meetings: number[] = [];
+    async function load() {
+      if (!projectId || envMissing) return;
+      try {
+        setStatus("");
 
-    for (let i = monthsBack - 1; i >= 0; i--) {
-      const m = selectedMonthIndex - i;
-      const y = selectedYear + Math.floor(m / 12);
-      const idx = ((m % 12) + 12) % 12;
+        const [t, versions, a] = await Promise.all([
+          getProjectTargets(projectId, selectedYear, month),
+          listPlanVersions(projectId, selectedYear, month),
+          getProjectActuals(projectId, selectedYear, month)
+        ]);
 
-      labels.push(MONTHS[idx] ?? "—");
-      const a = loadBrandMonthlyActuals(idx, y);
-      spend.push(a?.budgetSpentDigital ?? 0);
-      qualified.push(a?.qualifiedLeads ?? 0);
-      meetings.push(a?.qualifiedMeetingsCompleted ?? 0);
+        const active = versions.find((v) => v.active && v.status === "approved") ?? null;
+        const inputs = active ? await getPlanChannelInputs(active.id) : [];
+        const digital = (inputs ?? []).find((r) => r.channel === "digital") ?? null;
+
+        if (cancelled) return;
+
+        setTargets(t);
+        setActivePlanVersion(active);
+        setDigitalInputs(digital);
+        setActuals(a);
+
+        // Trend (last 6 months) from actuals only. Budget spend not tracked yet.
+        const monthsBack = 6;
+        const labels: string[] = [];
+        const qualifiedArr: number[] = [];
+        const meetingsArr: number[] = [];
+
+        const monthQueries = Array.from({ length: monthsBack }, (_, idxFromStart) => {
+          const i = monthsBack - 1 - idxFromStart;
+          const m0 = selectedMonthIndex - i;
+          const y0 = selectedYear + Math.floor(m0 / 12);
+          const idx0 = ((m0 % 12) + 12) % 12;
+          labels.push(MONTHS[idx0] ?? "—");
+          return getProjectActuals(projectId, y0, idx0 + 1);
+        });
+
+        const results = await Promise.all(monthQueries);
+        for (const r of results) {
+          qualifiedArr.push(r?.qualified_leads ?? 0);
+          meetingsArr.push(r?.meetings_done ?? 0);
+        }
+
+        if (cancelled) return;
+        setTrend({ labels, spend: new Array(monthsBack).fill(0), qualified: qualifiedArr, meetings: meetingsArr });
+      } catch (e) {
+        if (cancelled) return;
+        setStatus(e instanceof Error ? e.message : "Failed to load snapshot data");
+      }
     }
 
-    setTrend({ labels, spend, qualified, meetings });
-  }, [selectedMonthIndex, selectedYear]);
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [envMissing, month, projectId, selectedMonthIndex, selectedYear]);
 
-  const computedTargets = useMemo(() => {
-    if (!savedPlanThisMonth) return null;
-    return computeBrandTargets(savedPlanThisMonth);
-  }, [savedPlanThisMonth]);
-  const plan = savedPlanThisMonth;
+  const computed = useMemo(() => computeTargetsFrom(targets, digitalInputs), [targets, digitalInputs]);
 
   const snapshot = useMemo(() => {
-    const actuals = savedActualsThisMonth;
-    const budgetAllocated = savedPlanThisMonth?.allocatedBudgetDigital ?? 0;
+    const budgetAllocated = digitalInputs?.allocated_budget ?? 0;
+    const budgetSpent = 0; // not tracked yet in schema
 
     return {
       monthLabel: monthLabel(selectedMonthIndex, selectedYear),
       budgetAllocated,
-      budgetSpent: actuals?.budgetSpentDigital ?? 0,
-      leadsGenerated: actuals?.leadsGenerated ?? 0,
-      qualifiedLeads: actuals?.qualifiedLeads ?? 0,
-      meetingsScheduled: actuals?.meetingsScheduled ?? 0,
-      meetingsCompleted: actuals?.qualifiedMeetingsCompleted ?? 0,
+      budgetSpent,
+      leadsGenerated: actuals?.leads ?? 0,
+      qualifiedLeads: actuals?.qualified_leads ?? 0,
+      meetingsScheduled: actuals?.meetings_scheduled ?? 0,
+      meetingsCompleted: actuals?.meetings_done ?? 0,
       targets: {
-        leadsGenerated: computedTargets?.targetLeads ?? 0,
-        qualifiedLeads: computedTargets?.targetQualifiedLeads ?? 0,
-        meetingsScheduled: computedTargets?.digitalQualifiedMeetingsRequired ?? 0,
-        meetingsCompleted: computedTargets?.digitalQualifiedMeetingsRequired ?? 0
+        leadsGenerated: computed.targetLeads,
+        qualifiedLeads: computed.targetQualifiedLeads,
+        meetingsScheduled: computed.digitalQualifiedMeetingsRequired,
+        meetingsCompleted: computed.digitalQualifiedMeetingsRequired
       }
     };
-  }, [computedTargets, savedActualsThisMonth, savedPlanThisMonth, selectedMonthIndex, selectedYear]);
+  }, [actuals, computed, digitalInputs, selectedMonthIndex, selectedYear]);
 
   const budgetUtilizedPctRaw =
     snapshot.budgetAllocated > 0 ? (snapshot.budgetSpent / snapshot.budgetAllocated) * 100 : NaN;
@@ -116,87 +219,15 @@ export default function DigitalMonthlySnapshotPage() {
     : snapshot.budgetSpent > 0
       ? "Over budget"
       : "0.0%";
-  const costPerQualifiedLead =
-    snapshot.qualifiedLeads > 0 ? snapshot.budgetSpent / snapshot.qualifiedLeads : 0;
-  const costPerMeeting =
-    snapshot.meetingsCompleted > 0 ? snapshot.budgetSpent / snapshot.meetingsCompleted : 0;
 
   const rows: MetricRow[] = [
-    { metric: "Budget Allocated", value: formatPKR(snapshot.budgetAllocated) },
-    { metric: "Budget Spent", value: formatPKR(snapshot.budgetSpent) },
+    { metric: "Digital Budget Allocated", value: formatPKR(snapshot.budgetAllocated) },
+    { metric: "Digital Budget Spent", value: formatPKR(snapshot.budgetSpent) },
     { metric: "% Budget Utilized", value: budgetUtilizedDisplay },
-    { metric: "Leads Generated", value: formatNumber(snapshot.leadsGenerated) },
-    { metric: "Qualified Leads", value: formatNumber(snapshot.qualifiedLeads) },
-    { metric: "Meetings Scheduled", value: formatNumber(snapshot.meetingsScheduled) },
-    { metric: "Meetings Completed", value: formatNumber(snapshot.meetingsCompleted) },
-    { metric: "Cost / Qualified Lead", value: formatPKR(costPerQualifiedLead) },
-    { metric: "Cost / Meeting", value: formatPKR(costPerMeeting) }
+    { metric: "Leads (actual)", value: formatNumber(snapshot.leadsGenerated) },
+    { metric: "Qualified Leads (actual)", value: formatNumber(snapshot.qualifiedLeads) },
+    { metric: "Meetings Done (actual)", value: formatNumber(snapshot.meetingsCompleted) }
   ];
-
-  const spendPctRaw =
-    snapshot.budgetAllocated > 0 ? (snapshot.budgetSpent / snapshot.budgetAllocated) * 100 : NaN;
-  const spendOverBudgetValue = (() => {
-    // e.g. "Rs 1.7M" -> "1.7" (cleaner in the small pill)
-    const compact = formatPKRCompact(snapshot.budgetSpent);
-    return compact.replace(/^(-?)Rs\s+/i, "$1").replace(/[KMB]$/i, "");
-  })();
-  const spendDelta =
-    snapshot.budgetAllocated <= 0
-      ? snapshot.budgetSpent > 0
-        ? {
-            value: spendOverBudgetValue,
-            tone: "bad" as const,
-            label: "over budget",
-          }
-        : {
-            value: "0.0%",
-            tone: "neutral" as const,
-            label: "of allocated",
-          }
-      : spendPctRaw <= 100
-        ? {
-            value: `${spendPctRaw.toFixed(1)}%`,
-            tone: "good" as const,
-            label: "of allocated",
-          }
-        : {
-            value: `${(spendPctRaw - 100).toFixed(1)}%`,
-            tone: "bad" as const,
-            label: "over allocated",
-          };
-  const qualifiedPctOfLeads = clampPercent(
-    (snapshot.qualifiedLeads / Math.max(snapshot.leadsGenerated, 1)) * 100
-  );
-  const completedPctOfScheduled = clampPercent(
-    (snapshot.meetingsCompleted / Math.max(snapshot.meetingsScheduled, 1)) * 100
-  );
-
-  const leadToQualifiedPct = clampPercent(
-    (snapshot.qualifiedLeads / Math.max(snapshot.leadsGenerated, 1)) * 100
-  );
-  const qualifiedToMeetingPct = clampPercent(
-    (snapshot.meetingsCompleted / Math.max(snapshot.qualifiedLeads, 1)) * 100
-  );
-
-  // Dummy deltas vs last month (based on trend arrays)
-  const qualifiedDeltaPct =
-    trend.qualified.length >= 2
-      ? (() => {
-          const prev = trend.qualified.at(-2)!;
-          const curr = trend.qualified.at(-1)!;
-          if (prev <= 0) return 0;
-          return ((curr - prev) / prev) * 100;
-        })()
-      : 0;
-  const meetingsDeltaPct =
-    trend.meetings.length >= 2
-      ? (() => {
-          const prev = trend.meetings.at(-2)!;
-          const curr = trend.meetings.at(-1)!;
-          if (prev <= 0) return 0;
-          return ((curr - prev) / prev) * 100;
-        })()
-      : 0;
 
   const contributionRows: ContributionRow[] = [
     {
@@ -212,18 +243,17 @@ export default function DigitalMonthlySnapshotPage() {
       variance: snapshot.qualifiedLeads - snapshot.targets.qualifiedLeads
     },
     {
-      stage: "Meetings Scheduled",
-      target: snapshot.targets.meetingsScheduled,
-      actual: snapshot.meetingsScheduled,
-      variance: snapshot.meetingsScheduled - snapshot.targets.meetingsScheduled
-    },
-    {
       stage: "Meetings Done",
       target: snapshot.targets.meetingsCompleted,
       actual: snapshot.meetingsCompleted,
       variance: snapshot.meetingsCompleted - snapshot.targets.meetingsCompleted
     }
   ];
+
+  const leadToQualifiedPct = clampPercent((snapshot.qualifiedLeads / Math.max(snapshot.leadsGenerated, 1)) * 100);
+  const qualifiedToMeetingPct = clampPercent((snapshot.meetingsCompleted / Math.max(snapshot.qualifiedLeads, 1)) * 100);
+
+  const projectName = projects.find((p) => p.id === projectId)?.name ?? "—";
 
   return (
     <main className="min-h-screen p-6">
@@ -233,7 +263,7 @@ export default function DigitalMonthlySnapshotPage() {
             <div className="space-y-2">
               <div className="text-2xl font-semibold tracking-tight text-white/95">Digital – Monthly Snapshot</div>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="text-sm text-white/60">Analytics</div>
+                <div className="text-sm text-white/60">{projectName}</div>
                 <span className="h-1 w-1 rounded-full bg-white/25" />
                 <MonthYearPicker
                   monthIndex={selectedMonthIndex}
@@ -244,7 +274,21 @@ export default function DigitalMonthlySnapshotPage() {
                     setSelectedYear(next.year);
                   }}
                 />
+                <span className="h-1 w-1 rounded-full bg-white/25" />
+                <select
+                  className="glass-inset rounded-lg px-3 py-2 text-sm text-white/85"
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  disabled={envMissing}
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id} className="bg-zinc-900">
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               </div>
+              {status ? <div className="text-sm text-amber-200/90">{status}</div> : null}
             </div>
 
             <div className="flex items-center gap-3">
@@ -254,13 +298,13 @@ export default function DigitalMonthlySnapshotPage() {
             </div>
           </div>
 
-          {computedTargets && plan ? (
+          {activePlanVersion ? (
             <div className="mt-6">
               <Surface>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-lg font-semibold text-white/90">Computed Outputs</div>
-                    <div className="mt-1 text-sm text-white/55">Derived from this month’s saved plan.</div>
+                    <div className="mt-1 text-sm text-white/55">From active approved plan version.</div>
                   </div>
                   <Button
                     size="sm"
@@ -271,28 +315,26 @@ export default function DigitalMonthlySnapshotPage() {
                   >
                     <span className="flex items-center gap-2">
                       <span>{computedExpanded ? "Hide details" : "Show details"}</span>
-                      <span className={`transition-transform duration-200 ${computedExpanded ? "rotate-180" : ""}`}>
-                        ▾
-                      </span>
+                      <span className={`transition-transform duration-200 ${computedExpanded ? "rotate-180" : ""}`}>▾</span>
                     </span>
                   </Button>
                 </div>
 
-                {/* Always visible (plan inputs) */}
                 <div className="mt-5 grid gap-4 md:grid-cols-3">
-                  <KpiCard label="Total sales target" value={formatNumber(plan.salesTargetSqft)} />
-                  <KpiCard label="Average expected deal size" value={formatNumber(plan.averageDealSizeSqft)} />
-                  <KpiCard label="% required from digital" value={`${plan.digitalTargetPercent}%`} />
+                  <KpiCard label="Total sales target" value={formatNumber(targets?.sales_target_sqft ?? 0)} />
+                  <KpiCard label="Avg deal size" value={formatNumber(targets?.avg_sqft_per_deal ?? 0)} />
+                  <KpiCard
+                    label="% required from digital"
+                    value={`${digitalInputs?.target_contribution_percent ?? 0}%`}
+                  />
                 </div>
 
-                {/* Always visible (key rollups) */}
                 <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <KpiCard label="Deals required" value={formatNumber(computedTargets.dealsRequired)} />
-                  <KpiCard label="Digital deals required" value={formatNumber(computedTargets.digitalDealsRequired)} />
-                  <KpiCard label="Deals won" value={formatNumber(savedActualsThisMonth?.dealsWon ?? 0)} />
+                  <KpiCard label="Deals required" value={formatNumber(computed.dealsRequired)} />
+                  <KpiCard label="Digital deals required" value={formatNumber(computed.digitalDealsRequired)} />
+                  <KpiCard label="Target leads (digital)" value={formatNumber(computed.targetLeads)} />
                 </div>
 
-                {/* Collapsible (derived outputs) */}
                 <div
                   className={[
                     "overflow-hidden transition-[max-height,opacity] duration-300 ease-out",
@@ -301,71 +343,61 @@ export default function DigitalMonthlySnapshotPage() {
                 >
                   <div className="mt-4 grid gap-4 md:grid-cols-3">
                     <KpiCard
-                      label="Qualified meetings required"
-                      value={formatNumber(computedTargets.qualifiedMeetingsRequired)}
-                    />
-                    <KpiCard
                       label="Digital qualified meetings required"
-                      value={formatNumber(computedTargets.digitalQualifiedMeetingsRequired)}
+                      value={formatNumber(computed.digitalQualifiedMeetingsRequired)}
                     />
-                    <KpiCard label="Expected leads" value={formatNumber(computedTargets.targetLeads)} />
-                    <KpiCard label="Expected qualified rate" value={`${plan.expectedQualifiedPercent}%`} />
-                    <KpiCard label="Qualified leads target" value={formatNumber(computedTargets.targetQualifiedLeads)} />
+                    <KpiCard label="Target qualified leads" value={formatNumber(computed.targetQualifiedLeads)} />
+                    <KpiCard label="Allocated budget (digital)" value={formatPKRCompact(snapshot.budgetAllocated)} />
                   </div>
                 </div>
               </Surface>
             </div>
-          ) : null}
+          ) : (
+            <div className="mt-6">
+              <Surface>
+                <div className="text-sm text-white/70">
+                  No active approved plan version found for this project/month yet.
+                </div>
+              </Surface>
+            </div>
+          )}
 
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             <KpiCard
-              label="Budget Allocated"
+              label="Digital Budget Allocated"
               value={formatPKRCompact(snapshot.budgetAllocated)}
-              helper="Monthly cap"
+              helper="From approved plan"
               delta={{ value: "+0.0%", direction: "flat", tone: "neutral" }}
               deltaLabel="vs last month"
             />
             <KpiCard
-              label="Budget Spent"
-              value={formatPKRCompact(snapshot.budgetSpent)}
-              helper={`Allocated: ${formatPKRCompact(snapshot.budgetAllocated)}`}
-              delta={{
-                value: spendDelta.value,
-                direction: "flat",
-                tone: spendDelta.tone
-              }}
-              deltaLabel={spendDelta.label}
-              deltaShowArrow={false}
-            />
-            <KpiCard
               label="Qualified Leads"
               value={formatNumber(snapshot.qualifiedLeads)}
-              helper={`${qualifiedPctOfLeads.toFixed(0)}% of ${formatNumber(snapshot.leadsGenerated)} leads`}
-              delta={{
-                value: `${qualifiedDeltaPct >= 0 ? "+" : ""}${qualifiedDeltaPct.toFixed(1)}%`,
-                direction: qualifiedDeltaPct > 0 ? "up" : qualifiedDeltaPct < 0 ? "down" : "flat",
-                tone: qualifiedDeltaPct > 0 ? "good" : qualifiedDeltaPct < 0 ? "bad" : "neutral"
-              }}
+              helper={`${leadToQualifiedPct.toFixed(0)}% of ${formatNumber(snapshot.leadsGenerated)} leads`}
+              delta={{ value: "+0.0%", direction: "flat", tone: "neutral" }}
               deltaLabel="vs last month"
             />
             <KpiCard
               label="Meetings Completed"
               value={formatNumber(snapshot.meetingsCompleted)}
-              helper={`${completedPctOfScheduled.toFixed(0)}% of ${formatNumber(snapshot.meetingsScheduled)} scheduled`}
-              delta={{
-                value: `${meetingsDeltaPct >= 0 ? "+" : ""}${meetingsDeltaPct.toFixed(1)}%`,
-                direction: meetingsDeltaPct > 0 ? "up" : meetingsDeltaPct < 0 ? "down" : "flat",
-                tone: meetingsDeltaPct > 0 ? "good" : meetingsDeltaPct < 0 ? "bad" : "neutral"
-              }}
+              helper={`${qualifiedToMeetingPct.toFixed(0)}% of ${formatNumber(snapshot.qualifiedLeads)} qualified`}
+              delta={{ value: "+0.0%", direction: "flat", tone: "neutral" }}
               deltaLabel="vs last month"
+            />
+            <KpiCard
+              label="Trend (qualified)"
+              value={formatNumber(trend.qualified.at(-1) ?? 0)}
+              helper="Last 6 months"
+              delta={{ value: "+0.0%", direction: "flat", tone: "neutral" }}
+              deltaLabel=""
             />
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-12">
             <Surface className="md:col-span-7">
               <div className="mb-4">
-                <div className="text-lg font-semibold text-white/90">Digital Contribution to Sales Funnel</div>
-                <div className="mt-1 text-sm text-white/55">Target vs actual (dummy)</div>
+                <div className="text-lg font-semibold text-white/90">Digital Contribution to Funnel</div>
+                <div className="mt-1 text-sm text-white/55">Target vs actual</div>
               </div>
 
               <FunnelComparisonLineChart
@@ -393,15 +425,18 @@ export default function DigitalMonthlySnapshotPage() {
                 <div className="text-sm text-white/55">This month</div>
               </div>
               <div className="mb-2 text-sm font-semibold text-white/80">Leads → Qualified → Meetings</div>
-              <div className="text-sm text-white/55">
-                Conversion rates (no raw counts).
-              </div>
+              <div className="text-sm text-white/55">Conversion rates from actuals.</div>
 
               <div className="mt-5">
                 <ConversionFlow
                   steps={[
                     { from: "Leads", to: "Qualified", percent: leadToQualifiedPct, colorClassName: "bg-emerald-400" },
-                    { from: "Qualified", to: "Meeting", percent: qualifiedToMeetingPct, colorClassName: "bg-fuchsia-400" }
+                    {
+                      from: "Qualified",
+                      to: "Meeting",
+                      percent: qualifiedToMeetingPct,
+                      colorClassName: "bg-fuchsia-400"
+                    }
                   ]}
                 />
               </div>
@@ -435,5 +470,3 @@ export default function DigitalMonthlySnapshotPage() {
     </main>
   );
 }
-
-
