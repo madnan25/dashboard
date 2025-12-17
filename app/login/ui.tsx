@@ -26,28 +26,34 @@ export default function LoginForm() {
     setSuccess(null);
 
     try {
-      const supabase = createClient();
-      const emailRedirectTo = `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(
-        redirectTo
-      )}`;
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo }
+      const res = await fetch("/auth/magic-link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email,
+          redirectTo,
+          origin: window.location.origin
+        })
       });
-      if (otpError) {
-        const msg = otpError.message.toLowerCase();
-        // When "Disable new user signups" is enabled in Supabase Auth,
-        // requesting OTP for a non-existent user returns a "signups not allowed" style error.
-        // We convert that into a clear UX message.
-        if (msg.includes("signup") || msg.includes("sign up") || msg.includes("not allowed") || msg.includes("user not found")) {
+
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as null | { error?: string };
+        const code = payload?.error;
+        if (res.status === 404 || code === "user_not_found") {
           setStatus("error");
           setError("User does not exist. Ask an admin to invite you.");
           return;
         }
+        if (code === "server_not_configured") {
+          setStatus("error");
+          setError("Server auth is not configured. Missing Supabase service role key.");
+          return;
+        }
         setStatus("error");
-        setError(otpError.message);
+        setError("Could not send magic link. Please try again.");
         return;
       }
+
       setStatus("success");
       setSuccess("Magic link sent. Check your email to finish signing in.");
     } catch (err) {
