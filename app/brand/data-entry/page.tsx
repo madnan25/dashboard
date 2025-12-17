@@ -52,6 +52,14 @@ function channelLabel(channel: PlanChannel) {
   }
 }
 
+function planDisplayName(monthLabel: string, status: PlanVersion["status"], active: boolean) {
+  if (status === "approved") return `${monthLabel} – Approved plan`;
+  if (status === "submitted") return `${monthLabel} – Submitted for approval`;
+  if (status === "rejected") return `${monthLabel} – Rejected plan`;
+  if (active) return `${monthLabel} – Active plan`;
+  return `${monthLabel} – Draft plan`;
+}
+
 type ChannelForm = {
   expected_leads: string;
   qualification_percent: string;
@@ -556,8 +564,7 @@ export default function BrandDataEntryPage() {
                       </option>
                       {planVersions.map((v) => (
                         <option key={v.id} value={v.id} className="bg-zinc-900">
-                          {v.status.toUpperCase()}
-                          {v.active ? " (ACTIVE)" : ""} · {new Date(v.created_at).toLocaleString()}
+                          {planDisplayName(monthLabel, v.status, v.active)} · {new Date(v.created_at).toLocaleString()}
                         </option>
                       ))}
                     </select>

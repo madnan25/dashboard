@@ -31,6 +31,14 @@ function toNumber(value: string) {
   return Number.isFinite(v) ? v : null;
 }
 
+function planDisplayName(monthLabel: string, status: PlanVersion["status"], active: boolean) {
+  if (status === "approved") return `${monthLabel} – Approved plan`;
+  if (status === "submitted") return `${monthLabel} – Submitted for approval`;
+  if (status === "rejected") return `${monthLabel} – Rejected plan`;
+  if (active) return `${monthLabel} – Active plan`;
+  return `${monthLabel} – Draft plan`;
+}
+
 export default function CmoProjectsPage() {
   const [year, setYear] = useState(2025);
   const [monthIndex, setMonthIndex] = useState(11);
@@ -446,7 +454,7 @@ export default function CmoProjectsPage() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="text-sm text-white/80">
                           <div className="flex items-center gap-2">
-                            <div className="font-semibold text-white/90">{v.status.toUpperCase()}</div>
+                            <div className="font-semibold text-white/90">{planDisplayName(monthLabel, v.status, v.active)}</div>
                             {v.active ? (
                               <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/75">
                                 ACTIVE
