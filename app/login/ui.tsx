@@ -13,8 +13,6 @@ export default function LoginForm() {
   const redirectTo = useMemo(() => searchParams.get("redirectTo") ?? "/", [searchParams]);
 
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"password" | "magic" | "reset">("password");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -29,54 +27,29 @@ export default function LoginForm() {
 
     try {
       const supabase = createClient();
-      if (mode === "password") {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        if (signInError) {
-          setStatus("error");
-          setError(signInError.message);
-          return;
-        }
-
-        router.replace(redirectTo);
-        router.refresh();
-        return;
-      }
-
-      if (mode === "magic") {
-        const emailRedirectTo = `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(
-          redirectTo
-        )}`;
-        const { error: otpError } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo }
-        });
-        if (otpError) {
-          setStatus("error");
-          setError(otpError.message);
-          return;
-        }
-        setStatus("success");
-        setSuccess("Magic link sent. Check your email to finish signing in.");
-        return;
-      }
-
-      // reset
-      const resetRedirectTo = `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(
-        "/set-password"
+      const emailRedirectTo = `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(
+        redirectTo
       )}`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: resetRedirectTo
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo }
       });
-      if (resetError) {
+      if (otpError) {
+        const msg = otpError.message.toLowerCase();
+        // When "Disable new user signups" is enabled in Supabase Auth,
+        // requesting OTP for a non-existent user returns a "signups not allowed" style error.
+        // We convert that into a clear UX message.
+        if (msg.includes("signup") || msg.includes("sign up") || msg.includes("not allowed") || msg.includes("user not found")) {
+          setStatus("error");
+          setError("User does not exist. Ask an admin to invite you.");
+          return;
+        }
         setStatus("error");
-        setError(resetError.message);
+        setError(otpError.message);
         return;
       }
       setStatus("success");
-      setSuccess("Password reset email sent. Use it to set a password.");
+      setSuccess("Magic link sent. Check your email to finish signing in.");
     } catch (err) {
       setStatus("error");
       setError(err instanceof Error ? err.message : "Login failed.");
@@ -125,7 +98,7 @@ export default function LoginForm() {
                   </div>
                   <div className="text-3xl font-semibold tracking-tight text-white/95">Sign in</div>
                   <div className="text-sm leading-relaxed text-white/55">
-                    Enter your credentials to access targets, plans, and performance tracking.
+                  Enter your email and we’ll send a magic link to verify your session.
                   </div>
                 </div>
                 <div className="hidden sm:block text-right text-xs text-white/45">
@@ -143,36 +116,6 @@ export default function LoginForm() {
                 ) : null}
 
                 <form onSubmit={onSubmit} className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={mode === "password" ? "solid" : "flat"}
-                      className={mode === "password" ? "text-white" : "glass-inset text-white/75"}
-                      onPress={() => setMode("password")}
-                    >
-                      Password
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={mode === "magic" ? "solid" : "flat"}
-                      className={mode === "magic" ? "text-white" : "glass-inset text-white/75"}
-                      onPress={() => setMode("magic")}
-                    >
-                      Magic link
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={mode === "reset" ? "solid" : "flat"}
-                      className={mode === "reset" ? "text-white" : "glass-inset text-white/75"}
-                      onPress={() => setMode("reset")}
-                    >
-                      Set password
-                    </Button>
-                  </div>
-
                   <div className="space-y-1">
                     <div className="text-xs uppercase tracking-widest text-white/45">Email</div>
                     <Input
@@ -193,28 +136,6 @@ export default function LoginForm() {
                     />
                   </div>
 
-                  {mode === "password" ? (
-                    <div className="space-y-1">
-                      <div className="text-xs uppercase tracking-widest text-white/45">Password</div>
-                      <Input
-                        type="password"
-                        value={password}
-                        onValueChange={setPassword}
-                        isRequired
-                        autoComplete="current-password"
-                        placeholder="••••••••••••"
-                        variant="bordered"
-                        classNames={{
-                          base: "w-full",
-                          inputWrapper:
-                            "glass-inset rounded-2xl border-white/10 bg-white/[0.02] hover:bg-white/[0.03] focus-within:ring-1 focus-within:ring-white/15",
-                          input: "text-white/90 placeholder:text-white/25",
-                          label: "hidden"
-                        }}
-                      />
-                    </div>
-                  ) : null}
-
                   {status === "success" && success ? (
                     <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
                       {success}
@@ -233,13 +154,7 @@ export default function LoginForm() {
                     isDisabled={envMissing || status === "loading"}
                     className="w-full rounded-2xl shadow-[0_10px_40px_rgba(59,130,246,0.15)]"
                   >
-                    {status === "loading"
-                      ? "Working..."
-                      : mode === "password"
-                        ? "Enter workspace"
-                        : mode === "magic"
-                          ? "Send magic link"
-                          : "Send password reset"}
+                    {status === "loading" ? "Sending..." : "Send magic link"}
                   </Button>
 
                   <div className="flex items-center justify-between pt-1 text-xs text-white/45">
