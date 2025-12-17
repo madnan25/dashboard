@@ -18,6 +18,9 @@ export default function HomePage() {
               <Button as={Link} href="/design" size="sm" variant="flat" className="glass-inset text-white/80">
                 Design System
               </Button>
+              <Button as={Link} href="/logout" size="sm" variant="flat" className="glass-inset text-white/80">
+                Logout
+              </Button>
             </div>
           </div>
         </PageShell>
