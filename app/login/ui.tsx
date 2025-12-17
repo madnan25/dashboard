@@ -36,6 +36,13 @@ export default function LoginForm() {
         })
       });
 
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("application/json")) {
+        setStatus("error");
+        setError("Login is misconfigured (auth endpoint was redirected). Refresh and try again.");
+        return;
+      }
+
       if (!res.ok) {
         const payload = (await res.json().catch(() => null)) as null | { error?: string };
         const code = payload?.error;
