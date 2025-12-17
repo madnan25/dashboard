@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+html,
+body {
+  height: 100%;
+}
+
+/* App base */
+html,
+body {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+html {
+  /* fallback behind the backdrop */
+  background: #05060a;
+}
+
+/* Backdrop layer (fixed, no blur/attachment to avoid scroll seam artifacts) */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 650px at 18% 0%, rgba(124, 58, 237, 0.22), rgba(0, 0, 0, 0) 72%),
+    radial-gradient(1200px 760px at 82% 8%, rgba(59, 130, 246, 0.16), rgba(0, 0, 0, 0) 74%),
+    radial-gradient(1300px 900px at 50% 110%, rgba(16, 185, 129, 0.12), rgba(0, 0, 0, 0) 76%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.94));
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.app-content {
+  position: relative;
+  z-index: 1;
+}
+
+body {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* Subtle “glass” look for dark surfaces */
+.glass-surface {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.40),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+.glass-inset {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+
