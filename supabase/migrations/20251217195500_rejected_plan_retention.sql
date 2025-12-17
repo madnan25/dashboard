@@ -26,17 +26,21 @@ $$;
 do $$
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    -- Idempotent schedule: remove if it exists, then add.
+    -- Idempotent schedule: unschedule existing job (if present), then add.
+    declare v_jobid int;
     begin
-      perform cron.unschedule('purge_rejected_plan_versions_daily');
+      select jobid into v_jobid from cron.job where jobname = 'purge_rejected_plan_versions_daily' limit 1;
+      if v_jobid is not null then
+        perform cron.unschedule(v_jobid);
+      end if;
     exception when others then
-      -- ignore if not scheduled yet
+      -- ignore if cron schema differs / not accessible
     end;
 
     perform cron.schedule(
       'purge_rejected_plan_versions_daily',
       '0 3 * * *',
-      $$select public.purge_rejected_plan_versions();$$
+      $cmd$select public.purge_rejected_plan_versions();$cmd$
     );
   end if;
 end $$;
