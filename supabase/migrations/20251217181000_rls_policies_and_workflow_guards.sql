@@ -1,7 +1,5 @@
 -- RLS policies + workflow guards
 
-begin;
-
 -- Helper: is user assigned to a project as brand manager?
 create or replace function public.is_assigned_to_project(p_project_id uuid)
 returns boolean
@@ -290,6 +288,4 @@ drop trigger if exists trg_guard_plan_channel_inputs_write on public.project_pla
 create trigger trg_guard_plan_channel_inputs_write
 before insert or update on public.project_plan_channel_inputs
 for each row execute function public.guard_plan_channel_inputs_write();
-
-commit;
 
