@@ -2,19 +2,8 @@
 -- Roles: cmo (admin), brand_manager, sales_ops
 -- Tenancy: single-org (no org_id); can be extended later.
 
-begin;
-
 -- Extensions
 create extension if not exists pgcrypto;
-
--- Helper: role lookup based on auth.uid()
-create or replace function public.current_user_role()
-returns text
-language sql
-stable
-as $$
-  select p.role from public.profiles p where p.id = auth.uid()
-$$;
 
 -- Profiles (1:1 with auth.users)
 create table if not exists public.profiles (
@@ -24,6 +13,16 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Helper: role lookup based on auth.uid()
+-- (Overridden later by a SECURITY DEFINER version, but this keeps dependencies simple.)
+create or replace function public.current_user_role()
+returns text
+language sql
+stable
+as $$
+  select p.role from public.profiles p where p.id = auth.uid()
+$$;
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -190,6 +189,3 @@ drop trigger if exists set_project_actuals_updated_at on public.project_actuals;
 create trigger set_project_actuals_updated_at
 before update on public.project_actuals
 for each row execute function public.set_updated_at();
-
-commit;
-

@@ -1,7 +1,5 @@
 -- Auth profile bootstrap + SECURITY DEFINER helpers (required for RLS-heavy setups)
 
-begin;
-
 -- Make role/assignment helpers SECURITY DEFINER so policies/triggers don't deadlock on RLS.
 create or replace function public.current_user_role()
 returns text
@@ -48,6 +46,3 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
-
-commit;
-

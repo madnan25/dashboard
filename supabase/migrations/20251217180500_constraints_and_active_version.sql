@@ -1,28 +1,42 @@
 -- Constraints + active-version enforcement
 
-begin;
-
 -- Percent constraints
-alter table public.project_plan_channel_inputs
-  add constraint if not exists chk_qualification_percent_range
-  check (qualification_percent >= 0 and qualification_percent <= 100);
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'chk_qualification_percent_range') then
+    alter table public.project_plan_channel_inputs
+      add constraint chk_qualification_percent_range
+      check (qualification_percent >= 0 and qualification_percent <= 100);
+  end if;
 
-alter table public.project_plan_channel_inputs
-  add constraint if not exists chk_target_contribution_percent_range
-  check (target_contribution_percent >= 0 and target_contribution_percent <= 100);
+  if not exists (select 1 from pg_constraint where conname = 'chk_target_contribution_percent_range') then
+    alter table public.project_plan_channel_inputs
+      add constraint chk_target_contribution_percent_range
+      check (target_contribution_percent >= 0 and target_contribution_percent <= 100);
+  end if;
+end $$;
 
 -- Non-negative money constraints
-alter table public.project_targets
-  add constraint if not exists chk_project_targets_non_negative
-  check (sales_target_sqft >= 0 and avg_sqft_per_deal >= 0 and total_budget >= 0);
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'chk_project_targets_non_negative') then
+    alter table public.project_targets
+      add constraint chk_project_targets_non_negative
+      check (sales_target_sqft >= 0 and avg_sqft_per_deal >= 0 and total_budget >= 0);
+  end if;
 
-alter table public.project_plan_channel_inputs
-  add constraint if not exists chk_plan_channel_budgets_non_negative
-  check (allocated_budget >= 0);
+  if not exists (select 1 from pg_constraint where conname = 'chk_plan_channel_budgets_non_negative') then
+    alter table public.project_plan_channel_inputs
+      add constraint chk_plan_channel_budgets_non_negative
+      check (allocated_budget >= 0);
+  end if;
 
-alter table public.project_actuals
-  add constraint if not exists chk_project_actuals_non_negative
-  check (leads >= 0 and qualified_leads >= 0 and meetings_scheduled >= 0 and meetings_done >= 0);
+  if not exists (select 1 from pg_constraint where conname = 'chk_project_actuals_non_negative') then
+    alter table public.project_actuals
+      add constraint chk_project_actuals_non_negative
+      check (leads >= 0 and qualified_leads >= 0 and meetings_scheduled >= 0 and meetings_done >= 0);
+  end if;
+end $$;
 
 -- Only one active plan version per project/month
 create unique index if not exists uniq_active_plan_per_project_month
@@ -70,6 +84,3 @@ drop trigger if exists trg_ensure_single_active_plan_version on public.project_p
 create trigger trg_ensure_single_active_plan_version
 after insert or update of active on public.project_plan_versions
 for each row execute function public.ensure_single_active_plan_version();
-
-commit;
-
