@@ -79,6 +79,26 @@ export async function listProjects(): Promise<Project[]> {
   return (data as Project[]) ?? [];
 }
 
+export async function createProject(name: string): Promise<Project> {
+  const supabase = createClient();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Project name is required.");
+
+  const { data, error } = await supabase
+    .from("projects")
+    .insert({ name: trimmed, is_active: true })
+    .select("id, name, is_active")
+    .single();
+  if (error) throw error;
+  return data as Project;
+}
+
+export async function updateProject(projectId: string, patch: Partial<Pick<Project, "name" | "is_active">>): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("projects").update(patch).eq("id", projectId);
+  if (error) throw error;
+}
+
 export async function getProjectTargets(projectId: string, year: number, month: number): Promise<ProjectTargets | null> {
   const supabase = createClient();
   const { data, error } = await supabase

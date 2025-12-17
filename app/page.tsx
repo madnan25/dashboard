@@ -28,6 +28,20 @@ export default function HomePage() {
           <Surface>
             <div className="flex h-full flex-col justify-between gap-4">
               <div>
+                <div className="text-lg font-semibold text-white/90">Projects</div>
+                <div className="mt-1 text-sm text-white/55">Open a project to view Master + channel reports.</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button as={Link} href="/projects" color="primary">
+                  Open projects
+                </Button>
+              </div>
+            </div>
+          </Surface>
+
+          <Surface>
+            <div className="flex h-full flex-col justify-between gap-4">
+              <div>
                 <div className="text-lg font-semibold text-white/90">Digital – Monthly Snapshot</div>
                 <div className="mt-1 text-sm text-white/55">
                   View KPIs and funnel contribution for a selected month (uses saved inputs if provided).
