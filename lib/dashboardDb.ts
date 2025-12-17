@@ -57,6 +57,11 @@ export type ProjectActuals = {
   qualified_leads: number;
   meetings_scheduled: number;
   meetings_done: number;
+  deals_won: number;
+  sqft_won: number;
+  spend_digital: number;
+  spend_inbound: number;
+  spend_activations: number;
 };
 
 export async function getCurrentProfile(): Promise<Profile | null> {
@@ -231,7 +236,9 @@ export async function getProjectActuals(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("project_actuals")
-    .select("project_id, year, month, leads, qualified_leads, meetings_scheduled, meetings_done")
+    .select(
+      "project_id, year, month, leads, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won, spend_digital, spend_inbound, spend_activations"
+    )
     .eq("project_id", projectId)
     .eq("year", year)
     .eq("month", month)

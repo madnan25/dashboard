@@ -107,7 +107,12 @@ export default function BrandDataEntryPage() {
     leads: "0",
     qualified_leads: "0",
     meetings_scheduled: "0",
-    meetings_done: "0"
+    meetings_done: "0",
+    deals_won: "0",
+    sqft_won: "0",
+    spend_digital: "0",
+    spend_inbound: "0",
+    spend_activations: "0"
   });
 
   const [status, setStatus] = useState<string>("");
@@ -171,7 +176,12 @@ export default function BrandDataEntryPage() {
           leads: String(a?.leads ?? 0),
           qualified_leads: String(a?.qualified_leads ?? 0),
           meetings_scheduled: String(a?.meetings_scheduled ?? 0),
-          meetings_done: String(a?.meetings_done ?? 0)
+          meetings_done: String(a?.meetings_done ?? 0),
+          deals_won: String(a?.deals_won ?? 0),
+          sqft_won: String(a?.sqft_won ?? 0),
+          spend_digital: String(a?.spend_digital ?? 0),
+          spend_inbound: String(a?.spend_inbound ?? 0),
+          spend_activations: String(a?.spend_activations ?? 0)
         });
       } catch (e) {
         if (cancelled) return;
@@ -254,7 +264,12 @@ export default function BrandDataEntryPage() {
       leads: String(a?.leads ?? 0),
       qualified_leads: String(a?.qualified_leads ?? 0),
       meetings_scheduled: String(a?.meetings_scheduled ?? 0),
-      meetings_done: String(a?.meetings_done ?? 0)
+      meetings_done: String(a?.meetings_done ?? 0),
+      deals_won: String(a?.deals_won ?? 0),
+      sqft_won: String(a?.sqft_won ?? 0),
+      spend_digital: String(a?.spend_digital ?? 0),
+      spend_inbound: String(a?.spend_inbound ?? 0),
+      spend_activations: String(a?.spend_activations ?? 0)
     });
   }
 
@@ -358,8 +373,23 @@ export default function BrandDataEntryPage() {
     const qualified_leads = toNumber(actualsForm.qualified_leads);
     const meetings_scheduled = toNumber(actualsForm.meetings_scheduled);
     const meetings_done = toNumber(actualsForm.meetings_done);
+    const deals_won = toNumber(actualsForm.deals_won);
+    const sqft_won = toNumber(actualsForm.sqft_won);
+    const spend_digital = toNumber(actualsForm.spend_digital);
+    const spend_inbound = toNumber(actualsForm.spend_inbound);
+    const spend_activations = toNumber(actualsForm.spend_activations);
 
-    if (leads == null || qualified_leads == null || meetings_scheduled == null || meetings_done == null) {
+    if (
+      leads == null ||
+      qualified_leads == null ||
+      meetings_scheduled == null ||
+      meetings_done == null ||
+      deals_won == null ||
+      sqft_won == null ||
+      spend_digital == null ||
+      spend_inbound == null ||
+      spend_activations == null
+    ) {
       setStatus("Please enter valid numbers for actuals.");
       return;
     }
@@ -372,7 +402,12 @@ export default function BrandDataEntryPage() {
       leads,
       qualified_leads,
       meetings_scheduled,
-      meetings_done
+      meetings_done,
+      deals_won,
+      sqft_won,
+      spend_digital,
+      spend_inbound,
+      spend_activations
     });
     setStatus("Actuals saved.");
     await refresh();
@@ -428,8 +463,13 @@ export default function BrandDataEntryPage() {
                   </option>
                 ))}
               </select>
-              <Button as={Link} href="/digital/monthly-snapshot" variant="flat" className="glass-inset text-white/80">
-                Open Monthly Snapshot
+              <Button
+                as={Link}
+                href={projectId ? `/projects/${projectId}/digital` : "/projects"}
+                variant="flat"
+                className="glass-inset text-white/80"
+              >
+                Open Digital Snapshot
               </Button>
             </div>
           </div>
@@ -704,6 +744,45 @@ export default function BrandDataEntryPage() {
                 value={actualsForm.meetings_done}
                 onValueChange={(v) => setActualsForm((s) => ({ ...s, meetings_done: v }))}
               />
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <NumberInput
+                label="Deals won"
+                unit="deals"
+                value={actualsForm.deals_won}
+                onValueChange={(v) => setActualsForm((s) => ({ ...s, deals_won: v }))}
+              />
+              <NumberInput
+                label="Sqft won"
+                unit="sqft"
+                value={actualsForm.sqft_won}
+                onValueChange={(v) => setActualsForm((s) => ({ ...s, sqft_won: v }))}
+              />
+            </div>
+
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-widest text-white/45">Spend (actual)</div>
+              <div className="mt-3 grid gap-4 md:grid-cols-3">
+                <NumberInput
+                  label="Digital spend"
+                  unit="PKR"
+                  value={actualsForm.spend_digital}
+                  onValueChange={(v) => setActualsForm((s) => ({ ...s, spend_digital: v }))}
+                />
+                <NumberInput
+                  label="Inbound spend"
+                  unit="PKR"
+                  value={actualsForm.spend_inbound}
+                  onValueChange={(v) => setActualsForm((s) => ({ ...s, spend_inbound: v }))}
+                />
+                <NumberInput
+                  label="Activations spend"
+                  unit="PKR"
+                  value={actualsForm.spend_activations}
+                  onValueChange={(v) => setActualsForm((s) => ({ ...s, spend_activations: v }))}
+                />
+              </div>
             </div>
 
             {actuals ? (
