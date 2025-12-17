@@ -26,33 +26,24 @@ export default function LoginForm() {
     setSuccess(null);
 
     try {
-      const res = await fetch("/auth/magic-link", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email,
-          redirectTo
-        })
+      const supabase = createClient();
+      const emailRedirectTo = `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(
+        redirectTo
+      )}`;
+
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo,
+          shouldCreateUser: false
+        }
       });
 
-      const contentType = res.headers.get("content-type") ?? "";
-      if (!contentType.includes("application/json")) {
-        setStatus("error");
-        setError("Login is misconfigured (auth endpoint was redirected). Refresh and try again.");
-        return;
-      }
-
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as null | { error?: string };
-        const code = payload?.error;
-        if (res.status === 404 || code === "user_not_found") {
+      if (otpError) {
+        const msg = (otpError.message ?? "").toLowerCase();
+        if (msg.includes("user not found") || msg.includes("signup") || msg.includes("sign up") || msg.includes("not allowed")) {
           setStatus("error");
           setError("User does not exist. Ask an admin to invite you.");
-          return;
-        }
-        if (code === "missing_public_env") {
-          setStatus("error");
-          setError("Supabase env vars are missing on the server. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
           return;
         }
         setStatus("error");
