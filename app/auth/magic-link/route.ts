@@ -20,7 +20,11 @@ export async function POST(request: NextRequest) {
   };
   const email = (body?.email ?? "").trim();
   const redirectTo = typeof body?.redirectTo === "string" ? body.redirectTo : "/";
-  const origin = new URL(request.url).origin;
+  // Prefer forwarded headers (Vercel/proxies) so we don't accidentally build localhost origins.
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const forwardedHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const origin =
+    forwardedProto && forwardedHost ? `${forwardedProto}://${forwardedHost}` : new URL(request.url).origin;
 
   if (!email || !isValidEmail(email)) return json(400, { error: "invalid_email" });
 
