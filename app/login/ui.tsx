@@ -51,19 +51,9 @@ export default function LoginForm() {
           setError("User does not exist. Ask an admin to invite you.");
           return;
         }
-        if (code === "missing_service_role") {
-          setStatus("error");
-          setError("Server auth is not configured. Missing Supabase service role key.");
-          return;
-        }
         if (code === "missing_public_env") {
           setStatus("error");
           setError("Supabase env vars are missing on the server. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
-          return;
-        }
-        if (code === "admin_lookup_failed") {
-          setStatus("error");
-          setError("Server auth is misconfigured (cannot check user existence). Verify SUPABASE_SERVICE_ROLE_KEY and project URL.");
           return;
         }
         setStatus("error");
