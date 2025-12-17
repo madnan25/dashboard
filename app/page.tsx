@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button } from "@heroui/react";
 import { PageShell, Surface } from "@/components/ds/Surface";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 
 export default function HomePage() {
   return (
@@ -18,9 +19,7 @@ export default function HomePage() {
               <Button as={Link} href="/design" size="sm" variant="flat" className="glass-inset text-white/80">
                 Design System
               </Button>
-              <Button as={Link} href="/logout" size="sm" variant="flat" className="glass-inset text-white/80">
-                Logout
-              </Button>
+              <LogoutButton size="sm" variant="flat" className="glass-inset text-white/80" />
             </div>
           </div>
         </PageShell>
