@@ -10,10 +10,14 @@ import { MONTHS } from "@/lib/digitalSnapshot";
 import {
   Project,
   ProjectTargets,
+  PlanVersion,
+  approvePlanVersion,
   createProject,
   getCurrentProfile,
   getProjectTargets,
+  listPlanVersions,
   listProjects,
+  rejectPlanVersion,
   updateProject,
   upsertProjectTargets
 } from "@/lib/dashboardDb";
@@ -47,6 +51,8 @@ export default function CmoProjectsPage() {
     avg_sqft_per_deal: "0",
     total_budget: "0"
   });
+
+  const [planVersions, setPlanVersions] = useState<PlanVersion[]>([]);
 
   const envMissing =
     typeof window !== "undefined" &&
@@ -96,7 +102,10 @@ export default function CmoProjectsPage() {
     async function load() {
       if (!projectId || envMissing) return;
       try {
-        const t = await getProjectTargets(projectId, year, month);
+        const [t, versions] = await Promise.all([
+          getProjectTargets(projectId, year, month),
+          listPlanVersions(projectId, year, month)
+        ]);
         if (cancelled) return;
         setTargets(t);
         setTargetsForm({
@@ -104,6 +113,7 @@ export default function CmoProjectsPage() {
           avg_sqft_per_deal: String(t?.avg_sqft_per_deal ?? 0),
           total_budget: String(t?.total_budget ?? 0)
         });
+        setPlanVersions(versions);
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load targets");
@@ -157,6 +167,34 @@ export default function CmoProjectsPage() {
       await refreshTargets(projectId);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to save targets");
+    }
+  }
+
+  async function refreshVersions() {
+    if (!projectId) return;
+    const versions = await listPlanVersions(projectId, year, month);
+    setPlanVersions(versions);
+  }
+
+  async function onApprove(versionId: string) {
+    try {
+      setStatus("Approving...");
+      await approvePlanVersion(versionId);
+      setStatus("Approved and activated.");
+      await refreshVersions();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to approve");
+    }
+  }
+
+  async function onReject(versionId: string) {
+    try {
+      setStatus("Rejecting...");
+      await rejectPlanVersion(versionId);
+      setStatus("Rejected.");
+      await refreshVersions();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to reject");
     }
   }
 
@@ -331,42 +369,117 @@ export default function CmoProjectsPage() {
             </div>
           </Surface>
 
-          <Surface className="md:col-span-7">
-            <div className="text-lg font-semibold text-white/90">Targets & Budget</div>
-            <div className="mt-1 text-sm text-white/55">
-              For {monthLabel}. Brand team will allocate budgets across Digital, Inbound, Activations (cannot exceed cap).
-            </div>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <NumberInput
-                label="Sales target"
-                unit="sqft"
-                value={targetsForm.sales_target_sqft}
-                onValueChange={(v) => setTargetsForm((s) => ({ ...s, sales_target_sqft: v }))}
-              />
-              <NumberInput
-                label="Avg sqft per deal"
-                unit="sqft"
-                value={targetsForm.avg_sqft_per_deal}
-                onValueChange={(v) => setTargetsForm((s) => ({ ...s, avg_sqft_per_deal: v }))}
-              />
-              <NumberInput
-                label="Total budget cap"
-                unit="PKR"
-                value={targetsForm.total_budget}
-                onValueChange={(v) => setTargetsForm((s) => ({ ...s, total_budget: v }))}
-              />
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <div className="text-xs text-white/45">
-                Last saved: {targets ? `${targets.month}/${targets.year}` : "—"}
+          <div className="md:col-span-7 grid gap-4">
+            <Surface>
+              <div className="text-lg font-semibold text-white/90">Targets & Budget</div>
+              <div className="mt-1 text-sm text-white/55">
+                For {monthLabel}. Brand team will allocate budgets across Digital, Inbound, Activations (cannot exceed cap).
               </div>
-              <Button color="primary" onPress={onSaveTargets} isDisabled={!projectId}>
-                Save targets
-              </Button>
-            </div>
-          </Surface>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <NumberInput
+                  label="Sales target"
+                  unit="sqft"
+                  value={targetsForm.sales_target_sqft}
+                  onValueChange={(v) => setTargetsForm((s) => ({ ...s, sales_target_sqft: v }))}
+                />
+                <NumberInput
+                  label="Avg sqft per deal"
+                  unit="sqft"
+                  value={targetsForm.avg_sqft_per_deal}
+                  onValueChange={(v) => setTargetsForm((s) => ({ ...s, avg_sqft_per_deal: v }))}
+                />
+                <NumberInput
+                  label="Total budget cap"
+                  unit="PKR"
+                  value={targetsForm.total_budget}
+                  onValueChange={(v) => setTargetsForm((s) => ({ ...s, total_budget: v }))}
+                />
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="text-xs text-white/45">
+                  Last saved: {targets ? `${targets.month}/${targets.year}` : "—"}
+                </div>
+                <Button color="primary" onPress={onSaveTargets} isDisabled={!projectId}>
+                  Save targets
+                </Button>
+              </div>
+            </Surface>
+
+            <Surface>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-lg font-semibold text-white/90">Approvals</div>
+                  <div className="mt-1 text-sm text-white/55">
+                    Brand Managers must <span className="text-white/80">Submit for approval</span> from{" "}
+                    <Link className="underline text-white/75" href="/brand/data-entry">
+                      Data Entry
+                    </Link>
+                    . Only <span className="text-white/80">SUBMITTED</span> plans can be approved/rejected.
+                  </div>
+                </div>
+                <Button as={Link} href="/brand/data-entry" size="sm" variant="flat" className="glass-inset text-white/80">
+                  Open data entry
+                </Button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {planVersions.filter((v) => v.status === "submitted").length === 0 ? (
+                  <div className="glass-inset rounded-xl p-4 text-sm text-white/60">
+                    No submitted plans for this project/month yet.
+                  </div>
+                ) : null}
+
+                {planVersions.map((v) => {
+                  const tone =
+                    v.status === "approved"
+                      ? "border-emerald-300/20 bg-emerald-500/10"
+                      : v.status === "submitted"
+                        ? "border-blue-300/20 bg-blue-500/10"
+                        : v.status === "rejected"
+                          ? "border-red-300/20 bg-red-500/10"
+                          : "border-white/10 bg-white/[0.03]";
+
+                  return (
+                    <div key={v.id} className={`rounded-2xl border ${tone} p-4`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="text-sm text-white/80">
+                          <div className="flex items-center gap-2">
+                            <div className="font-semibold text-white/90">{v.status.toUpperCase()}</div>
+                            {v.active ? (
+                              <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/75">
+                                ACTIVE
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 text-white/55">Created: {new Date(v.created_at).toLocaleString()}</div>
+                          <div className="text-white/55">ID: {v.id.slice(0, 8)}…</div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {v.status === "submitted" ? (
+                            <>
+                              <Button color="primary" onPress={() => onApprove(v.id)}>
+                                Approve
+                              </Button>
+                              <Button variant="flat" className="glass-inset text-white/80" onPress={() => onReject(v.id)}>
+                                Reject
+                              </Button>
+                            </>
+                          ) : (
+                            <Button as={Link} href={`/brand/data-entry`} variant="flat" className="glass-inset text-white/80">
+                              View / edit
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Surface>
+          </div>
         </div>
       </div>
     </main>
