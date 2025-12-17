@@ -13,6 +13,7 @@ import {
   PlanVersion,
   approvePlanVersion,
   createProject,
+  deletePlanVersion,
   getCurrentProfile,
   getProjectTargets,
   listPlanVersions,
@@ -203,6 +204,18 @@ export default function CmoProjectsPage() {
       await refreshVersions();
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to reject");
+    }
+  }
+
+  async function onDelete(versionId: string) {
+    if (!confirm("Delete this draft? This cannot be undone.")) return;
+    try {
+      setStatus("Deleting...");
+      await deletePlanVersion(versionId);
+      setStatus("Deleted.");
+      await refreshVersions();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to delete");
     }
   }
 
@@ -472,19 +485,25 @@ export default function CmoProjectsPage() {
                                 Approve now
                               </Button>
                               {v.status !== "rejected" ? (
-                                <Button
-                                  variant="flat"
-                                  className="glass-inset text-white/80"
-                                  onPress={() => onReject(v.id)}
-                                >
+                                <Button variant="flat" className="glass-inset text-white/80" onPress={() => onReject(v.id)}>
                                   Reject
+                                </Button>
+                              ) : null}
+                              {v.status === "draft" ? (
+                                <Button variant="flat" className="glass-inset text-white/80" onPress={() => onDelete(v.id)}>
+                                  Delete
                                 </Button>
                               ) : null}
                             </>
                           ) : (
-                            <Button as={Link} href={`/brand/data-entry`} variant="flat" className="glass-inset text-white/80">
-                              View / edit
-                            </Button>
+                            <>
+                              <Button variant="flat" className="glass-inset text-white/80" onPress={() => onReject(v.id)}>
+                                Reject approved
+                              </Button>
+                              <Button as={Link} href={`/brand/data-entry`} variant="flat" className="glass-inset text-white/80">
+                                View / edit
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>

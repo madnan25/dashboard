@@ -191,10 +191,17 @@ export async function rejectPlanVersion(planVersionId: string): Promise<void> {
     .update({
       status: "rejected",
       approved_by: userRes.user.id,
+      approved_at: null,
       rejected_at: new Date().toISOString(),
       active: false
     })
     .eq("id", planVersionId);
+  if (error) throw error;
+}
+
+export async function deletePlanVersion(planVersionId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("project_plan_versions").delete().eq("id", planVersionId);
   if (error) throw error;
 }
 
