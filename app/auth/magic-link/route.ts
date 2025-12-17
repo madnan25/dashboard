@@ -17,17 +17,21 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as null | {
     email?: string;
     redirectTo?: string;
-    origin?: string;
   };
   const email = (body?.email ?? "").trim();
   const redirectTo = typeof body?.redirectTo === "string" ? body.redirectTo : "/";
-  const origin = typeof body?.origin === "string" ? body.origin : null;
+  const origin = new URL(request.url).origin;
 
   if (!email || !isValidEmail(email)) return json(400, { error: "invalid_email" });
-  if (!origin) return json(400, { error: "missing_origin" });
 
   // Send magic link but DO NOT create new users.
-  const client = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
+  const client = createClient(supabaseUrl, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      flowType: "pkce"
+    }
+  });
   const emailRedirectTo = `${origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`;
   const { error } = await client.auth.signInWithOtp({
     email,

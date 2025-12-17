@@ -31,8 +31,7 @@ export default function LoginForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           email,
-          redirectTo,
-          origin: window.location.origin
+          redirectTo
         })
       });
 

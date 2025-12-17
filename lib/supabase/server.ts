@@ -9,6 +9,9 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient(url, anonKey, {
+    auth: {
+      flowType: "pkce"
+    },
     cookies: {
       getAll() {
         return cookieStore.getAll();
