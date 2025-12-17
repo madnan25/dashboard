@@ -30,22 +30,58 @@ function isJwtNotExpired(jwt: string) {
   }
 }
 
+function tryParseSupabaseAuthCookie(raw: string): { access_token?: string } | null {
+  const candidates = [raw];
+  try {
+    candidates.push(decodeURIComponent(raw));
+  } catch {
+    // ignore
+  }
+
+  for (const cand of candidates) {
+    try {
+      const parsed = JSON.parse(cand) as { access_token?: string };
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
 function extractAccessTokenFromCookies(request: NextRequest): string | null {
   // Legacy cookie names
   const legacy = request.cookies.get("sb-access-token")?.value;
   if (legacy) return legacy;
 
-  // Supabase SSR cookie: sb-<project-ref>-auth-token (JSON containing access_token)
-  for (const c of request.cookies.getAll()) {
-    if (!(c.name.startsWith("sb-") && c.name.endsWith("-auth-token"))) continue;
-    const raw = c.value;
-    try {
-      const decoded = decodeURIComponent(raw);
-      const parsed = JSON.parse(decoded) as { access_token?: string };
-      if (typeof parsed.access_token === "string" && parsed.access_token.length > 0) return parsed.access_token;
-    } catch {
-      // ignore
-    }
+  // Supabase SSR cookie can be either:
+  // - sb-<project-ref>-auth-token
+  // - sb-<project-ref>-auth-token.0 / .1 / ... (chunked)
+  const cookies = request.cookies.getAll();
+  const direct = cookies.find((c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token"));
+  if (direct) {
+    const parsed = tryParseSupabaseAuthCookie(direct.value);
+    if (typeof parsed?.access_token === "string" && parsed.access_token.length > 0) return parsed.access_token;
+  }
+
+  // Chunked: group by base name without .<index>
+  const chunkMap = new Map<string, Array<{ idx: number; value: string }>>();
+  for (const c of cookies) {
+    if (!c.name.startsWith("sb-")) continue;
+    const m = c.name.match(/^(sb-.*-auth-token)\.(\d+)$/);
+    if (!m) continue;
+    const base = m[1]!;
+    const idx = Number(m[2]!);
+    const arr = chunkMap.get(base) ?? [];
+    arr.push({ idx, value: c.value });
+    chunkMap.set(base, arr);
+  }
+
+  for (const [, chunks] of chunkMap) {
+    chunks.sort((a, b) => a.idx - b.idx);
+    const joined = chunks.map((c) => c.value).join("");
+    const parsed = tryParseSupabaseAuthCookie(joined);
+    if (typeof parsed?.access_token === "string" && parsed.access_token.length > 0) return parsed.access_token;
   }
 
   return null;
