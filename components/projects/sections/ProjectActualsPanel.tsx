@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { Button } from "@heroui/react";
 import { KpiCard } from "@/components/ds/KpiCard";
 import { Surface } from "@/components/ds/Surface";
 import { formatNumber } from "@/lib/format";
@@ -34,17 +32,6 @@ export function ProjectActualsPanel(props: {
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <KpiCard label="Deals concluded" value={formatNumber(actuals?.deals_won ?? 0)} helper={`Target: ${formatNumber(targets.deals)}`} />
         <KpiCard label="Sqft won" value={formatNumber(actuals?.sqft_won ?? 0)} helper="Sales Ops actual" />
-      </div>
-
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <Button as={Link} href="/brand/data-entry" variant="flat" className="glass-inset text-white/80">
-          Open planning & actuals entry
-        </Button>
-        {role === "cmo" ? (
-          <Button as={Link} href="/cmo/projects" variant="flat" className="glass-inset text-white/80">
-            Manage targets/projects
-          </Button>
-        ) : null}
       </div>
     </Surface>
   );
