@@ -115,8 +115,8 @@ export function ProjectHub(props: { projectId: string }) {
   }, [envMissing, month, projectId, selectedMonthIndex, selectedYear]);
 
   const totalBudgetCap = targets?.total_budget ?? 0;
-  const allocatedBudgetTotal = CHANNELS.reduce((sum, ch) => sum + (inputsByChannel[ch]?.allocated_budget ?? 0), 0);
-  const remainingBudget = Math.max(0, totalBudgetCap - allocatedBudgetTotal);
+  const budgetSpentTotal = (actuals?.spend_digital ?? 0) + (actuals?.spend_inbound ?? 0) + (actuals?.spend_activations ?? 0);
+  const budgetRemaining = Math.max(0, totalBudgetCap - budgetSpentTotal);
   const funnelTargets = useMemo(() => computeOverallFunnelTargets(targets, inputsByChannel), [inputsByChannel, targets]);
 
   return (
@@ -146,7 +146,7 @@ export function ProjectHub(props: { projectId: string }) {
           </Surface>
         ) : null}
 
-        <ProjectTargetsKpis targets={targets} allocatedBudgetTotal={allocatedBudgetTotal} remainingBudget={remainingBudget} />
+        <ProjectTargetsKpis targets={targets} budgetSpentTotal={budgetSpentTotal} budgetRemaining={budgetRemaining} />
 
         <ProjectReportNav projectId={projectId} />
 

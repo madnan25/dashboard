@@ -28,8 +28,9 @@ describe("computeTargetsFrom", () => {
     expect(out.dealsRequired).toBe(17);
     // 50% of 17 = 8.5 -> ceil 9
     expect(out.channelDealsRequired).toBe(9);
-    // meetings required = 2x deals
-    expect(out.qualifiedMeetingsRequired).toBe(18);
+    // meetings done required = 2x deals, meetings scheduled = 1.5x meetings done (ceil)
+    expect(out.meetingsDoneRequired).toBe(18);
+    expect(out.meetingsScheduledRequired).toBe(27);
     expect(out.targetLeads).toBe(1000);
     expect(out.targetQualifiedLeads).toBe(200);
   });
@@ -40,6 +41,7 @@ describe("computeTargetsFrom", () => {
     expect(out.channelDealsRequired).toBe(0);
     expect(out.targetLeads).toBe(0);
     expect(out.targetQualifiedLeads).toBe(0);
-    expect(out.qualifiedMeetingsRequired).toBe(0);
+    expect(out.meetingsDoneRequired).toBe(0);
+    expect(out.meetingsScheduledRequired).toBe(0);
   });
 });

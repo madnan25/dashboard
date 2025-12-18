@@ -197,8 +197,8 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
       targets: {
         leadsGenerated: computed.targetLeads,
         qualifiedLeads: computed.targetQualifiedLeads,
-        meetingsScheduled: computed.qualifiedMeetingsRequired,
-        meetingsCompleted: computed.qualifiedMeetingsRequired
+        meetingsScheduled: computed.meetingsScheduledRequired,
+        meetingsCompleted: computed.meetingsDoneRequired
       }
     };
   }, [actuals, channel, computed, channelInputs, selectedMonthIndex, selectedYear]);

@@ -21,7 +21,11 @@ export function computeOverallFunnelTargets(targets: ProjectTargets | null, inpu
   const avgSqft = targets?.avg_sqft_per_deal ?? 0;
 
   const deals = Math.max(0, Math.ceil(salesTargetSqft / Math.max(avgSqft, 1)));
-  const meetings = deals * 2; // current business rule used elsewhere in the app
+  // Business rule:
+  // - Meetings done target = 2x deals
+  // - Meetings scheduled target = 1.5x meetings done target
+  const meetings_done = deals * 2;
+  const meetings_scheduled = Math.ceil(meetings_done * 1.5);
 
   let leads = 0;
   let qualified = 0;
@@ -35,8 +39,8 @@ export function computeOverallFunnelTargets(targets: ProjectTargets | null, inpu
   const out: OverallFunnelTargets = {
     leads: Math.max(0, Math.round(leads)),
     qualified: Math.max(0, Math.round(qualified)),
-    meetings_scheduled: Math.max(0, Math.round(meetings)),
-    meetings_done: Math.max(0, Math.round(meetings)),
+    meetings_scheduled: Math.max(0, Math.round(meetings_scheduled)),
+    meetings_done: Math.max(0, Math.round(meetings_done)),
     deals: Math.max(0, Math.round(deals))
   };
   return out;

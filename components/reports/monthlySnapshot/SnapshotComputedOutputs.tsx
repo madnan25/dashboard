@@ -18,7 +18,8 @@ export function SnapshotComputedOutputs(props: {
     channelDealsRequired: number;
     targetLeads: number;
     targetQualifiedLeads: number;
-    qualifiedMeetingsRequired: number;
+    meetingsDoneRequired: number;
+    meetingsScheduledRequired: number;
   };
   snapshot: { budgetAllocated: number };
   channelTitle: (channel: PlanChannel) => string;
@@ -75,8 +76,9 @@ export function SnapshotComputedOutputs(props: {
             computedExpanded ? "max-h-[520px] opacity-100" : "max-h-0 opacity-0"
           ].join(" ")}
         >
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <KpiCard label="Qualified meetings required" value={formatNumber(computed.qualifiedMeetingsRequired)} />
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <KpiCard label="Meetings done target" value={formatNumber(computed.meetingsDoneRequired)} />
+            <KpiCard label="Meetings scheduled target" value={formatNumber(computed.meetingsScheduledRequired)} />
             <KpiCard label="Target qualified leads" value={formatNumber(computed.targetQualifiedLeads)} />
             <KpiCard label={`Allocated budget (${channelTitle(channel).toLowerCase()})`} value={formatPKRCompact(snapshot.budgetAllocated)} />
           </div>
