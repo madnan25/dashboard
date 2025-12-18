@@ -6,6 +6,7 @@ import { Button } from "@heroui/react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { KpiCard } from "@/components/ds/KpiCard";
+import { NavCard } from "@/components/ds/NavCard";
 import { Surface } from "@/components/ds/Surface";
 import { MONTHS } from "@/lib/digitalSnapshot";
 import { formatNumber, formatPKRCompact } from "@/lib/format";
@@ -164,30 +165,33 @@ export function ProjectHub(props: { projectId: string }) {
           />
         </div>
 
-        <Surface>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-lg font-semibold text-white/90">Reports</div>
-              <div className="mt-1 text-sm text-white/55">Digital, Inbound, and Activations drilldowns.</div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button as={Link} href={`/projects/${projectId}/digital`} color="primary">
-                Digital Report
-              </Button>
-              <Button as={Link} href={`/projects/${projectId}/inbound`} variant="flat" className="glass-inset text-white/80">
-                Inbound Report
-              </Button>
-              <Button
-                as={Link}
-                href={`/projects/${projectId}/activations`}
-                variant="flat"
-                className="glass-inset text-white/80"
-              >
-                Activations Report
-              </Button>
-            </div>
-          </div>
-        </Surface>
+        <div className="space-y-2 px-1">
+          <div className="text-lg font-semibold text-white/90">Reports</div>
+          <div className="text-sm text-white/55">Digital, Inbound, and Activations drilldowns.</div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <NavCard
+            href={`/projects/${projectId}/digital`}
+            title="Digital"
+            description="Monthly snapshot + funnel performance."
+            meta="Open report"
+            size="sm"
+          />
+          <NavCard
+            href={`/projects/${projectId}/inbound`}
+            title="Inbound"
+            description="Monthly snapshot + funnel performance."
+            meta="Open report"
+            size="sm"
+          />
+          <NavCard
+            href={`/projects/${projectId}/activations`}
+            title="Activations"
+            description="Monthly snapshot + funnel performance."
+            meta="Open report"
+            size="sm"
+          />
+        </div>
 
         <div className="grid gap-4 md:grid-cols-12">
           <Surface className="md:col-span-7">

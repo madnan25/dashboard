@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Button } from "@heroui/react";
 import { PageHeader } from "@/components/ds/PageHeader";
+import { NavCard } from "@/components/ds/NavCard";
 import { Surface } from "@/components/ds/Surface";
 import { Project, listProjects } from "@/lib/dashboardDb";
 
@@ -55,19 +54,14 @@ export default function ProjectsIndexPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           {projects.map((p) => (
-            <Surface key={p.id}>
-              <div className="flex h-full flex-col justify-between gap-4">
-                <div>
-                  <div className="text-lg font-semibold text-white/90">{p.name}</div>
-                  <div className="mt-1 text-sm text-white/55">Master dashboard + channel reports.</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button as={Link} href={`/projects/${p.id}`} color="primary">
-                    Open project
-                  </Button>
-                </div>
-              </div>
-            </Surface>
+            <NavCard
+              key={p.id}
+              href={`/projects/${p.id}`}
+              title={p.name}
+              description="Master dashboard + channel reports."
+              meta="Open project"
+              size="md"
+            />
           ))}
         </div>
       </div>
