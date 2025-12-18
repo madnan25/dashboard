@@ -7,3 +7,4 @@ alter table public.project_actuals
   add column if not exists spend_inbound numeric not null default 0,
   add column if not exists spend_activations numeric not null default 0;
 
+
