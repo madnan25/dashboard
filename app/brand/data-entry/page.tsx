@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@heroui/react";
-import { PageShell, Surface } from "@/components/ds/Surface";
+import { Surface } from "@/components/ds/Surface";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { NumberInput } from "@/components/ds/NumberInput";
 import { MONTHS } from "@/lib/digitalSnapshot";
@@ -420,31 +420,23 @@ export default function BrandDataEntryPage() {
   const canEditPlan = isCmo || activeVersion?.status === "draft" || activeVersion?.status === "rejected";
 
   return (
-    <main className="min-h-screen p-6">
+    <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <PageShell>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-1">
-              <div className="text-2xl font-semibold tracking-tight text-white/95">Brand / Sales Ops Data</div>
-              <div className="text-sm text-white/55">Role-based entry with approvals (Supabase-backed).</div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <MonthYearPicker
-                monthIndex={monthIndex}
-                year={year}
-                label={monthLabel}
-                onChange={(next) => {
-                  setMonthIndex(next.monthIndex);
-                  setYear(next.year);
-                }}
-              />
-              <Button as={Link} href="/" size="sm" variant="flat" className="glass-inset text-white/80">
-                Back to home
-              </Button>
-            </div>
+        <div className="flex flex-wrap items-end justify-between gap-3 px-1">
+          <div>
+            <div className="text-xl font-semibold tracking-tight text-white/95">Planning & Actuals</div>
+            <div className="text-sm text-white/55">Role-based entry with approvals (Supabase-backed).</div>
           </div>
-        </PageShell>
+          <MonthYearPicker
+            monthIndex={monthIndex}
+            year={year}
+            label={monthLabel}
+            onChange={(next) => {
+              setMonthIndex(next.monthIndex);
+              setYear(next.year);
+            }}
+          />
+        </div>
 
         <Surface>
           <div className="flex flex-wrap items-center justify-between gap-3">

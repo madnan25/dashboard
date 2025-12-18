@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button, Input } from "@heroui/react";
 import { PageShell, Surface } from "@/components/ds/Surface";
@@ -40,17 +39,12 @@ export default function AccountPage() {
   }
 
   return (
-    <main className="min-h-screen p-6">
+    <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageShell>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-1">
-              <div className="text-2xl font-semibold tracking-tight text-white/95">Account</div>
-              <div className="text-sm text-white/55">Set your display name (shown in the top bar).</div>
-            </div>
-            <Button as={Link} href="/" size="sm" variant="flat" className="glass-inset text-white/80">
-              Back to home
-            </Button>
+          <div className="space-y-1">
+            <div className="text-2xl font-semibold tracking-tight text-white/95">Account</div>
+            <div className="text-sm text-white/55">Set your display name (shown in the top bar).</div>
           </div>
         </PageShell>
 

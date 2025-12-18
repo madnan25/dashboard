@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@heroui/react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Surface } from "@/components/ds/Surface";
+import { BackButton } from "@/components/nav/BackButton";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getCurrentProfile, Profile } from "@/lib/dashboardDb";
 
@@ -73,6 +74,7 @@ export function TopNav() {
       <Surface className="px-4 py-3 md:px-5 md:py-4 border border-white/10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
+            <BackButton className={navPill} />
             <Link href="/" className="group inline-flex items-center gap-2">
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/90"

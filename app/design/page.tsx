@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { Button } from "@heroui/react";
 import { PageShell, Surface } from "@/components/ds/Surface";
 import { KpiCard } from "@/components/ds/KpiCard";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
+import { BackButton } from "@/components/nav/BackButton";
 import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
 import { ConversionFlow } from "@/components/charts/ConversionFlow";
@@ -33,10 +32,17 @@ export default function DesignSystemPage() {
             <div className="text-2xl font-semibold tracking-tight text-white/95">Design System</div>
             <div className="text-sm text-white/55">Reusable UI pieces used by the dashboard.</div>
           </div>
-          <Button as={Link} href="/" variant="flat" className="glass-inset text-white/80">
-            Back to home
-          </Button>
         </div>
+
+        <PageShell>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold text-white/90">Navigation</div>
+              <div className="text-sm text-white/55">Global back button pill used in the top nav.</div>
+            </div>
+            <BackButton className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15" />
+          </div>
+        </PageShell>
 
         <PageShell>
           <div className="flex items-center justify-between gap-4">

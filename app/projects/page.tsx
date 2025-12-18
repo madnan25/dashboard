@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@heroui/react";
-import { PageShell, Surface } from "@/components/ds/Surface";
+import { Surface } from "@/components/ds/Surface";
 import { Project, getCurrentProfile, listProjects } from "@/lib/dashboardDb";
 
 export default function ProjectsIndexPage() {
@@ -35,32 +35,13 @@ export default function ProjectsIndexPage() {
     };
   }, [envMissing]);
 
-  const cta = useMemo(() => {
-    if (role !== "cmo") return null;
-    return (
-      <Button as={Link} href="/cmo/projects" size="sm" color="primary">
-        Manage projects
-      </Button>
-    );
-  }, [role]);
-
   return (
-    <main className="min-h-screen p-6">
+    <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <PageShell>
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="space-y-1">
-              <div className="text-2xl font-semibold tracking-tight text-white/95">Projects</div>
-              <div className="text-sm text-white/55">Open a project to view reports.</div>
-            </div>
-            <div className="flex items-center gap-2">
-              {cta}
-              <Button as={Link} href="/" size="sm" variant="flat" className="glass-inset text-white/80">
-                Back to home
-              </Button>
-            </div>
-          </div>
-        </PageShell>
+        <div className="px-1">
+          <div className="text-xl font-semibold tracking-tight text-white/95">Projects</div>
+          <div className="text-sm text-white/55">Open a project to view reports.</div>
+        </div>
 
         {status ? (
           <Surface>
