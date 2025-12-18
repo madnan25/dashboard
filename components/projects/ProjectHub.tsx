@@ -11,6 +11,7 @@ import { ProjectReportNav } from "@/components/projects/sections/ProjectReportNa
 import { ProjectTargetsKpis } from "@/components/projects/sections/ProjectTargetsKpis";
 import { MONTHS } from "@/lib/digitalSnapshot";
 import { formatPKRCompact } from "@/lib/format";
+import { computeOverallFunnelTargets } from "@/lib/reports/projectHubTargets";
 import {
   PlanChannel,
   PlanChannelInputs,
@@ -116,6 +117,7 @@ export function ProjectHub(props: { projectId: string }) {
   const totalBudgetCap = targets?.total_budget ?? 0;
   const allocatedBudgetTotal = CHANNELS.reduce((sum, ch) => sum + (inputsByChannel[ch]?.allocated_budget ?? 0), 0);
   const remainingBudget = Math.max(0, totalBudgetCap - allocatedBudgetTotal);
+  const funnelTargets = useMemo(() => computeOverallFunnelTargets(targets, inputsByChannel), [inputsByChannel, targets]);
 
   return (
     <main className="min-h-screen px-6 pb-10">
@@ -149,8 +151,8 @@ export function ProjectHub(props: { projectId: string }) {
         <ProjectReportNav projectId={projectId} />
 
         <div className="grid gap-4 md:grid-cols-12">
-          <ProjectPlanAllocations activePlanVersion={activePlanVersion} inputsByChannel={inputsByChannel} />
-          <ProjectActualsPanel actuals={actuals} role={role} />
+          <ProjectPlanAllocations activePlanVersion={activePlanVersion} inputsByChannel={inputsByChannel} targets={targets} />
+          <ProjectActualsPanel actuals={actuals} role={role} targets={funnelTargets} />
         </div>
       </div>
     </main>

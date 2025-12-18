@@ -1,8 +1,10 @@
 "use client";
 
 import { Surface } from "@/components/ds/Surface";
+import { DonutChart } from "@/components/charts/DonutChart";
 import { formatNumber, formatPKRCompact } from "@/lib/format";
-import type { PlanChannel, PlanChannelInputs, PlanVersion } from "@/lib/dashboardDb";
+import type { PlanChannel, PlanChannelInputs, PlanVersion, ProjectTargets } from "@/lib/dashboardDb";
+import { computeChannelDistributions } from "@/lib/reports/projectHubTargets";
 
 const CHANNELS: PlanChannel[] = ["digital", "inbound", "activations"];
 
@@ -20,13 +22,48 @@ function channelLabel(ch: PlanChannel) {
 export function ProjectPlanAllocations(props: {
   activePlanVersion: PlanVersion | null;
   inputsByChannel: Record<PlanChannel, PlanChannelInputs | null>;
+  targets: ProjectTargets | null;
 }) {
-  const { activePlanVersion, inputsByChannel } = props;
+  const { activePlanVersion, inputsByChannel, targets } = props;
+
+  const dist = computeChannelDistributions(targets, inputsByChannel);
+  const channelColors: Record<PlanChannel, string> = {
+    digital: "rgba(59,130,246,0.85)",
+    inbound: "rgba(16,185,129,0.75)",
+    activations: "rgba(124,58,237,0.75)"
+  };
 
   return (
     <Surface className="md:col-span-7">
       <div className="text-lg font-semibold text-white/90">Plan allocations (approved)</div>
       <div className="mt-1 text-sm text-white/55">{activePlanVersion ? "Active approved plan is applied." : "No active approved plan for this month yet."}</div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <DonutChart
+          title="Budget distribution"
+          centerLabel="Total"
+          centerValue={formatPKRCompact(
+            CHANNELS.reduce((s, ch) => s + (dist.budgetByChannel[ch] ?? 0), 0)
+          )}
+          data={CHANNELS.map((ch) => ({
+            key: ch,
+            label: channelLabel(ch),
+            value: dist.budgetByChannel[ch] ?? 0,
+            color: channelColors[ch]
+          }))}
+        />
+        <DonutChart
+          title="Leads distribution"
+          centerLabel="Total"
+          centerValue={formatNumber(CHANNELS.reduce((s, ch) => s + (dist.leadsByChannel[ch] ?? 0), 0))}
+          data={CHANNELS.map((ch) => ({
+            key: ch,
+            label: `${channelLabel(ch)} (${formatNumber(dist.targetSqftByChannel[ch] ?? 0)} sqft)`,
+            value: dist.leadsByChannel[ch] ?? 0,
+            color: channelColors[ch]
+          }))}
+        />
+      </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {CHANNELS.map((ch) => (
@@ -40,6 +77,10 @@ export function ProjectPlanAllocations(props: {
               <div className="flex items-center justify-between text-white/70">
                 <span>% target</span>
                 <span className="font-semibold text-white/90">{inputsByChannel[ch]?.target_contribution_percent ?? 0}%</span>
+              </div>
+              <div className="flex items-center justify-between text-white/70">
+                <span>Target (sqft)</span>
+                <span className="font-semibold text-white/90">{formatNumber(dist.targetSqftByChannel[ch] ?? 0)}</span>
               </div>
               <div className="flex items-center justify-between text-white/70">
                 <span>Expected leads</span>
