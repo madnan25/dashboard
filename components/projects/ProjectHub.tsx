@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@heroui/react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
-import { KpiCard } from "@/components/ds/KpiCard";
-import { NavCard } from "@/components/ds/NavCard";
 import { Surface } from "@/components/ds/Surface";
+import { ProjectActualsPanel } from "@/components/projects/sections/ProjectActualsPanel";
+import { ProjectPlanAllocations } from "@/components/projects/sections/ProjectPlanAllocations";
+import { ProjectReportNav } from "@/components/projects/sections/ProjectReportNav";
+import { ProjectTargetsKpis } from "@/components/projects/sections/ProjectTargetsKpis";
 import { MONTHS } from "@/lib/digitalSnapshot";
-import { formatNumber, formatPKRCompact } from "@/lib/format";
+import { formatPKRCompact } from "@/lib/format";
 import {
   PlanChannel,
   PlanChannelInputs,
@@ -30,17 +31,6 @@ function monthNumber(monthIndex: number) {
 }
 
 const CHANNELS: PlanChannel[] = ["digital", "inbound", "activations"];
-
-function channelLabel(ch: PlanChannel) {
-  switch (ch) {
-    case "digital":
-      return "Digital";
-    case "inbound":
-      return "Inbound";
-    case "activations":
-      return "Activations";
-  }
-}
 
 export function ProjectHub(props: { projectId: string }) {
   const projectId = props.projectId;
@@ -154,97 +144,13 @@ export function ProjectHub(props: { projectId: string }) {
           </Surface>
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <KpiCard label="Sales target (sqft)" value={formatNumber(targets?.sales_target_sqft ?? 0)} />
-          <KpiCard label="Avg deal size (sqft)" value={formatNumber(targets?.avg_sqft_per_deal ?? 0)} />
-          <KpiCard label="Budget cap" value={formatPKRCompact(totalBudgetCap)} />
-          <KpiCard
-            label="Allocated / remaining"
-            value={formatPKRCompact(allocatedBudgetTotal)}
-            helper={`${formatPKRCompact(remainingBudget)} remaining`}
-          />
-        </div>
+        <ProjectTargetsKpis targets={targets} allocatedBudgetTotal={allocatedBudgetTotal} remainingBudget={remainingBudget} />
 
-        <div className="space-y-2 px-1">
-          <div className="text-lg font-semibold text-white/90">Reports</div>
-          <div className="text-sm text-white/55">Digital, Inbound, and Activations drilldowns.</div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <NavCard
-            href={`/projects/${projectId}/digital`}
-            title="Digital"
-            description="Monthly snapshot + funnel performance."
-            meta="Open report"
-            size="sm"
-          />
-          <NavCard
-            href={`/projects/${projectId}/inbound`}
-            title="Inbound"
-            description="Monthly snapshot + funnel performance."
-            meta="Open report"
-            size="sm"
-          />
-          <NavCard
-            href={`/projects/${projectId}/activations`}
-            title="Activations"
-            description="Monthly snapshot + funnel performance."
-            meta="Open report"
-            size="sm"
-          />
-        </div>
+        <ProjectReportNav projectId={projectId} />
 
         <div className="grid gap-4 md:grid-cols-12">
-          <Surface className="md:col-span-7">
-            <div className="text-lg font-semibold text-white/90">Plan allocations (approved)</div>
-            <div className="mt-1 text-sm text-white/55">
-              {activePlanVersion ? "Active approved plan is applied." : "No active approved plan for this month yet."}
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {CHANNELS.map((ch) => (
-                <div key={ch} className="glass-inset rounded-2xl p-4">
-                  <div className="text-sm font-semibold text-white/85">{channelLabel(ch)}</div>
-                  <div className="mt-3 grid gap-2 text-sm">
-                    <div className="flex items-center justify-between text-white/70">
-                      <span>Budget</span>
-                      <span className="font-semibold text-white/90">{formatPKRCompact(inputsByChannel[ch]?.allocated_budget ?? 0)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-white/70">
-                      <span>% target</span>
-                      <span className="font-semibold text-white/90">{inputsByChannel[ch]?.target_contribution_percent ?? 0}%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-white/70">
-                      <span>Expected leads</span>
-                      <span className="font-semibold text-white/90">{formatNumber(inputsByChannel[ch]?.expected_leads ?? 0)}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Surface>
-
-          <Surface className="md:col-span-5">
-            <div className="text-lg font-semibold text-white/90">Actuals (Sales Ops)</div>
-            <div className="mt-1 text-sm text-white/55">Month-level actual performance.</div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <KpiCard label="Leads" value={formatNumber(actuals?.leads ?? 0)} />
-              <KpiCard label="Qualified" value={formatNumber(actuals?.qualified_leads ?? 0)} />
-              <KpiCard label="Meetings scheduled" value={formatNumber(actuals?.meetings_scheduled ?? 0)} />
-              <KpiCard label="Meetings done" value={formatNumber(actuals?.meetings_done ?? 0)} />
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-2">
-              <Button as={Link} href="/brand/data-entry" variant="flat" className="glass-inset text-white/80">
-                Open planning & actuals entry
-              </Button>
-              {role === "cmo" ? (
-                <Button as={Link} href="/cmo/projects" variant="flat" className="glass-inset text-white/80">
-                  Manage targets/projects
-                </Button>
-              ) : null}
-            </div>
-          </Surface>
+          <ProjectPlanAllocations activePlanVersion={activePlanVersion} inputsByChannel={inputsByChannel} />
+          <ProjectActualsPanel actuals={actuals} role={role} />
         </div>
       </div>
     </main>

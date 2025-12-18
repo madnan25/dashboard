@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Button, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from "@heroui/react";
-import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
-import { TargetActualBars } from "@/components/charts/TargetActualBars";
-import { ConversionFlow } from "@/components/charts/ConversionFlow";
+import { Button } from "@heroui/react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
-import { KpiCard } from "@/components/ds/KpiCard";
 import { PageShell, Surface } from "@/components/ds/Surface";
+import { SnapshotChartsAndDetails } from "@/components/reports/monthlySnapshot/SnapshotChartsAndDetails";
+import { SnapshotComputedOutputs } from "@/components/reports/monthlySnapshot/SnapshotComputedOutputs";
+import { SnapshotKpiSummary } from "@/components/reports/monthlySnapshot/SnapshotKpiSummary";
 import { MONTHS, clampPercent, monthLabel } from "@/lib/digitalSnapshot";
-import { formatNumber, formatPKR, formatPKRCompact } from "@/lib/format";
+import { formatNumber, formatPKR } from "@/lib/format";
+import { computeTargetsFrom } from "@/lib/reports/snapshotMath";
 import {
   PlanChannel,
   PlanChannelInputs,
@@ -50,30 +50,7 @@ function channelTitle(channel: PlanChannel) {
   }
 }
 
-function computeTargetsFrom(
-  targets: ProjectTargets | null,
-  inputs: PlanChannelInputs | null
-): {
-  dealsRequired: number;
-  channelDealsRequired: number;
-  targetLeads: number;
-  targetQualifiedLeads: number;
-  qualifiedMeetingsRequired: number;
-} {
-  const salesTargetSqft = targets?.sales_target_sqft ?? 0;
-  const avgSqft = targets?.avg_sqft_per_deal ?? 0;
-  const dealsRequired = Math.max(0, Math.ceil(salesTargetSqft / Math.max(avgSqft, 1)));
-
-  const pct = inputs?.target_contribution_percent ?? 0;
-  const channelDealsRequired = Math.max(0, Math.ceil(dealsRequired * (pct / 100)));
-  const qualifiedMeetingsRequired = Math.max(0, channelDealsRequired * 2);
-
-  const targetLeads = Math.max(0, Math.round(inputs?.expected_leads ?? 0));
-  const qPct = inputs?.qualification_percent ?? 0;
-  const targetQualifiedLeads = Math.max(0, Math.round(targetLeads * (qPct / 100)));
-
-  return { dealsRequired, channelDealsRequired, targetLeads, targetQualifiedLeads, qualifiedMeetingsRequired };
-}
+// computeTargetsFrom moved to lib/reports/snapshotMath.ts
 
 export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjectId?: string; backHref?: string }) {
   const { channel, fixedProjectId, backHref } = props;
@@ -300,157 +277,32 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
         ) : null}
 
         <PageShell>
-          {activePlanVersion ? (
-            <div className="mt-6">
-              <Surface>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-lg font-semibold text-white/90">Computed Outputs</div>
-                    <div className="mt-1 text-sm text-white/55">From active approved plan version.</div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    className="glass-inset text-white/80"
-                    onPress={() => setComputedExpanded((v) => !v)}
-                    aria-expanded={computedExpanded}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span>{computedExpanded ? "Hide details" : "Show details"}</span>
-                      <span className={`transition-transform duration-200 ${computedExpanded ? "rotate-180" : ""}`}>▾</span>
-                    </span>
-                  </Button>
-                </div>
+          <SnapshotComputedOutputs
+            channel={channel}
+            targets={targets}
+            channelInputs={channelInputs}
+            activePlanVersion={activePlanVersion}
+            computedExpanded={computedExpanded}
+            setComputedExpanded={setComputedExpanded}
+            computed={computed}
+            snapshot={{ budgetAllocated: snapshot.budgetAllocated }}
+            channelTitle={channelTitle}
+          />
 
-                <div className="mt-5 grid gap-4 md:grid-cols-3">
-                  <KpiCard label="Total sales target" value={formatNumber(targets?.sales_target_sqft ?? 0)} />
-                  <KpiCard label="Avg deal size" value={formatNumber(targets?.avg_sqft_per_deal ?? 0)} />
-                  <KpiCard label={`% required from ${channelTitle(channel).toLowerCase()}`} value={`${channelInputs?.target_contribution_percent ?? 0}%`} />
-                </div>
+          <SnapshotKpiSummary
+            snapshot={snapshot}
+            budgetUtilizedDisplay={budgetUtilizedDisplay}
+            leadToQualifiedPct={leadToQualifiedPct}
+            qualifiedToMeetingPct={qualifiedToMeetingPct}
+          />
 
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <KpiCard label="Deals required" value={formatNumber(computed.dealsRequired)} />
-                  <KpiCard label={`${channelTitle(channel)} deals required`} value={formatNumber(computed.channelDealsRequired)} />
-                  <KpiCard label={`Target leads (${channelTitle(channel).toLowerCase()})`} value={formatNumber(computed.targetLeads)} />
-                </div>
-
-                <div
-                  className={[
-                    "overflow-hidden transition-[max-height,opacity] duration-300 ease-out",
-                    computedExpanded ? "max-h-[520px] opacity-100" : "max-h-0 opacity-0"
-                  ].join(" ")}
-                >
-                  <div className="mt-4 grid gap-4 md:grid-cols-3">
-                    <KpiCard label="Qualified meetings required" value={formatNumber(computed.qualifiedMeetingsRequired)} />
-                    <KpiCard label="Target qualified leads" value={formatNumber(computed.targetQualifiedLeads)} />
-                    <KpiCard label={`Allocated budget (${channelTitle(channel).toLowerCase()})`} value={formatPKRCompact(snapshot.budgetAllocated)} />
-                  </div>
-                </div>
-              </Surface>
-            </div>
-          ) : (
-            <div className="mt-6">
-              <Surface>
-                <div className="text-sm text-white/70">No active approved plan version found for this project/month yet.</div>
-              </Surface>
-            </div>
-          )}
-
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
-            <KpiCard
-              label="Budget Allocated"
-              value={formatPKRCompact(snapshot.budgetAllocated)}
-              helper="Monthly cap"
-            />
-            <KpiCard
-              label="Budget Spent"
-              value={formatPKRCompact(snapshot.budgetSpent)}
-              helper={`${budgetUtilizedDisplay} of allocated`}
-            />
-            <KpiCard
-              label="Qualified Leads"
-              value={formatNumber(snapshot.qualifiedLeads)}
-              helper={`${leadToQualifiedPct.toFixed(0)}% of ${formatNumber(snapshot.leadsGenerated)} leads`}
-            />
-            <KpiCard
-              label="Meetings Completed"
-              value={formatNumber(snapshot.meetingsCompleted)}
-              helper={`${qualifiedToMeetingPct.toFixed(0)}% of ${formatNumber(snapshot.qualifiedLeads)} qualified`}
-            />
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <KpiCard label="Deals Won" value={formatNumber(snapshot.dealsWon)} helper="Sales Ops actual" />
-            <KpiCard label="Sqft Won" value={formatNumber(snapshot.sqftWon)} helper="Sales Ops actual" />
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-12">
-            <Surface className="md:col-span-7">
-              <div className="mb-4">
-                <div className="text-lg font-semibold text-white/90">Contribution to Funnel</div>
-                <div className="mt-1 text-sm text-white/55">Target vs actual</div>
-              </div>
-
-              <FunnelComparisonLineChart
-                points={contributionRows.map((r) => ({ label: r.stage, target: r.target, actual: r.actual }))}
-                formatNumber={formatNumber}
-              />
-            </Surface>
-
-            <Surface className="md:col-span-5">
-              <div className="mb-4">
-                <div className="text-lg font-semibold text-white/90">Contribution Details</div>
-              </div>
-
-              <TargetActualBars
-                items={contributionRows.map((r) => ({ stage: r.stage, target: r.target, actual: r.actual }))}
-                formatNumber={formatNumber}
-              />
-            </Surface>
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-12">
-            <Surface className="md:col-span-7">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="text-lg font-semibold text-white/90">Funnel</div>
-                <div className="text-sm text-white/55">This month</div>
-              </div>
-              <div className="mb-2 text-sm font-semibold text-white/80">Leads → Qualified → Meetings</div>
-              <div className="text-sm text-white/55">Conversion rates from actuals.</div>
-
-              <div className="mt-5">
-                <ConversionFlow
-                  steps={[
-                    { from: "Leads", to: "Qualified", percent: leadToQualifiedPct, colorClassName: "bg-emerald-400" },
-                    { from: "Qualified", to: "Meeting", percent: qualifiedToMeetingPct, colorClassName: "bg-fuchsia-400" }
-                  ]}
-                />
-              </div>
-            </Surface>
-
-            <Surface className="md:col-span-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="text-lg font-semibold text-white/90">Details</div>
-              </div>
-
-              <div className="glass-inset rounded-2xl">
-                <Table aria-label="Monthly snapshot metrics" removeWrapper className="text-white/80">
-                  <TableHeader>
-                    <TableColumn className="text-white/50">Metric</TableColumn>
-                    <TableColumn className="text-white/50">Value</TableColumn>
-                  </TableHeader>
-                  <TableBody items={rows}>
-                    {(item) => (
-                      <TableRow key={item.metric} className="odd:bg-white/0 even:bg-white/[0.02]">
-                        <TableCell className="text-white/60">{item.metric}</TableCell>
-                        <TableCell className="font-medium text-white/90">{item.value}</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </Surface>
-          </div>
+          <SnapshotChartsAndDetails
+            channel={channel}
+            contributionRows={contributionRows}
+            leadToQualifiedPct={leadToQualifiedPct}
+            qualifiedToMeetingPct={qualifiedToMeetingPct}
+            rows={rows}
+          />
         </PageShell>
       </div>
     </main>
