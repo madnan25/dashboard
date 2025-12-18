@@ -112,6 +112,16 @@ export async function middleware(request: NextRequest) {
   const accessToken = extractAccessTokenFromCookies(request);
   const isAuthed = accessToken ? isJwtNotExpired(accessToken) : false;
 
+  // If already authed, never show /login again.
+  if (isAuthed && requestUrl.pathname === "/login") {
+    const redirectToRaw = requestUrl.searchParams.get("redirectTo") ?? "/";
+    const redirectTo = redirectToRaw.startsWith("/") && redirectToRaw !== "/login" ? redirectToRaw : "/";
+    const nextUrl = requestUrl.clone();
+    nextUrl.pathname = redirectTo;
+    nextUrl.search = "";
+    return NextResponse.redirect(nextUrl);
+  }
+
   if (!isAuthed && !isPublicPath(requestUrl.pathname)) {
     const loginUrl = requestUrl.clone();
     loginUrl.pathname = "/login";
