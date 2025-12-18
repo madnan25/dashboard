@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@heroui/react";
-import { PageShell, Surface } from "@/components/ds/Surface";
-import { LogoutButton } from "@/components/auth/LogoutButton";
+import { Surface } from "@/components/ds/Surface";
 import { Profile, getCurrentProfile } from "@/lib/dashboardDb";
 
 export default function HomePage() {
@@ -26,30 +25,23 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="min-h-screen p-6">
+    <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <PageShell>
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="space-y-1">
-              <div className="text-2xl font-semibold tracking-tight text-white/95">Dashboard</div>
-              <div className="text-sm text-white/55">Choose where you want to start.</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button as={Link} href="/design" size="sm" variant="flat" className="glass-inset text-white/80">
-                Design System
-              </Button>
-              <LogoutButton size="sm" variant="flat" className="glass-inset text-white/80" />
-            </div>
-          </div>
-        </PageShell>
-
+        <div className="flex items-center justify-end">
+          <Button as={Link} href="/design" size="sm" variant="flat" className="glass-inset text-white/80">
+            Design System
+          </Button>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           {profile?.role === "cmo" ? (
             <Surface>
               <div className="flex h-full flex-col justify-between gap-4">
                 <div>
-                  <div className="text-lg font-semibold text-white/90">CMO Admin</div>
-                  <div className="mt-1 text-sm text-white/55">Create projects, set targets/budget, approve plans.</div>
+                  <div className="text-[11px] uppercase tracking-[0.28em] text-white/45">Admin</div>
+                  <div className="mt-1 text-lg font-semibold text-white/90">CMO Console</div>
+                  <div className="mt-1 text-sm text-white/55">
+                    Create projects, set targets/budget, approve plans — full access.
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button as={Link} href="/cmo/projects" color="primary">
