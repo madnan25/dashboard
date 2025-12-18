@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { TopNav } from "@/components/nav/TopNav";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,7 +24,10 @@ export default function RootLayout({
       <body className={inter.className}>
         <div className="app-backdrop" aria-hidden="true" />
         <div className="app-content">
-          <Providers>{children}</Providers>
+          <Providers>
+            <TopNav />
+            {children}
+          </Providers>
         </div>
       </body>
     </html>

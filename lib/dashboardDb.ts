@@ -78,6 +78,15 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   return (data as Profile | null) ?? null;
 }
 
+export async function updateMyFullName(full_name: string): Promise<void> {
+  const supabase = createClient();
+  const { data: userRes, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userRes.user) throw userErr ?? new Error("Not authenticated");
+
+  const { error } = await supabase.from("profiles").update({ full_name }).eq("id", userRes.user.id);
+  if (error) throw error;
+}
+
 export async function listProjects(): Promise<Project[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("projects").select("id, name, is_active").order("name");
