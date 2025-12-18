@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@heroui/react";
+import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
-import { Project, getCurrentProfile, listProjects } from "@/lib/dashboardDb";
+import { Project, listProjects } from "@/lib/dashboardDb";
 
 export default function ProjectsIndexPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [status, setStatus] = useState<string>("");
-  const [role, setRole] = useState<string | null>(null);
 
   const envMissing =
     typeof window !== "undefined" &&
@@ -20,9 +20,8 @@ export default function ProjectsIndexPage() {
     async function boot() {
       if (envMissing) return;
       try {
-        const [p, projs] = await Promise.all([getCurrentProfile(), listProjects()]);
         if (cancelled) return;
-        setRole(p?.role ?? null);
+        const projs = await listProjects();
         setProjects(projs.filter((x) => x.is_active));
       } catch (e) {
         if (cancelled) return;
@@ -38,10 +37,7 @@ export default function ProjectsIndexPage() {
   return (
     <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <div className="px-1">
-          <div className="text-xl font-semibold tracking-tight text-white/95">Projects</div>
-          <div className="text-sm text-white/55">Open a project to view reports.</div>
-        </div>
+        <PageHeader title="Projects" subtitle="Open a project to view reports." showBack />
 
         {status ? (
           <Surface>

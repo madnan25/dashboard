@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader } from "@/components/ds/PageHeader";
+import { NavCard } from "@/components/ds/NavCard";
 import { PageShell, Surface } from "@/components/ds/Surface";
 import { KpiCard } from "@/components/ds/KpiCard";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
@@ -25,22 +27,33 @@ export default function DesignSystemPage() {
   ];
 
   return (
-    <main className="min-h-screen p-6">
+    <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-2xl font-semibold tracking-tight text-white/95">Design System</div>
-            <div className="text-sm text-white/55">Reusable UI pieces used by the dashboard.</div>
-          </div>
-        </div>
+        <PageHeader title="Design System" subtitle="Reusable UI pieces used by the dashboard." showBack backHref="/" />
 
         <PageShell>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-lg font-semibold text-white/90">Navigation</div>
-              <div className="text-sm text-white/55">Global back button pill used in the top nav.</div>
+              <div className="text-lg font-semibold text-white/90">Back button</div>
+              <div className="text-sm text-white/55">Used by the reusable PageHeader on each page.</div>
             </div>
-            <BackButton className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15" />
+            <BackButton
+              label="← Back"
+              className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15"
+            />
+          </div>
+        </PageShell>
+
+        <PageShell>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold text-white/90">NavCard</div>
+              <div className="text-sm text-white/55">Entire tile is clickable (used on Home).</div>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <NavCard href="/projects" title="Projects" description="Open a project to view Master + channel reports." meta="Example" />
+            <NavCard href="/brand/data-entry" title="Planning & Actuals" description="Brand + Sales Ops inputs." meta="Example" />
           </div>
         </PageShell>
 

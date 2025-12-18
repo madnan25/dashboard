@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@heroui/react";
+import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { KpiCard } from "@/components/ds/KpiCard";
-import { PageShell, Surface } from "@/components/ds/Surface";
+import { Surface } from "@/components/ds/Surface";
 import { MONTHS } from "@/lib/digitalSnapshot";
 import { formatNumber, formatPKRCompact } from "@/lib/format";
 import {
@@ -126,33 +127,25 @@ export function ProjectHub(props: { projectId: string }) {
   const remainingBudget = Math.max(0, totalBudgetCap - allocatedBudgetTotal);
 
   return (
-    <main className="min-h-screen p-6">
+    <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <PageShell>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-1">
-              <div className="text-2xl font-semibold tracking-tight text-white/95">{projectName}</div>
-              <div className="text-sm text-white/55">Master dashboard for this project.</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <MonthYearPicker
-                monthIndex={selectedMonthIndex}
-                year={selectedYear}
-                label={monthLabel}
-                onChange={(next) => {
-                  setSelectedMonthIndex(next.monthIndex);
-                  setSelectedYear(next.year);
-                }}
-              />
-              <Button as={Link} href="/projects" size="sm" variant="flat" className="glass-inset text-white/80">
-                All projects
-              </Button>
-              <Button as={Link} href="/" size="sm" variant="flat" className="glass-inset text-white/80">
-                Home
-              </Button>
-            </div>
-          </div>
-        </PageShell>
+        <PageHeader
+          title={projectName}
+          subtitle="Master dashboard for this project."
+          showBack
+          backHref="/projects"
+          right={
+            <MonthYearPicker
+              monthIndex={selectedMonthIndex}
+              year={selectedYear}
+              label={monthLabel}
+              onChange={(next) => {
+                setSelectedMonthIndex(next.monthIndex);
+                setSelectedYear(next.year);
+              }}
+            />
+          }
+        />
 
         {status ? (
           <Surface>

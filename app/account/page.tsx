@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Button, Input } from "@heroui/react";
-import { PageShell, Surface } from "@/components/ds/Surface";
+import { PageHeader } from "@/components/ds/PageHeader";
+import { Surface } from "@/components/ds/Surface";
 import { getCurrentProfile, updateMyFullName } from "@/lib/dashboardDb";
 
 export default function AccountPage() {
@@ -41,12 +42,7 @@ export default function AccountPage() {
   return (
     <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageShell>
-          <div className="space-y-1">
-            <div className="text-2xl font-semibold tracking-tight text-white/95">Account</div>
-            <div className="text-sm text-white/55">Set your display name (shown in the top bar).</div>
-          </div>
-        </PageShell>
+        <PageHeader title="Account" subtitle="Set your display name (shown in the top bar)." showBack />
 
         <Surface>
           <div className="space-y-4">

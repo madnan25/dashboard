@@ -16,16 +16,18 @@ function fallbackForPath(pathname: string) {
 export function BackButton({
   className = "",
   size = "sm",
-  label = "Back"
+  label = "Back",
+  fallbackHref
 }: {
   className?: string;
   size?: "sm" | "md" | "lg";
   label?: string;
+  fallbackHref?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const fallbackHref = useMemo(() => fallbackForPath(pathname), [pathname]);
+  const computedFallback = useMemo(() => fallbackForPath(pathname), [pathname]);
 
   const isRoot = pathname === "/";
 
@@ -40,7 +42,7 @@ export function BackButton({
           router.back();
           return;
         }
-        router.push(fallbackHref);
+        router.push(fallbackHref ?? computedFallback);
       }}
     >
       {label}

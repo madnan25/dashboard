@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@heroui/react";
+import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { NumberInput } from "@/components/ds/NumberInput";
@@ -422,21 +423,22 @@ export default function BrandDataEntryPage() {
   return (
     <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-3 px-1">
-          <div>
-            <div className="text-xl font-semibold tracking-tight text-white/95">Planning & Actuals</div>
-            <div className="text-sm text-white/55">Role-based entry with approvals (Supabase-backed).</div>
-          </div>
-          <MonthYearPicker
-            monthIndex={monthIndex}
-            year={year}
-            label={monthLabel}
-            onChange={(next) => {
-              setMonthIndex(next.monthIndex);
-              setYear(next.year);
-            }}
-          />
-        </div>
+        <PageHeader
+          title="Planning & Actuals"
+          subtitle="Role-based entry with approvals (Supabase-backed)."
+          showBack
+          right={
+            <MonthYearPicker
+              monthIndex={monthIndex}
+              year={year}
+              label={monthLabel}
+              onChange={(next) => {
+                setMonthIndex(next.monthIndex);
+                setYear(next.year);
+              }}
+            />
+          }
+        />
 
         <Surface>
           <div className="flex flex-wrap items-center justify-between gap-3">

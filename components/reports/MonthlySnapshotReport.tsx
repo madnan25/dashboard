@@ -6,6 +6,7 @@ import { Button, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow
 import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
 import { ConversionFlow } from "@/components/charts/ConversionFlow";
+import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { KpiCard } from "@/components/ds/KpiCard";
 import { PageShell, Surface } from "@/components/ds/Surface";
@@ -256,57 +257,49 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
   const title = `${channelTitle(channel)} – Monthly Snapshot`;
 
   return (
-    <main className="min-h-screen p-6">
-      <div className="mx-auto w-full max-w-6xl">
-        <PageShell>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="text-2xl font-semibold tracking-tight text-white/95">{title}</div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="text-sm text-white/60">{projectName}</div>
-                <span className="h-1 w-1 rounded-full bg-white/25" />
-                <MonthYearPicker
-                  monthIndex={selectedMonthIndex}
-                  year={selectedYear}
-                  label={snapshot.monthLabel}
-                  onChange={(next) => {
-                    setSelectedMonthIndex(next.monthIndex);
-                    setSelectedYear(next.year);
-                  }}
-                />
-                {!fixedProjectId ? (
-                  <>
-                    <span className="h-1 w-1 rounded-full bg-white/25" />
-                    <select
-                      className="glass-inset rounded-lg px-3 py-2 text-sm text-white/85"
-                      value={projectId}
-                      onChange={(e) => setProjectId(e.target.value)}
-                      disabled={envMissing}
-                    >
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id} className="bg-zinc-900">
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                ) : null}
-              </div>
-              {status ? <div className="text-sm text-amber-200/90">{status}</div> : null}
-            </div>
-
-            <div className="flex items-center gap-3">
-              {backHref ? (
-                <Button as={Link} href={backHref} size="sm" variant="flat" className="glass-inset text-white/80">
-                  Back
-                </Button>
+    <main className="min-h-screen px-6 pb-10">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
+        <PageHeader
+          title={title}
+          subtitle={projectName}
+          showBack
+          backHref={backHref ?? "/projects"}
+          right={
+            <div className="flex flex-wrap items-center gap-2">
+              <MonthYearPicker
+                monthIndex={selectedMonthIndex}
+                year={selectedYear}
+                label={snapshot.monthLabel}
+                onChange={(next) => {
+                  setSelectedMonthIndex(next.monthIndex);
+                  setSelectedYear(next.year);
+                }}
+              />
+              {!fixedProjectId ? (
+                <select
+                  className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/85 hover:bg-white/[0.04]"
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  disabled={envMissing}
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id} className="bg-zinc-900">
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               ) : null}
-              <Button as={Link} href="/" size="sm" variant="flat" className="glass-inset text-white/80">
-                Home
-              </Button>
             </div>
-          </div>
+          }
+        />
 
+        {status ? (
+          <Surface>
+            <div className="text-sm text-amber-200/90">{status}</div>
+          </Surface>
+        ) : null}
+
+        <PageShell>
           {activePlanVersion ? (
             <div className="mt-6">
               <Surface>

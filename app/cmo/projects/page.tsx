@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button, Input } from "@heroui/react";
+import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { NumberInput } from "@/components/ds/NumberInput";
 import { Surface } from "@/components/ds/Surface";
@@ -249,21 +250,22 @@ export default function CmoProjectsPage() {
   return (
     <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-3 px-1">
-          <div>
-            <div className="text-xl font-semibold tracking-tight text-white/95">CMO Console</div>
-            <div className="text-sm text-white/55">Projects, targets/budget, approvals.</div>
-          </div>
-          <MonthYearPicker
-            monthIndex={monthIndex}
-            year={year}
-            label={monthLabel}
-            onChange={(next) => {
-              setMonthIndex(next.monthIndex);
-              setYear(next.year);
-            }}
-          />
-        </div>
+        <PageHeader
+          title="CMO Console"
+          subtitle="Projects, targets/budget, approvals."
+          showBack
+          right={
+            <MonthYearPicker
+              monthIndex={monthIndex}
+              year={year}
+              label={monthLabel}
+              onChange={(next) => {
+                setMonthIndex(next.monthIndex);
+                setYear(next.year);
+              }}
+            />
+          }
+        />
 
         <Surface>
           <div className="flex flex-wrap items-center justify-between gap-3">
