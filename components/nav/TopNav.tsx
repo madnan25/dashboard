@@ -58,6 +58,16 @@ export function TopNav() {
   // Hide on auth-only routes
   if (pathname === "/login" || pathname.startsWith("/auth/")) return null;
 
+  const navPill =
+    "glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15";
+  const navPillActive = "bg-white/[0.06] border-white/20";
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    if (pathname === href) return true;
+    return pathname.startsWith(href + "/");
+  };
+
   return (
     <div className="sticky top-0 z-40 p-4 md:p-6">
       <Surface className="px-4 py-3 md:px-5 md:py-4 border border-white/10">
@@ -77,11 +87,23 @@ export function TopNav() {
 
             <span className="mx-2 hidden h-5 w-px bg-white/10 md:block" aria-hidden="true" />
 
-            <div className="hidden items-center gap-2 md:flex">
-              <Button as={Link} href="/projects" size="sm" variant="flat" className="glass-inset text-white/85">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                as={Link}
+                href="/projects"
+                size="sm"
+                variant="flat"
+                className={`${navPill} ${isActive("/projects") ? navPillActive : ""}`}
+              >
                 Projects
               </Button>
-              <Button as={Link} href="/brand/data-entry" size="sm" variant="flat" className="glass-inset text-white/85">
+              <Button
+                as={Link}
+                href="/brand/data-entry"
+                size="sm"
+                variant="flat"
+                className={`${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}
+              >
                 Planning
               </Button>
               {isCmo ? (
@@ -89,11 +111,21 @@ export function TopNav() {
                   as={Link}
                   href="/cmo/projects"
                   size="sm"
-                  className="rounded-2xl border border-white/12 bg-white/[0.06] text-white/90 shadow-[0_10px_40px_rgba(59,130,246,0.12)] hover:bg-white/[0.08]"
+                  variant="flat"
+                  className={`${navPill} ${isActive("/cmo/projects") ? navPillActive : ""}`}
                 >
                   CMO Console
                 </Button>
               ) : null}
+              <Button
+                as={Link}
+                href="/design"
+                size="sm"
+                variant="flat"
+                className={`${navPill} ${isActive("/design") ? navPillActive : ""}`}
+              >
+                Design System
+              </Button>
             </div>
           </div>
 
@@ -103,14 +135,14 @@ export function TopNav() {
               href="/account"
               size="sm"
               variant="flat"
-              className="glass-inset text-white/85"
+              className={`${navPill} ${isActive("/account") ? navPillActive : ""}`}
             >
               <span className="max-w-[180px] truncate">{displayName}</span>
               <span className="ml-2 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-white/60">
                 {roleLabel(profile?.role ?? null)}
               </span>
             </Button>
-            <LogoutButton size="sm" variant="flat" className="glass-inset text-white/85" />
+            <LogoutButton size="sm" variant="flat" className={navPill} />
           </div>
         </div>
       </Surface>
