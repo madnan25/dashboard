@@ -1,6 +1,5 @@
 "use client";
 
-import { KpiCard } from "@/components/ds/KpiCard";
 import { Surface } from "@/components/ds/Surface";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
 import { formatNumber } from "@/lib/format";
@@ -11,8 +10,9 @@ export function ProjectActualsPanel(props: {
   actuals: ProjectActuals | null;
   role: string | null;
   targets: OverallFunnelTargets;
+  sqftTarget: number;
 }) {
-  const { actuals, targets } = props;
+  const { actuals, targets, sqftTarget } = props;
 
   return (
     <Surface className="md:col-span-5">
@@ -26,14 +26,11 @@ export function ProjectActualsPanel(props: {
             { stage: "Qualified", target: targets.qualified, actual: actuals?.qualified_leads ?? 0 },
             { stage: "Meetings scheduled", target: targets.meetings_scheduled, actual: actuals?.meetings_scheduled ?? 0 },
             { stage: "Meetings done", target: targets.meetings_done, actual: actuals?.meetings_done ?? 0 },
-            { stage: "Deals concluded", target: targets.deals, actual: actuals?.deals_won ?? 0 }
+            { stage: "Deals concluded", target: targets.deals, actual: actuals?.deals_won ?? 0 },
+            { stage: "Sqft won", target: sqftTarget, actual: actuals?.sqft_won ?? 0 }
           ]}
           formatNumber={formatNumber}
         />
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-1">
-        <KpiCard label="Sqft won" value={formatNumber(actuals?.sqft_won ?? 0)} helper="Sales Ops actual" />
       </div>
     </Surface>
   );

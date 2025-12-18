@@ -152,7 +152,7 @@ export function ProjectHub(props: { projectId: string }) {
 
         <div className="grid gap-4 md:grid-cols-12">
           <ProjectPlanAllocations activePlanVersion={activePlanVersion} inputsByChannel={inputsByChannel} targets={targets} />
-          <ProjectActualsPanel actuals={actuals} role={role} targets={funnelTargets} />
+          <ProjectActualsPanel actuals={actuals} role={role} targets={funnelTargets} sqftTarget={targets?.sales_target_sqft ?? 0} />
         </div>
       </div>
     </main>
