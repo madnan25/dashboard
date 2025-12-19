@@ -67,7 +67,7 @@ export default function LoginForm() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden p-6">
+    <main className="relative min-h-screen overflow-hidden p-4 sm:p-6">
       {/* Futuristic grid + glow (keeps within our existing backdrop theme) */}
       <div
         aria-hidden="true"
@@ -80,7 +80,7 @@ export default function LoginForm() {
         }}
       />
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center justify-center">
+      <div className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-6xl items-center justify-center">
         <div className="w-full max-w-[460px]">
           <PageShell className="relative overflow-hidden">
             {/* Neon border */}
@@ -100,13 +100,13 @@ export default function LoginForm() {
             />
 
             <div className="space-y-6">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.28em] text-white/55">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-300/70 shadow-[0_0_18px_rgba(16,185,129,0.35)]" />
                     Secure console
                   </div>
-                  <div className="text-3xl font-semibold tracking-tight text-white/95">Sign in</div>
+                  <div className="text-3xl font-semibold tracking-tight text-white/95 sm:text-[34px]">Sign in</div>
                   <div className="text-sm leading-relaxed text-white/55">
                   Enter your email and we’ll send a magic link to verify your session.
                   </div>
@@ -139,8 +139,13 @@ export default function LoginForm() {
                       classNames={{
                         base: "w-full",
                         inputWrapper:
-                          "glass-inset rounded-2xl border-white/10 bg-white/[0.02] hover:bg-white/[0.03] focus-within:ring-1 focus-within:ring-white/15",
-                        input: "text-white/90 placeholder:text-white/25",
+                          [
+                            "glass-inset rounded-2xl border-white/10 bg-white/[0.02] hover:bg-white/[0.03]",
+                            // premium focus (no harsh blue rectangle)
+                            "group-data-[focus=true]:border-white/20 group-data-[focus=true]:shadow-[0_0_0_1px_rgba(255,255,255,0.10)]"
+                          ].join(" "),
+                        input:
+                          "text-white/90 placeholder:text-white/25 !outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0",
                         label: "hidden"
                       }}
                     />
@@ -162,7 +167,7 @@ export default function LoginForm() {
                     type="submit"
                     color="primary"
                     isDisabled={envMissing || status === "loading"}
-                    className="w-full rounded-2xl shadow-[0_10px_40px_rgba(59,130,246,0.15)]"
+                    className="w-full rounded-2xl shadow-[0_10px_40px_rgba(59,130,246,0.15)] h-11"
                   >
                     {status === "loading" ? "Sending..." : "Send magic link"}
                   </Button>
