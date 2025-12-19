@@ -36,10 +36,24 @@ export function computeChannelTargetSqft(props: { totalTargetSqft: number; contr
   return Math.max(0, Math.round(total * (pct / 100)));
 }
 
+// Uncapped variant: allows >100% for validation/UX (but should be blocked on save)
+export function computeChannelTargetSqftUncapped(props: { totalTargetSqft: number; contributionPercent: number }) {
+  const total = Math.max(0, props.totalTargetSqft);
+  const pct = Number.isFinite(props.contributionPercent) ? props.contributionPercent : 0;
+  return Math.max(0, Math.round(total * (pct / 100)));
+}
+
 export function computeContributionPercentFromSqft(props: { totalTargetSqft: number; targetSqft: number }) {
   const total = Math.max(0, props.totalTargetSqft);
   if (total <= 0) return 0;
   return clamp((Math.max(0, props.targetSqft) / total) * 100, 0, 100);
+}
+
+// Uncapped variant: allows >100% for validation/UX (but should be blocked on save)
+export function computeContributionPercentFromSqftUncapped(props: { totalTargetSqft: number; targetSqft: number }) {
+  const total = Math.max(0, props.totalTargetSqft);
+  if (total <= 0) return 0;
+  return (Math.max(0, props.targetSqft) / total) * 100;
 }
 
 export function computeChannelFunnelFromTargetSqft(props: {
@@ -58,12 +72,12 @@ export function computeChannelFunnelFromTargetSqft(props: {
   const close = (rates.meeting_done_to_close_percent ?? 40) / 100;
   const mtg = (rates.qualified_to_meeting_done_percent ?? 10) / 100;
 
-  const meetingsDoneRequired = dealsRequired > 0 ? ceilDiv(dealsRequired, Math.max(close, 1e-9)) : 0;
+  const meetingsDoneRequired = dealsRequired > 0 && close > 0 ? ceilDiv(dealsRequired, close) : 0;
   // Keep prior business rule: scheduled = 1.5× done
   const meetingsScheduledRequired = Math.ceil(meetingsDoneRequired * 1.5);
 
-  const qualifiedRequired = meetingsDoneRequired > 0 ? ceilDiv(meetingsDoneRequired, Math.max(mtg, 1e-9)) : 0;
-  const leadsRequired = qualifiedRequired > 0 ? ceilDiv(qualifiedRequired, Math.max(q, 1e-9)) : 0;
+  const qualifiedRequired = meetingsDoneRequired > 0 && mtg > 0 ? ceilDiv(meetingsDoneRequired, mtg) : 0;
+  const leadsRequired = qualifiedRequired > 0 && q > 0 ? ceilDiv(qualifiedRequired, q) : 0;
 
   return {
     targetSqft,

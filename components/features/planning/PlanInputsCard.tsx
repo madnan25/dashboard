@@ -4,7 +4,12 @@ import { Button } from "@heroui/react";
 import { NumberInput } from "@/components/ds/NumberInput";
 import { Surface } from "@/components/ds/Surface";
 import type { PlanChannel, PlanVersion, ProjectTargets } from "@/lib/dashboardDb";
-import { computeChannelFunnelFromTargetSqft, computeContributionPercentFromSqft, computeChannelTargetSqft, getFunnelRates } from "@/lib/reports/funnelMath";
+import {
+  computeChannelFunnelFromTargetSqft,
+  computeContributionPercentFromSqftUncapped,
+  computeChannelTargetSqftUncapped,
+  getFunnelRates
+} from "@/lib/reports/funnelMath";
 
 const CHANNELS: PlanChannel[] = ["digital", "activations", "inbound"];
 
@@ -82,6 +87,15 @@ export function PlanInputsCard(props: {
     return Number.isFinite(v) ? v : null;
   }
 
+  const totalTargetSqft = Number(targets?.sales_target_sqft ?? 0);
+
+  const totalContributionPct = CHANNELS.reduce((sum, ch) => {
+    const v = toNumber(channelInputs[ch].target_contribution_percent);
+    return sum + (v ?? 0);
+  }, 0);
+
+  const isOverTotalTarget = totalContributionPct > 100.0001;
+
   return (
     <Surface className="md:col-span-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -90,7 +104,15 @@ export function PlanInputsCard(props: {
           <div className="mt-1 text-sm text-white/55">Version: {activeVersion ? `${activeVersion.status}${activeVersion.active ? " (active)" : ""}` : "—"}</div>
         </div>
 
-        <div className="text-sm text-white/60">Allocated: {allocatedTotal.toLocaleString()} / {budgetCap.toLocaleString()} (Remaining: {remainingBudget.toLocaleString()})</div>
+        <div className="text-sm text-white/60">
+          Allocated: {allocatedTotal.toLocaleString()} / {budgetCap.toLocaleString()} (Remaining: {remainingBudget.toLocaleString()})
+          {targets ? (
+            <span className={isOverTotalTarget ? "ml-3 text-rose-200/90" : "ml-3 text-white/45"}>
+              Target total: {totalContributionPct.toFixed(2)}%
+              {isOverTotalTarget ? ` (over by ${(totalContributionPct - 100).toFixed(2)}%)` : ""}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {!activeVersion ? (
@@ -102,14 +124,20 @@ export function PlanInputsCard(props: {
               <div key={ch} className="glass-inset rounded-2xl p-4">
                 <div className="text-sm font-semibold text-white/85">{channelLabel(ch)}</div>
                 <div className="mt-3 grid gap-3">
+                  {(() => {
+                    const sqft = toNumber(channelInputs[ch].target_sqft) ?? 0;
+                    const pctRaw = totalTargetSqft > 0 ? computeContributionPercentFromSqftUncapped({ totalTargetSqft, targetSqft: sqft }) : 0;
+                    const pctInput = toNumber(channelInputs[ch].target_contribution_percent) ?? pctRaw;
+                    const isOverChannel = pctInput > 100.0001 || (totalTargetSqft > 0 && sqft > totalTargetSqft + 0.5);
+                    return (
+                      <>
                   <NumberInput
                     label="Target (sqft)"
                     unit="sqft"
                     value={channelInputs[ch].target_sqft}
                     onValueChange={(v) => {
                       const sqft = toNumber(v) ?? 0;
-                      const total = Number(targets?.sales_target_sqft ?? 0);
-                      const pct = computeContributionPercentFromSqft({ totalTargetSqft: total, targetSqft: sqft });
+                      const pct = totalTargetSqft > 0 ? computeContributionPercentFromSqftUncapped({ totalTargetSqft, targetSqft: sqft }) : 0;
                       const q = toNumber(channelInputs[ch].qualification_percent) ?? 0;
                       const computed = computeChannelFunnelFromTargetSqft({ targets, targetSqft: sqft, qualificationPercent: q });
                       setChannelInputs((s) => ({
@@ -122,6 +150,12 @@ export function PlanInputsCard(props: {
                         }
                       }));
                     }}
+                    description={
+                      targets && totalTargetSqft > 0
+                        ? `${pctRaw.toFixed(2)}% of target`
+                        : "Set CMO sales target to enable % conversion."
+                    }
+                    descriptionTone={isOverChannel ? "danger" : "muted"}
                     isDisabled={!canEditPlan}
                   />
                   <NumberInput
@@ -129,6 +163,12 @@ export function PlanInputsCard(props: {
                     unit="leads"
                     value={channelInputs[ch].expected_leads}
                     onValueChange={() => {}}
+                    description={
+                      (toNumber(channelInputs[ch].qualification_percent) ?? 0) <= 0
+                        ? "Set qualification % > 0 to compute leads."
+                        : undefined
+                    }
+                    descriptionTone={(toNumber(channelInputs[ch].qualification_percent) ?? 0) <= 0 ? "danger" : "muted"}
                     isDisabled
                   />
                   <NumberInput
@@ -151,9 +191,8 @@ export function PlanInputsCard(props: {
                     unit="%"
                     value={channelInputs[ch].target_contribution_percent}
                     onValueChange={(v) => {
-                      const pct = Math.max(0, Math.min(toNumber(v) ?? 0, 100));
-                      const total = Number(targets?.sales_target_sqft ?? 0);
-                      const sqft = computeChannelTargetSqft({ totalTargetSqft: total, contributionPercent: pct });
+                      const pct = Math.max(0, toNumber(v) ?? 0);
+                      const sqft = computeChannelTargetSqftUncapped({ totalTargetSqft, contributionPercent: pct });
                       const q = toNumber(channelInputs[ch].qualification_percent) ?? 0;
                       const computed = computeChannelFunnelFromTargetSqft({ targets, targetSqft: sqft, qualificationPercent: q });
                       setChannelInputs((s) => ({
@@ -166,6 +205,8 @@ export function PlanInputsCard(props: {
                         }
                       }));
                     }}
+                    description={targets ? `${pctInput.toFixed(2)}% of target` : undefined}
+                    descriptionTone={isOverChannel ? "danger" : "muted"}
                     isDisabled={!canEditPlan}
                   />
                   <NumberInput
@@ -175,6 +216,9 @@ export function PlanInputsCard(props: {
                     onValueChange={(v) => setChannelInputs((s) => ({ ...s, [ch]: { ...s[ch], allocated_budget: v } }))}
                     isDisabled={!canEditPlan}
                   />
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {targets ? (
@@ -216,11 +260,16 @@ export function PlanInputsCard(props: {
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-            <Button variant="flat" className="glass-inset text-white/80" onPress={onSavePlanInputs} isDisabled={!canEditPlan}>
+            <Button
+              variant="flat"
+              className="glass-inset text-white/80"
+              onPress={onSavePlanInputs}
+              isDisabled={!canEditPlan || isOverTotalTarget}
+            >
               Save draft
             </Button>
             {!isCmo ? (
-              <Button color="primary" onPress={onSubmitForApproval} isDisabled={!canEditPlan}>
+              <Button color="primary" onPress={onSubmitForApproval} isDisabled={!canEditPlan || isOverTotalTarget}>
                 Submit for approval
               </Button>
             ) : null}

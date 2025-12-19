@@ -289,14 +289,11 @@ export default function CmoProjectsPage() {
           }
         />
 
-        <Surface>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-white/60">{status || " "}</div>
-            <Button as={Link} href={`/projects/${projectId}`} variant="flat" className="glass-inset text-white/80">
-              Open project hub
-            </Button>
-          </div>
-        </Surface>
+        {status ? (
+          <Surface>
+            <div className="text-sm text-white/60">{status}</div>
+          </Surface>
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-12">
           <CmoProjectsPanel

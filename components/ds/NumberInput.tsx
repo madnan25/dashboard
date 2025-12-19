@@ -8,6 +8,7 @@ type Props = {
   placeholder?: string;
   unit?: string;
   description?: string;
+  descriptionTone?: "muted" | "danger";
   className?: string;
 };
 
@@ -32,7 +33,11 @@ export function NumberInput(props: Props) {
         />
         {props.unit ? <span className="text-xs text-white/45">{props.unit}</span> : null}
       </div>
-      {props.description ? <div className="text-xs text-white/40">{props.description}</div> : null}
+      {props.description ? (
+        <div className={cn("text-xs", props.descriptionTone === "danger" ? "text-rose-200/90" : "text-white/40")}>
+          {props.description}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -331,6 +331,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     if (!activeVersion) return;
 
     const payloads: PlanChannelInputs[] = [];
+    let totalPct = 0;
     for (const ch of PLANNING_CHANNELS) {
       const row = channelInputs[ch];
       const expected_leads = toNumber(row.expected_leads);
@@ -342,6 +343,11 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         setStatus("Please enter valid numbers for all channel fields.");
         return;
       }
+      totalPct += target_contribution_percent;
+      if (target_contribution_percent < 0) {
+        setStatus("Target contribution % must be >= 0.");
+        return;
+      }
 
       payloads.push({
         plan_version_id: activeVersion.id,
@@ -351,6 +357,10 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         target_contribution_percent,
         allocated_budget
       });
+    }
+    if (totalPct > 100.0001) {
+      setStatus(`Total target contribution is ${totalPct.toFixed(2)}% (must be <= 100%).`);
+      return;
     }
 
     setStatus("Saving plan inputs...");
