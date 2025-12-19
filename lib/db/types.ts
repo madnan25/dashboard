@@ -21,6 +21,9 @@ export type ProjectTargets = {
   sales_target_sqft: number;
   avg_sqft_per_deal: number;
   total_budget: number;
+  // Funnel rates configured by CMO (0-100)
+  qualified_to_meeting_done_percent: number;
+  meeting_done_to_close_percent: number;
 };
 
 export type PlanVersion = {

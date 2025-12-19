@@ -9,7 +9,9 @@ export async function getProjectTargets(
 ): Promise<ProjectTargets | null> {
   const { data, error } = await supabase
     .from("project_targets")
-    .select("project_id, year, month, sales_target_sqft, avg_sqft_per_deal, total_budget")
+    .select(
+      "project_id, year, month, sales_target_sqft, avg_sqft_per_deal, total_budget, qualified_to_meeting_done_percent, meeting_done_to_close_percent"
+    )
     .eq("project_id", projectId)
     .eq("year", year)
     .eq("month", month)

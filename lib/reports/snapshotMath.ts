@@ -1,4 +1,5 @@
 import type { PlanChannelInputs, ProjectTargets } from "@/lib/dashboardDb";
+import { computeChannelFunnelFromInputs } from "./funnelMath";
 
 export function computeTargetsFrom(
   targets: ProjectTargets | null,
@@ -15,14 +16,12 @@ export function computeTargetsFrom(
   const avgSqft = targets?.avg_sqft_per_deal ?? 0;
   const dealsRequired = Math.max(0, Math.ceil(salesTargetSqft / Math.max(avgSqft, 1)));
 
-  const pct = inputs?.target_contribution_percent ?? 0;
-  const channelDealsRequired = Math.max(0, Math.ceil(dealsRequired * (pct / 100)));
-  const meetingsDoneRequired = Math.max(0, channelDealsRequired * 2);
-  const meetingsScheduledRequired = Math.max(0, Math.ceil(meetingsDoneRequired * 1.5));
-
-  const targetLeads = Math.max(0, Math.round(inputs?.expected_leads ?? 0));
-  const qPct = inputs?.qualification_percent ?? 0;
-  const targetQualifiedLeads = Math.max(0, Math.round(targetLeads * (qPct / 100)));
+  const computed = computeChannelFunnelFromInputs({ targets, inputs });
+  const channelDealsRequired = Math.max(0, Math.round(computed.dealsRequired));
+  const meetingsDoneRequired = Math.max(0, Math.round(computed.meetingsDoneRequired));
+  const meetingsScheduledRequired = Math.max(0, Math.round(computed.meetingsScheduledRequired));
+  const targetQualifiedLeads = Math.max(0, Math.round(computed.qualifiedRequired));
+  const targetLeads = Math.max(0, Math.round(computed.leadsRequired));
 
   return { dealsRequired, channelDealsRequired, targetLeads, targetQualifiedLeads, meetingsDoneRequired, meetingsScheduledRequired };
 }

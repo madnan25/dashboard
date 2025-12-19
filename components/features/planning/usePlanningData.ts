@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { MONTHS } from "@/lib/digitalSnapshot";
+import { computeChannelFunnelFromTargetSqft, computeChannelTargetSqft } from "@/lib/reports/funnelMath";
 import type {
   PlanChannel,
   PlanChannelInputs,
@@ -41,6 +42,7 @@ export type ChannelForm = {
   expected_leads: string;
   qualification_percent: string;
   target_contribution_percent: string;
+  target_sqft: string;
   allocated_budget: string;
 };
 
@@ -49,6 +51,7 @@ function emptyChannelForm(): ChannelForm {
     expected_leads: "0",
     qualification_percent: "0",
     target_contribution_percent: "0",
+    target_sqft: "0",
     allocated_budget: "0"
   };
 }
@@ -76,7 +79,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   const [targetsForm, setTargetsForm] = useState({
     sales_target_sqft: "0",
     avg_sqft_per_deal: "0",
-    total_budget: "0"
+    total_budget: "0",
+    qualified_to_meeting_done_percent: "10",
+    meeting_done_to_close_percent: "40"
   });
 
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([]);
@@ -140,7 +145,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     setTargetsForm({
       sales_target_sqft: String(t?.sales_target_sqft ?? 0),
       avg_sqft_per_deal: String(t?.avg_sqft_per_deal ?? 0),
-      total_budget: String(t?.total_budget ?? 0)
+      total_budget: String(t?.total_budget ?? 0),
+      qualified_to_meeting_done_percent: String(t?.qualified_to_meeting_done_percent ?? 10),
+      meeting_done_to_close_percent: String(t?.meeting_done_to_close_percent ?? 40)
     });
 
     setPlanVersions(versions);
@@ -175,7 +182,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         setTargetsForm({
           sales_target_sqft: String(t?.sales_target_sqft ?? 0),
           avg_sqft_per_deal: String(t?.avg_sqft_per_deal ?? 0),
-          total_budget: String(t?.total_budget ?? 0)
+          total_budget: String(t?.total_budget ?? 0),
+          qualified_to_meeting_done_percent: String(t?.qualified_to_meeting_done_percent ?? 10),
+          meeting_done_to_close_percent: String(t?.meeting_done_to_close_percent ?? 40)
         });
 
         setPlanVersions(versions);
@@ -225,10 +234,19 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         };
 
         for (const row of rows) {
+          const total = Number(targets?.sales_target_sqft ?? 0);
+          const pct = Number(row.target_contribution_percent ?? 0);
+          const sqft = computeChannelTargetSqft({ totalTargetSqft: total, contributionPercent: pct });
+          const computed = computeChannelFunnelFromTargetSqft({
+            targets,
+            targetSqft: sqft,
+            qualificationPercent: Number(row.qualification_percent ?? 0)
+          });
           next[row.channel] = {
-            expected_leads: String(row.expected_leads ?? 0),
+            expected_leads: String(computed.leadsRequired),
             qualification_percent: String(row.qualification_percent ?? 0),
             target_contribution_percent: String(row.target_contribution_percent ?? 0),
+            target_sqft: String(sqft),
             allocated_budget: String(row.allocated_budget ?? 0)
           };
         }
@@ -244,7 +262,15 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     return () => {
       cancelled = true;
     };
-  }, [activePlanVersionId, envMissing]);
+  }, [
+    activePlanVersionId,
+    envMissing,
+    targets,
+    targets?.sales_target_sqft,
+    targets?.avg_sqft_per_deal,
+    targets?.qualified_to_meeting_done_percent,
+    targets?.meeting_done_to_close_percent
+  ]);
 
   const activeVersion = useMemo(
     () => (activePlanVersionId ? planVersions.find((v) => v.id === activePlanVersionId) ?? null : null),
@@ -264,9 +290,15 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     const sales_target_sqft = toNumber(targetsForm.sales_target_sqft);
     const avg_sqft_per_deal = toNumber(targetsForm.avg_sqft_per_deal);
     const total_budget = toNumber(targetsForm.total_budget);
+    const qualified_to_meeting_done_percent = toNumber(targetsForm.qualified_to_meeting_done_percent);
+    const meeting_done_to_close_percent = toNumber(targetsForm.meeting_done_to_close_percent);
 
     if (sales_target_sqft == null || avg_sqft_per_deal == null || total_budget == null) {
       setStatus("Please enter valid numbers for targets.");
+      return;
+    }
+    if (qualified_to_meeting_done_percent == null || meeting_done_to_close_percent == null) {
+      setStatus("Please enter valid funnel rates.");
       return;
     }
 
@@ -277,7 +309,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       month,
       sales_target_sqft,
       avg_sqft_per_deal,
-      total_budget
+      total_budget,
+      qualified_to_meeting_done_percent,
+      meeting_done_to_close_percent
     });
 
     setStatus("Targets saved.");

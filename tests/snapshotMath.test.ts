@@ -9,8 +9,10 @@ describe("computeTargetsFrom", () => {
       year: 2025,
       month: 12,
       sales_target_sqft: 15000,
-      avg_sqft_per_deal: 925,
-      total_budget: 2500000
+      avg_sqft_per_deal: 1000,
+      total_budget: 2500000,
+      qualified_to_meeting_done_percent: 10,
+      meeting_done_to_close_percent: 40
     };
 
     const inputs = {
@@ -24,13 +26,14 @@ describe("computeTargetsFrom", () => {
 
     const out = computeTargetsFrom(targets, inputs);
 
-    // 15000/925 = 16.21 -> ceil 17
-    expect(out.dealsRequired).toBe(17);
-    // 50% of 17 = 8.5 -> ceil 9
-    expect(out.channelDealsRequired).toBe(9);
-    // meetings done required = 2x deals, meetings scheduled = 1.5x meetings done (ceil)
-    expect(out.meetingsDoneRequired).toBe(18);
-    expect(out.meetingsScheduledRequired).toBe(27);
+    // total deals required: 15000/1000 = 15
+    expect(out.dealsRequired).toBe(15);
+    // channel sqft = 50% of 15000 = 7500 => channel deals = ceil(7500/1000) = 8
+    expect(out.channelDealsRequired).toBe(8);
+    // funnel (CMO rates): close 40% => meetings done = ceil(8/0.4)=20, scheduled = 1.5× done => 30
+    expect(out.meetingsDoneRequired).toBe(20);
+    expect(out.meetingsScheduledRequired).toBe(30);
+    // meeting rate 10% => qualified = ceil(20/0.1)=200; qualification 20% => leads=ceil(200/0.2)=1000
     expect(out.targetLeads).toBe(1000);
     expect(out.targetQualifiedLeads).toBe(200);
   });

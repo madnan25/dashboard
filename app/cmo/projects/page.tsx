@@ -53,7 +53,9 @@ export default function CmoProjectsPage() {
   const [targetsForm, setTargetsForm] = useState({
     sales_target_sqft: "0",
     avg_sqft_per_deal: "0",
-    total_budget: "0"
+    total_budget: "0",
+    qualified_to_meeting_done_percent: "10",
+    meeting_done_to_close_percent: "40"
   });
 
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([]);
@@ -75,7 +77,9 @@ export default function CmoProjectsPage() {
     setTargetsForm({
       sales_target_sqft: String(t?.sales_target_sqft ?? 0),
       avg_sqft_per_deal: String(t?.avg_sqft_per_deal ?? 0),
-      total_budget: String(t?.total_budget ?? 0)
+      total_budget: String(t?.total_budget ?? 0),
+      qualified_to_meeting_done_percent: String(t?.qualified_to_meeting_done_percent ?? 10),
+      meeting_done_to_close_percent: String(t?.meeting_done_to_close_percent ?? 40)
     });
   }
 
@@ -115,7 +119,9 @@ export default function CmoProjectsPage() {
         setTargetsForm({
           sales_target_sqft: String(t?.sales_target_sqft ?? 0),
           avg_sqft_per_deal: String(t?.avg_sqft_per_deal ?? 0),
-          total_budget: String(t?.total_budget ?? 0)
+          total_budget: String(t?.total_budget ?? 0),
+          qualified_to_meeting_done_percent: String(t?.qualified_to_meeting_done_percent ?? 10),
+          meeting_done_to_close_percent: String(t?.meeting_done_to_close_percent ?? 40)
         });
         setPlanVersions(versions);
       } catch (e) {
@@ -160,13 +166,32 @@ export default function CmoProjectsPage() {
     const sales_target_sqft = toNumber(targetsForm.sales_target_sqft);
     const avg_sqft_per_deal = toNumber(targetsForm.avg_sqft_per_deal);
     const total_budget = toNumber(targetsForm.total_budget);
+    const qualified_to_meeting_done_percent = toNumber(targetsForm.qualified_to_meeting_done_percent);
+    const meeting_done_to_close_percent = toNumber(targetsForm.meeting_done_to_close_percent);
     if (sales_target_sqft == null || avg_sqft_per_deal == null || total_budget == null) {
       setStatus("Please enter valid numbers for targets.");
       return;
     }
+    if (qualified_to_meeting_done_percent == null || meeting_done_to_close_percent == null) {
+      setStatus("Please enter valid funnel rates.");
+      return;
+    }
+    if (qualified_to_meeting_done_percent < 0 || qualified_to_meeting_done_percent > 100 || meeting_done_to_close_percent < 0 || meeting_done_to_close_percent > 100) {
+      setStatus("Funnel rates must be between 0 and 100.");
+      return;
+    }
     try {
       setStatus("Saving targets...");
-      await upsertProjectTargets({ project_id: projectId, year, month, sales_target_sqft, avg_sqft_per_deal, total_budget });
+      await upsertProjectTargets({
+        project_id: projectId,
+        year,
+        month,
+        sales_target_sqft,
+        avg_sqft_per_deal,
+        total_budget,
+        qualified_to_meeting_done_percent,
+        meeting_done_to_close_percent
+      });
       setStatus("Targets saved.");
       await refreshTargets(projectId);
     } catch (e) {

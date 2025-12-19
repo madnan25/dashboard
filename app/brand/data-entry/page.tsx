@@ -99,6 +99,7 @@ export default function BrandDataEntryPage() {
               activeVersion={activeVersion}
               isCmo={isCmo}
               canEditPlan={canEditPlan}
+              targets={targets}
               allocatedTotal={allocatedTotal}
               budgetCap={budgetCap}
               remainingBudget={remainingBudget}

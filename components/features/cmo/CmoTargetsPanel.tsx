@@ -8,11 +8,28 @@ import type { ProjectTargets } from "@/lib/dashboardDb";
 export function CmoTargetsPanel(props: {
   monthLabel: string;
   targets: ProjectTargets | null;
-  targetsForm: { sales_target_sqft: string; avg_sqft_per_deal: string; total_budget: string };
-  setTargetsForm: (updater: (prev: { sales_target_sqft: string; avg_sqft_per_deal: string; total_budget: string }) => {
+  targetsForm: {
     sales_target_sqft: string;
     avg_sqft_per_deal: string;
     total_budget: string;
+    qualified_to_meeting_done_percent: string;
+    meeting_done_to_close_percent: string;
+  };
+  setTargetsForm: (
+    updater: (
+      prev: {
+        sales_target_sqft: string;
+        avg_sqft_per_deal: string;
+        total_budget: string;
+        qualified_to_meeting_done_percent: string;
+        meeting_done_to_close_percent: string;
+      }
+    ) => {
+    sales_target_sqft: string;
+    avg_sqft_per_deal: string;
+    total_budget: string;
+    qualified_to_meeting_done_percent: string;
+    meeting_done_to_close_percent: string;
   }) => void;
   onSaveTargets: () => void;
   isDisabled: boolean;
@@ -44,6 +61,21 @@ export function CmoTargetsPanel(props: {
           unit="PKR"
           value={targetsForm.total_budget}
           onValueChange={(v) => setTargetsForm((s) => ({ ...s, total_budget: v }))}
+        />
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <NumberInput
+          label="Qualified → meetings done"
+          unit="%"
+          value={targetsForm.qualified_to_meeting_done_percent}
+          onValueChange={(v) => setTargetsForm((s) => ({ ...s, qualified_to_meeting_done_percent: v }))}
+        />
+        <NumberInput
+          label="Meetings done → close"
+          unit="%"
+          value={targetsForm.meeting_done_to_close_percent}
+          onValueChange={(v) => setTargetsForm((s) => ({ ...s, meeting_done_to_close_percent: v }))}
         />
       </div>
 

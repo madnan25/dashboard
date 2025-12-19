@@ -1,4 +1,5 @@
 import type { PlanChannel, PlanChannelInputs, ProjectTargets } from "@/lib/dashboardDb";
+import { getFunnelRates, computeChannelFunnelFromInputs } from "./funnelMath";
 
 export type OverallFunnelTargets = {
   leads: number;
@@ -21,19 +22,18 @@ export function computeOverallFunnelTargets(targets: ProjectTargets | null, inpu
   const avgSqft = targets?.avg_sqft_per_deal ?? 0;
 
   const deals = Math.max(0, Math.ceil(salesTargetSqft / Math.max(avgSqft, 1)));
-  // Business rule:
-  // - Meetings done target = 2x deals
-  // - Meetings scheduled target = 1.5x meetings done target
-  const meetings_done = deals * 2;
+  const rates = getFunnelRates(targets);
+  const closeRate = Math.max(1e-9, rates.meeting_done_to_close_percent / 100);
+  const meetings_done = deals > 0 ? Math.ceil(deals / closeRate) : 0;
+  // Keep prior business rule: scheduled = 1.5× done
   const meetings_scheduled = Math.ceil(meetings_done * 1.5);
 
   let leads = 0;
   let qualified = 0;
   for (const ch of CHANNELS) {
-    const expected = inputsByChannel[ch]?.expected_leads ?? 0;
-    const qPct = inputsByChannel[ch]?.qualification_percent ?? 0;
-    leads += expected;
-    qualified += Math.round(expected * (qPct / 100));
+    const computed = computeChannelFunnelFromInputs({ targets, inputs: inputsByChannel[ch] });
+    leads += computed.leadsRequired;
+    qualified += computed.qualifiedRequired;
   }
 
   const out: OverallFunnelTargets = {
