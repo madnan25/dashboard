@@ -75,5 +75,7 @@ export type ProjectActualsChannel = {
   qualified_leads: number;
   meetings_scheduled: number;
   meetings_done: number;
+  deals_won: number;
+  sqft_won: number;
 };
 

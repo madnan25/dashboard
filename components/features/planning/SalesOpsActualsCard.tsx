@@ -18,6 +18,8 @@ export function SalesOpsActualsCard(props: {
       qualified_leads: string;
       meetings_scheduled: string;
       meetings_done: string;
+      deals_won: string;
+      sqft_won: string;
     }
   >;
   setSalesOpsByChannel: (
@@ -29,6 +31,8 @@ export function SalesOpsActualsCard(props: {
           qualified_leads: string;
           meetings_scheduled: string;
           meetings_done: string;
+          deals_won: string;
+          sqft_won: string;
         }
       >
     ) => Record<
@@ -38,6 +42,8 @@ export function SalesOpsActualsCard(props: {
         qualified_leads: string;
         meetings_scheduled: string;
         meetings_done: string;
+        deals_won: string;
+        sqft_won: string;
       }
     >
   ) => void;
@@ -86,8 +92,28 @@ export function SalesOpsActualsCard(props: {
 
   const canSave = metricsDirty && saveFlash !== "saving";
 
-  const channels: PlanChannel[] = ["digital", "inbound", "activations"];
+  const channels = useMemo<PlanChannel[]>(() => ["digital", "inbound", "activations"], []);
   const label = (ch: PlanChannel) => (ch === "digital" ? "Digital" : ch === "inbound" ? "Inbound" : "Activations");
+
+  function toNumber(v: string) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  const totals = useMemo(() => {
+    return channels.reduce(
+      (acc, ch) => {
+        acc.leads += toNumber(salesOpsByChannel[ch].leads);
+        acc.qualified += toNumber(salesOpsByChannel[ch].qualified_leads);
+        acc.meetingsScheduled += toNumber(salesOpsByChannel[ch].meetings_scheduled);
+        acc.meetingsDone += toNumber(salesOpsByChannel[ch].meetings_done);
+        acc.dealsWon += toNumber(salesOpsByChannel[ch].deals_won);
+        acc.sqftWon += toNumber(salesOpsByChannel[ch].sqft_won);
+        return acc;
+      },
+      { leads: 0, qualified: 0, meetingsScheduled: 0, meetingsDone: 0, dealsWon: 0, sqftWon: 0 }
+    );
+  }, [channels, salesOpsByChannel]);
 
   return (
     <Surface>
@@ -139,24 +165,42 @@ export function SalesOpsActualsCard(props: {
                   unit="leads"
                   value={salesOpsByChannel[ch].leads}
                   onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], leads: v } }))}
+                  integerOnly
                 />
                 <NumberInput
                   label="Qualified"
                   unit="leads"
                   value={salesOpsByChannel[ch].qualified_leads}
                   onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], qualified_leads: v } }))}
+                  integerOnly
                 />
                 <NumberInput
                   label="Meetings scheduled"
                   unit="meetings"
                   value={salesOpsByChannel[ch].meetings_scheduled}
                   onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], meetings_scheduled: v } }))}
+                  integerOnly
                 />
                 <NumberInput
                   label="Meetings done"
                   unit="meetings"
                   value={salesOpsByChannel[ch].meetings_done}
                   onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], meetings_done: v } }))}
+                  integerOnly
+                />
+                <NumberInput
+                  label="Deals won"
+                  unit="deals"
+                  value={salesOpsByChannel[ch].deals_won}
+                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], deals_won: v } }))}
+                  integerOnly
+                />
+                <NumberInput
+                  label="Sqft won"
+                  unit="sqft"
+                  value={salesOpsByChannel[ch].sqft_won}
+                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], sqft_won: v } }))}
+                  integerOnly
                 />
               </div>
             </div>
@@ -164,16 +208,16 @@ export function SalesOpsActualsCard(props: {
         </div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-4">
-          <NumberInput label="Total leads (computed)" unit="leads" value={actualsForm.leads} onValueChange={() => {}} isDisabled />
-          <NumberInput label="Total qualified (computed)" unit="leads" value={actualsForm.qualified_leads} onValueChange={() => {}} isDisabled />
-          <NumberInput label="Total meetings scheduled (computed)" unit="meetings" value={actualsForm.meetings_scheduled} onValueChange={() => {}} isDisabled />
-          <NumberInput label="Total meetings done (computed)" unit="meetings" value={actualsForm.meetings_done} onValueChange={() => {}} isDisabled />
+          <NumberInput label="Total leads (computed)" unit="leads" value={String(totals.leads)} onValueChange={() => {}} isDisabled />
+          <NumberInput label="Total qualified (computed)" unit="leads" value={String(totals.qualified)} onValueChange={() => {}} isDisabled />
+          <NumberInput label="Total meetings scheduled (computed)" unit="meetings" value={String(totals.meetingsScheduled)} onValueChange={() => {}} isDisabled />
+          <NumberInput label="Total meetings done (computed)" unit="meetings" value={String(totals.meetingsDone)} onValueChange={() => {}} isDisabled />
         </div>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <NumberInput label="Deals won" unit="deals" value={actualsForm.deals_won} onValueChange={(v) => setActualsForm((s) => ({ ...s, deals_won: v }))} />
-        <NumberInput label="Sqft won" unit="sqft" value={actualsForm.sqft_won} onValueChange={(v) => setActualsForm((s) => ({ ...s, sqft_won: v }))} />
+        <NumberInput label="Total deals won (computed)" unit="deals" value={String(totals.dealsWon)} onValueChange={() => {}} isDisabled />
+        <NumberInput label="Total sqft won (computed)" unit="sqft" value={String(totals.sqftWon)} onValueChange={() => {}} isDisabled />
       </div>
 
       {actuals ? (

@@ -34,3 +34,4 @@ export function AppInput(
   return <Input {...rest} variant={rest.variant ?? "bordered"} classNames={mergedClassNames} />;
 }
 
+

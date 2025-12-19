@@ -7,6 +7,7 @@ type Props = {
   isDisabled?: boolean;
   placeholder?: string;
   unit?: string;
+  integerOnly?: boolean;
   description?: string;
   descriptionTone?: "muted" | "danger";
   className?: string;
@@ -24,9 +25,18 @@ export function NumberInput(props: Props) {
       >
         <input
           value={props.value}
-          onChange={(e) => props.onValueChange(e.target.value)}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (!props.integerOnly) {
+              props.onValueChange(raw);
+              return;
+            }
+            // integers only (no decimals, no minus); keep empty allowed
+            const next = raw.replace(/[^\d]/g, "");
+            props.onValueChange(next);
+          }}
           placeholder={props.placeholder}
-          inputMode="decimal"
+          inputMode={props.integerOnly ? "numeric" : "decimal"}
           disabled={props.isDisabled}
           className="w-full bg-transparent text-white/90 placeholder:text-white/25 outline-none"
           aria-label={props.label}

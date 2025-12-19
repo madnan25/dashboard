@@ -1,16 +1,14 @@
--- Allow Brand Managers to write spend (actual) only.
--- Sales Ops continue to own actual funnel metrics.
+-- Sales Ops writes channel actuals; project_actuals totals are computed by trigger.
+-- Brand Managers can still write spend-only to project_actuals.
 
--- 1) Expand actuals write policy to include brand_manager
 drop policy if exists actuals_write_sales_ops_or_cmo on public.project_actuals;
 create policy actuals_write_sales_ops_or_cmo
 on public.project_actuals
 for all
 to authenticated
-using (public.current_user_role() in ('cmo','sales_ops','brand_manager'))
-with check (public.current_user_role() in ('cmo','sales_ops','brand_manager'));
+using (public.current_user_role() in ('cmo','brand_manager'))
+with check (public.current_user_role() in ('cmo','brand_manager'));
 
--- 2) Guard trigger: brand_manager can only touch spend columns
 create or replace function public.guard_project_actuals_write()
 returns trigger
 language plpgsql
@@ -26,12 +24,8 @@ begin
     return new;
   end if;
 
-  if role = 'sales_ops' then
-    return new;
-  end if;
-
   if role <> 'brand_manager' then
-    raise exception 'Only CMO, Sales Ops, or Brand Managers can write actuals';
+    raise exception 'Only CMO or Brand Managers can write project actuals';
   end if;
 
   -- brand_manager: spend-only
@@ -69,10 +63,4 @@ begin
   return new;
 end;
 $$;
-
-drop trigger if exists trg_guard_project_actuals_write on public.project_actuals;
-create trigger trg_guard_project_actuals_write
-before insert or update on public.project_actuals
-for each row execute function public.guard_project_actuals_write();
-
 

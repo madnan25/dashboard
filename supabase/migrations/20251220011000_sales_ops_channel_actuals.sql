@@ -97,3 +97,4 @@ create trigger trg_sync_project_actuals_totals
 after insert or update or delete on public.project_actuals_channels
 for each row execute function public.sync_project_actuals_totals();
 
+

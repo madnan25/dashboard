@@ -54,6 +54,8 @@ export type SalesOpsChannelForm = {
   qualified_leads: string;
   meetings_scheduled: string;
   meetings_done: string;
+  deals_won: string;
+  sqft_won: string;
 };
 
 function emptyChannelForm(): ChannelForm {
@@ -120,9 +122,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   });
 
   const [salesOpsByChannel, setSalesOpsByChannel] = useState<Record<PlanChannel, SalesOpsChannelForm>>({
-    digital: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" },
-    activations: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" },
-    inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" }
+    digital: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+    activations: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+    inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
   });
 
   const [spendSavedJson, setSpendSavedJson] = useState<string>("");
@@ -191,16 +193,18 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     });
 
     const nextCh: Record<PlanChannel, SalesOpsChannelForm> = {
-      digital: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" },
-      activations: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" },
-      inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" }
+      digital: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+      activations: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+      inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
     };
     for (const r of channelRows) {
       nextCh[r.channel] = {
         leads: String(r.leads ?? 0),
         qualified_leads: String(r.qualified_leads ?? 0),
         meetings_scheduled: String(r.meetings_scheduled ?? 0),
-        meetings_done: String(r.meetings_done ?? 0)
+        meetings_done: String(r.meetings_done ?? 0),
+        deals_won: String(r.deals_won ?? 0),
+        sqft_won: String(r.sqft_won ?? 0)
       };
     }
     setSalesOpsByChannel(nextCh);
@@ -210,12 +214,16 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     const totalQualified = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].qualified_leads) ?? 0), 0);
     const totalMeetingsSched = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].meetings_scheduled) ?? 0), 0);
     const totalMeetingsDone = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].meetings_done) ?? 0), 0);
+    const totalDeals = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].deals_won) ?? 0), 0);
+    const totalSqft = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].sqft_won) ?? 0), 0);
     setActualsForm((prev) => ({
       ...prev,
       leads: String(totalLeads),
       qualified_leads: String(totalQualified),
       meetings_scheduled: String(totalMeetingsSched),
-      meetings_done: String(totalMeetingsDone)
+      meetings_done: String(totalMeetingsDone),
+      deals_won: String(totalDeals),
+      sqft_won: String(totalSqft)
     }));
 
     setSpendSavedJson(
@@ -227,7 +235,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     );
     setSpendSavedAt(Date.now());
 
-    setMetricsSavedJson(JSON.stringify({ channels: nextCh, deals_won: String(a?.deals_won ?? 0), sqft_won: String(a?.sqft_won ?? 0) }));
+    setMetricsSavedJson(JSON.stringify({ channels: nextCh }));
     setMetricsSavedAt(Date.now());
   }
 
@@ -285,16 +293,18 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         setSpendSavedAt(Date.now());
 
         const nextCh: Record<PlanChannel, SalesOpsChannelForm> = {
-          digital: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" },
-          activations: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" },
-          inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" }
+          digital: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+          activations: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+          inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
         };
         for (const r of channelRows) {
           nextCh[r.channel] = {
             leads: String(r.leads ?? 0),
             qualified_leads: String(r.qualified_leads ?? 0),
             meetings_scheduled: String(r.meetings_scheduled ?? 0),
-            meetings_done: String(r.meetings_done ?? 0)
+            meetings_done: String(r.meetings_done ?? 0),
+        deals_won: String(r.deals_won ?? 0),
+        sqft_won: String(r.sqft_won ?? 0)
           };
         }
         setSalesOpsByChannel(nextCh);
@@ -304,15 +314,19 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         const totalQualified = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].qualified_leads) ?? 0), 0);
         const totalMeetingsSched = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].meetings_scheduled) ?? 0), 0);
         const totalMeetingsDone = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].meetings_done) ?? 0), 0);
+        const totalDeals = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].deals_won) ?? 0), 0);
+        const totalSqft = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].sqft_won) ?? 0), 0);
         setActualsForm((prev) => ({
           ...prev,
           leads: String(totalLeads),
           qualified_leads: String(totalQualified),
           meetings_scheduled: String(totalMeetingsSched),
-          meetings_done: String(totalMeetingsDone)
+          meetings_done: String(totalMeetingsDone),
+          deals_won: String(totalDeals),
+          sqft_won: String(totalSqft)
         }));
 
-        setMetricsSavedJson(JSON.stringify({ channels: nextCh, deals_won: String(a?.deals_won ?? 0), sqft_won: String(a?.sqft_won ?? 0) }));
+        setMetricsSavedJson(JSON.stringify({ channels: nextCh }));
         setMetricsSavedAt(Date.now());
       } catch (e) {
         if (cancelled) return;
@@ -410,19 +424,15 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   }, [actualsForm.spend_activations, actualsForm.spend_digital, actualsForm.spend_inbound, spendSavedJson]);
 
   const metricsDirty = useMemo(() => {
-    const current = JSON.stringify({ channels: salesOpsByChannel, deals_won: actualsForm.deals_won, sqft_won: actualsForm.sqft_won });
+    const current = JSON.stringify({ channels: salesOpsByChannel });
     return metricsSavedJson ? current !== metricsSavedJson : current !== JSON.stringify({
       channels: {
-        digital: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" },
-        activations: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" },
-        inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0" }
-      },
-      deals_won: "0",
-      sqft_won: "0"
+        digital: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+        activations: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+        inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
+      }
     });
   }, [
-    actualsForm.deals_won,
-    actualsForm.sqft_won,
     metricsSavedJson,
     salesOpsByChannel
   ]);
@@ -555,22 +565,16 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   async function onSaveSalesOpsActuals() {
     if (!projectId) return;
 
-    const deals_won = toNumber(actualsForm.deals_won);
-    const sqft_won = toNumber(actualsForm.sqft_won);
-
-    if (deals_won == null || sqft_won == null) {
-      setStatus("Please enter valid numbers for deals/sqft.");
-      return;
-    }
-
     const channelPayloads = PLANNING_CHANNELS.map((ch) => {
       const row = salesOpsByChannel[ch];
       const leads = toNumber(row.leads);
       const qualified_leads = toNumber(row.qualified_leads);
       const meetings_scheduled = toNumber(row.meetings_scheduled);
       const meetings_done = toNumber(row.meetings_done);
-      if (leads == null || qualified_leads == null || meetings_scheduled == null || meetings_done == null) return null;
-      return { project_id: projectId, year, month, channel: ch, leads, qualified_leads, meetings_scheduled, meetings_done };
+      const deals_won = toNumber(row.deals_won);
+      const sqft_won = toNumber(row.sqft_won);
+      if (leads == null || qualified_leads == null || meetings_scheduled == null || meetings_done == null || deals_won == null || sqft_won == null) return null;
+      return { project_id: projectId, year, month, channel: ch, leads, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won };
     }).filter(Boolean) as Array<{
       project_id: string;
       year: number;
@@ -580,6 +584,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       qualified_leads: number;
       meetings_scheduled: number;
       meetings_done: number;
+      deals_won: number;
+      sqft_won: number;
     }>;
 
     if (channelPayloads.length !== PLANNING_CHANNELS.length) {
@@ -589,10 +595,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
 
     setStatus("Saving actuals...");
     await upsertProjectActualsChannels(channelPayloads);
-    await upsertProjectActualsMetrics({ project_id: projectId, year, month, deals_won, sqft_won });
     setStatus("Actuals saved.");
 
-    setMetricsSavedJson(JSON.stringify({ channels: salesOpsByChannel, deals_won: String(deals_won), sqft_won: String(sqft_won) }));
+    setMetricsSavedJson(JSON.stringify({ channels: salesOpsByChannel }));
     setMetricsSavedAt(Date.now());
     await refresh();
   }
