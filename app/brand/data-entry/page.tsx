@@ -47,6 +47,7 @@ export default function BrandDataEntryPage() {
     onSubmitForApproval,
     onApprove,
     onReject,
+    onDeleteDraft,
     onSaveActuals
   } = usePlanningData({ year, monthIndex });
 
@@ -92,7 +93,7 @@ export default function BrandDataEntryPage() {
         {profile?.role === "cmo" ? (
           <div className="grid gap-4 md:grid-cols-12">
             <CmoTargetsBudgetCard targetsForm={targetsForm} setTargetsForm={setTargetsForm} onSaveTargets={onSaveTargets} />
-            <CmoApprovalsCard planVersions={planVersions} onApprove={onApprove} onReject={onReject} />
+            <CmoApprovalsCard planVersions={planVersions} onApprove={onApprove} onReject={onReject} onDeleteDraft={onDeleteDraft} />
           </div>
         ) : null}
 
@@ -100,6 +101,7 @@ export default function BrandDataEntryPage() {
           <div className="grid gap-4 md:grid-cols-12">
             <BrandTargetsCard
               isCmo={isCmo}
+              profileId={profile?.id}
               targets={targets}
               planVersions={planVersions}
               monthLabel={monthLabel}

@@ -6,6 +6,7 @@ import type { PlanVersion, ProjectTargets } from "@/lib/dashboardDb";
 
 export function BrandTargetsCard(props: {
   isCmo: boolean;
+  profileId?: string | null;
   targets: ProjectTargets | null;
   planVersions: PlanVersion[];
   monthLabel: string;
@@ -14,7 +15,9 @@ export function BrandTargetsCard(props: {
   onCreateDraft: () => void;
   planDisplayName: (monthLabel: string, status: PlanVersion["status"], active: boolean) => string;
 }) {
-  const { isCmo, targets, planVersions, monthLabel, activePlanVersionId, setActivePlanVersionId, onCreateDraft, planDisplayName } = props;
+  const { isCmo, profileId, targets, planVersions, monthLabel, activePlanVersionId, setActivePlanVersionId, onCreateDraft, planDisplayName } = props;
+
+  const visibleVersions = isCmo ? planVersions : planVersions.filter((v) => (profileId ? v.created_by === profileId : false));
 
   return (
     <Surface className="md:col-span-5">
@@ -41,9 +44,9 @@ export function BrandTargetsCard(props: {
           Create new draft
         </Button>
 
-        {isCmo ? (
+        {isCmo || !!profileId ? (
           <div className="glass-inset rounded-xl p-3">
-            <div className="text-xs uppercase tracking-widest text-white/45">Plan version</div>
+            <div className="text-xs uppercase tracking-widest text-white/45">{isCmo ? "Plan version" : "Your plan versions"}</div>
             <select
               className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/85"
               value={activePlanVersionId ?? ""}
@@ -52,13 +55,15 @@ export function BrandTargetsCard(props: {
               <option value="" className="bg-zinc-900">
                 — Select —
               </option>
-              {planVersions.map((v) => (
+              {visibleVersions.map((v) => (
                 <option key={v.id} value={v.id} className="bg-zinc-900">
                   {planDisplayName(monthLabel, v.status, v.active)} · {new Date(v.created_at).toLocaleString()}
                 </option>
               ))}
             </select>
-            <div className="mt-2 text-xs text-white/45">CMO can edit any version (including approved). Changes apply immediately.</div>
+            <div className="mt-2 text-xs text-white/45">
+              {isCmo ? "CMO can edit any version (including approved). Changes apply immediately." : "Select which draft to edit/submit for this month."}
+            </div>
           </div>
         ) : null}
       </div>

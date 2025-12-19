@@ -8,8 +8,9 @@ export function CmoApprovalsCard(props: {
   planVersions: PlanVersion[];
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onDeleteDraft: (id: string) => void;
 }) {
-  const { planVersions, onApprove, onReject } = props;
+  const { planVersions, onApprove, onReject, onDeleteDraft } = props;
 
   return (
     <Surface className="md:col-span-7">
@@ -38,6 +39,18 @@ export function CmoApprovalsCard(props: {
                         Reject
                       </Button>
                     </>
+                  ) : null}
+                  {v.status === "draft" ? (
+                    <Button
+                      variant="flat"
+                      className="glass-inset text-white/80"
+                      onPress={() => {
+                        if (!confirm("Delete this draft? This cannot be undone.")) return;
+                        onDeleteDraft(v.id);
+                      }}
+                    >
+                      Delete draft
+                    </Button>
                   ) : null}
                 </div>
               </div>

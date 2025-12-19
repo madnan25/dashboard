@@ -15,6 +15,7 @@ import type {
 import {
   approvePlanVersion,
   createDraftPlanVersion,
+  deletePlanVersion,
   getCurrentProfile,
   getPlanChannelInputs,
   getProjectActuals,
@@ -346,6 +347,13 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     await refresh();
   }
 
+  async function onDeleteDraft(versionId: string) {
+    setStatus("Deleting draft...");
+    await deletePlanVersion(versionId);
+    setStatus("Deleted.");
+    await refresh();
+  }
+
   async function onSaveActuals() {
     if (!projectId) return;
 
@@ -432,6 +440,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     onSubmitForApproval,
     onApprove,
     onReject,
+    onDeleteDraft,
     onSaveActuals
   };
 }
