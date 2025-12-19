@@ -108,7 +108,15 @@ export function TopNav() {
                 >
                   Planning
                 </Link>
-              ) : null}
+              ) : (
+                <span
+                  className={`px-3 py-2 text-sm ${navPill} opacity-55 cursor-not-allowed`}
+                  aria-disabled="true"
+                  title="View-only access: Planning & Actuals is disabled for this role."
+                >
+                  Planning
+                </span>
+              )}
               {isCmo ? (
                 <Link
                   href="/cmo/projects"
