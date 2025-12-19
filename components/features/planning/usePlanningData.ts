@@ -391,6 +391,12 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
 
   async function onSubmitForApproval() {
     if (!activeVersion) return;
+    // Must be exactly 100% total to submit (brand requirement)
+    const totalPct = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(channelInputs[ch].target_contribution_percent) ?? 0), 0);
+    if (Math.abs(totalPct - 100) > 0.01) {
+      setStatus(`Total target contribution must equal 100% to submit (currently ${totalPct.toFixed(2)}%).`);
+      return;
+    }
     setStatus("Submitting for approval...");
     await updatePlanVersionStatus(activeVersion.id, "submitted");
     setStatus("Submitted. Waiting for CMO approval.");

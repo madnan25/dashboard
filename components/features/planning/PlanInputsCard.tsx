@@ -100,6 +100,8 @@ export function PlanInputsCard(props: {
   }, 0);
 
   const isOverTotalTarget = totalContributionPct > 100.0001;
+  const isUnderTotalTarget = totalContributionPct < 99.99;
+  const isExactlyTarget = !isOverTotalTarget && !isUnderTotalTarget;
 
   const [saveFlash, setSaveFlash] = useState<"idle" | "saving" | "saved">("idle");
 
@@ -110,6 +112,14 @@ export function PlanInputsCard(props: {
   }, [planInputsDirty, saveFlash]);
 
   const canSave = canEditPlan && planInputsDirty && !isOverTotalTarget && saveFlash !== "saving";
+  const canSubmit = canEditPlan && isExactlyTarget;
+
+  function recomputeForChannel(nextPct: number, ch: PlanChannel) {
+    const sqft = computeChannelTargetSqftUncapped({ totalTargetSqft, contributionPercent: nextPct });
+    const q = toNumber(channelInputs[ch].qualification_percent) ?? 0;
+    const computed = computeChannelFunnelFromTargetSqft({ targets, targetSqft: sqft, qualificationPercent: q });
+    return { sqft, leads: computed.leadsRequired };
+  }
 
   const statusTone =
     activeVersion?.status === "approved"
@@ -150,6 +160,7 @@ export function PlanInputsCard(props: {
             <span className={isOverTotalTarget ? "ml-3 text-rose-200/90" : "ml-3 text-white/45"}>
               Target total: {totalContributionPct.toFixed(2)}%
               {isOverTotalTarget ? ` (over by ${(totalContributionPct - 100).toFixed(2)}%)` : ""}
+              {isUnderTotalTarget ? ` (need ${(100 - totalContributionPct).toFixed(2)}% more)` : ""}
             </span>
           ) : null}
         </div>
@@ -162,7 +173,35 @@ export function PlanInputsCard(props: {
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             {CHANNELS.map((ch) => (
               <div key={ch} className="glass-inset rounded-2xl p-4">
-                <div className="text-sm font-semibold text-white/85">{channelLabel(ch)}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-white/85">{channelLabel(ch)}</div>
+                  <AppButton
+                    intent="ghost"
+                    size="sm"
+                    isDisabled={!canEditPlan}
+                    onPress={() => {
+                      const current = toNumber(channelInputs[ch].target_contribution_percent) ?? 0;
+                      const others = CHANNELS.reduce((sum, other) => {
+                        if (other === ch) return sum;
+                        return sum + (toNumber(channelInputs[other].target_contribution_percent) ?? 0);
+                      }, 0);
+                      // Set this channel so total becomes exactly 100.
+                      const desired = Math.max(0, Math.min(100, 100 - others));
+                      const { sqft, leads } = recomputeForChannel(desired, ch);
+                      setChannelInputs((s) => ({
+                        ...s,
+                        [ch]: {
+                          ...s[ch],
+                          target_contribution_percent: Number(desired.toFixed(2)).toString(),
+                          target_sqft: String(sqft),
+                          expected_leads: String(leads)
+                        }
+                      }));
+                    }}
+                  >
+                    Balance to 100%
+                  </AppButton>
+                </div>
                 <div className="mt-3 grid gap-3">
                   {(() => {
                     const sqft = toNumber(channelInputs[ch].target_sqft) ?? 0;
@@ -332,7 +371,7 @@ export function PlanInputsCard(props: {
               <AppButton
                 intent="primary"
                 onPress={async () => {
-                  if (!canEditPlan || isOverTotalTarget) return;
+                  if (!canSubmit) return;
                   if (planInputsDirty) {
                     const ok = confirm(
                       "You have unsaved changes.\n\nIf you submit now, ONLY the last saved values will be submitted and any unsaved edits will be lost.\n\nPress Cancel to go back and Save first."
@@ -341,7 +380,7 @@ export function PlanInputsCard(props: {
                   }
                   await onSubmitForApproval();
                 }}
-                isDisabled={!canEditPlan || isOverTotalTarget}
+                isDisabled={!canSubmit}
               >
                 Submit for approval
               </AppButton>
