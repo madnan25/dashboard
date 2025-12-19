@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@heroui/react";
 import { MONTHS } from "@/lib/digitalSnapshot";
+import { cn } from "@/lib/cn";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -12,12 +13,14 @@ export function MonthYearPicker({
   monthIndex,
   year,
   onChange,
-  label
+  label,
+  buttonClassName
 }: {
   monthIndex: number;
   year: number;
   label: string;
   onChange: (next: { monthIndex: number; year: number }) => void;
+  buttonClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -76,7 +79,12 @@ export function MonthYearPicker({
         ref={anchorRef as unknown as never}
         size="sm"
         variant="flat"
-        className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15"
+        className={cn(
+          "glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15",
+          // normalize sizing so it matches select pills
+          "h-10 px-4 py-0",
+          buttonClassName
+        )}
         onPress={() => setOpen((v) => !v)}
       >
         {label}

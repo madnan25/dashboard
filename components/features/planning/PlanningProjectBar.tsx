@@ -23,7 +23,7 @@ export function PlanningProjectBar(props: {
         <div className="flex items-center gap-2">
           <div className="text-sm text-white/60">Project</div>
           <select
-            className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/85 hover:bg-white/[0.04]"
+            className="glass-inset h-10 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-0 text-sm text-white/85 hover:bg-white/[0.04]"
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
             disabled={isDisabled}

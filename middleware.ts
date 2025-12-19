@@ -17,12 +17,31 @@ function extractAccessTokenFromCookies(request: NextRequest): string | null {
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const canonical = process.env.NEXT_PUBLIC_SITE_URL;
 
   // Allow the app to run locally even before env vars are configured.
   // Once env vars are set (Vercel/local), auth+RLS becomes enforced.
   if (!url || !anonKey) return NextResponse.next();
 
   const requestUrl = request.nextUrl;
+
+  // Canonical host: if user is on the Vercel domain, redirect to custom domain.
+  // This helps keep magic-link redirects + cookies consistent.
+  if (canonical) {
+    try {
+      const canonicalUrl = new URL(canonical);
+      const reqHost = request.headers.get("host") ?? "";
+      if (reqHost.endsWith("vercel.app") && canonicalUrl.host && canonicalUrl.host !== reqHost) {
+        const redirect = requestUrl.clone();
+        redirect.protocol = canonicalUrl.protocol;
+        redirect.host = canonicalUrl.host;
+        return NextResponse.redirect(redirect);
+      }
+    } catch {
+      // ignore invalid canonical URL
+    }
+  }
+
   const accessToken = extractAccessTokenFromCookies(request);
   const isAuthed = accessToken ? isJwtNotExpired(accessToken) : false;
 

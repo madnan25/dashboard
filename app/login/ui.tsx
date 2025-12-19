@@ -6,6 +6,12 @@ import { Button, Input } from "@heroui/react";
 import { PageShell, Surface } from "@/components/ds/Surface";
 import { createClient } from "@/lib/supabase/browser";
 
+function canonicalOrigin() {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (raw) return raw.replace(/\/+$/, "");
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
+
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -27,7 +33,8 @@ export default function LoginForm() {
 
     try {
       const supabase = createClient();
-      const emailRedirectTo = `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(
+      const origin = canonicalOrigin();
+      const emailRedirectTo = `${origin}/auth/callback?redirectTo=${encodeURIComponent(
         redirectTo
       )}`;
 

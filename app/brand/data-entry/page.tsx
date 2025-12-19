@@ -65,6 +65,7 @@ export default function BrandDataEntryPage() {
               monthIndex={monthIndex}
               year={year}
               label={monthLabel}
+              buttonClassName="min-w-[118px]"
               onChange={(next) => {
                 setMonthIndex(next.monthIndex);
                 setYear(next.year);
