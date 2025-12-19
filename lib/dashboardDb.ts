@@ -79,6 +79,18 @@ export async function deletePlanVersion(planVersionId: string): Promise<void> {
   return await repo().deletePlanVersion(planVersionId);
 }
 
+// CMO-only hard delete (purge) via Edge Function (uses service role server-side)
+export async function purgeDraftPlanVersion(planVersionId: string): Promise<void> {
+  const supabase = createBrowserDbClient();
+  const { data, error } = await supabase.functions.invoke("delete-plan-draft", {
+    body: { planVersionId }
+  });
+  if (error) throw error;
+  if (!data || data.ok !== true) {
+    throw new Error((data && typeof data.error === "string" && data.error) || "Failed to purge draft plan");
+  }
+}
+
 export async function getPlanChannelInputs(planVersionId: string): Promise<PlanChannelInputs[]> {
   return await repo().getPlanChannelInputs(planVersionId);
 }

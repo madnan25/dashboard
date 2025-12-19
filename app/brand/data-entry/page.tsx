@@ -5,8 +5,6 @@ import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { PlanningProjectBar } from "@/components/features/planning/PlanningProjectBar";
-import { CmoTargetsBudgetCard } from "@/components/features/planning/CmoTargetsBudgetCard";
-import { CmoApprovalsCard } from "@/components/features/planning/CmoApprovalsCard";
 import { BrandTargetsCard } from "@/components/features/planning/BrandTargetsCard";
 import { PlanInputsCard } from "@/components/features/planning/PlanInputsCard";
 import { SalesOpsActualsCard } from "@/components/features/planning/SalesOpsActualsCard";
@@ -24,8 +22,6 @@ export default function BrandDataEntryPage() {
     projectId,
     setProjectId,
     targets,
-    targetsForm,
-    setTargetsForm,
     planVersions,
     activePlanVersionId,
     setActivePlanVersionId,
@@ -41,13 +37,9 @@ export default function BrandDataEntryPage() {
     isCmo,
     canEditPlan,
     status,
-    onSaveTargets,
     onCreateDraft,
     onSavePlanInputs,
     onSubmitForApproval,
-    onApprove,
-    onReject,
-    onDeleteDraft,
     onSaveActuals
   } = usePlanningData({ year, monthIndex });
 
@@ -88,13 +80,6 @@ export default function BrandDataEntryPage() {
               this page will light up.
             </div>
           </Surface>
-        ) : null}
-
-        {profile?.role === "cmo" ? (
-          <div className="grid gap-4 md:grid-cols-12">
-            <CmoTargetsBudgetCard targetsForm={targetsForm} setTargetsForm={setTargetsForm} onSaveTargets={onSaveTargets} />
-            <CmoApprovalsCard planVersions={planVersions} onApprove={onApprove} onReject={onReject} onDeleteDraft={onDeleteDraft} />
-          </div>
         ) : null}
 
         {profile?.role === "brand_manager" || isCmo ? (

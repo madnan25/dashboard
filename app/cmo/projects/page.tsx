@@ -16,11 +16,11 @@ import {
   PlanVersion,
   approvePlanVersion,
   createProject,
-  deletePlanVersion,
   getCurrentProfile,
   getProjectTargets,
   listPlanVersions,
   listProjects,
+  purgeDraftPlanVersion,
   rejectPlanVersion,
   updateProject,
   upsertProjectTargets
@@ -206,7 +206,7 @@ export default function CmoProjectsPage() {
     if (!confirm("Delete this draft? This cannot be undone.")) return;
     try {
       setStatus("Deleting...");
-      await deletePlanVersion(versionId);
+      await purgeDraftPlanVersion(versionId);
       setStatus("Deleted.");
       await refreshVersions();
     } catch (e) {
