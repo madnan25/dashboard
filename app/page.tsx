@@ -1,29 +1,13 @@
-"use client";
-
 import { NavCard } from "@/components/ds/NavCard";
-import { useEffect, useState } from "react";
-import { getCurrentProfile, type Profile } from "@/lib/dashboardDb";
+import { createServerDbClient } from "@/lib/db/client/server";
+import { createDashboardRepo } from "@/lib/db/repo";
 
-export default function HomePage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
+export const dynamic = "force-dynamic";
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const p = await getCurrentProfile();
-        if (cancelled) return;
-        setProfile(p);
-      } catch {
-        // ignore
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+export default async function HomePage() {
+  const supabase = await createServerDbClient();
+  const repo = createDashboardRepo(supabase);
+  const profile = await repo.getCurrentProfile();
   const planningDisabled = profile?.role === "viewer";
 
   return (

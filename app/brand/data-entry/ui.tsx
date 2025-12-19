@@ -33,6 +33,8 @@ export default function BrandDataEntryClient() {
     planInputsSavedAt,
     spendDirty,
     spendSavedAt,
+    metricsDirty,
+    metricsSavedAt,
     actuals,
     actualsForm,
     setActualsForm,
@@ -153,7 +155,15 @@ export default function BrandDataEntryClient() {
         ) : null}
 
         {profile?.role === "sales_ops" || isCmo ? (
-          <SalesOpsActualsCard isCmo={isCmo} actuals={actuals} actualsForm={actualsForm} setActualsForm={setActualsForm} onSaveActuals={onSaveSalesOpsActuals} />
+          <SalesOpsActualsCard
+            isCmo={isCmo}
+            actuals={actuals}
+            metricsDirty={metricsDirty}
+            metricsSavedAt={metricsSavedAt}
+            actualsForm={actualsForm}
+            setActualsForm={setActualsForm}
+            onSaveActuals={onSaveSalesOpsActuals}
+          />
         ) : null}
 
         {profile && profile.role !== "cmo" && profile.role !== "brand_manager" && profile.role !== "sales_ops" ? (

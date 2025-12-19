@@ -113,6 +113,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   const [spendSavedJson, setSpendSavedJson] = useState<string>("");
   const [spendSavedAt, setSpendSavedAt] = useState<number | null>(null);
 
+  const [metricsSavedJson, setMetricsSavedJson] = useState<string>("");
+  const [metricsSavedAt, setMetricsSavedAt] = useState<number | null>(null);
+
   const [status, setStatus] = useState<string>("");
 
   const envMissing =
@@ -179,6 +182,18 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       })
     );
     setSpendSavedAt(Date.now());
+
+    setMetricsSavedJson(
+      JSON.stringify({
+        leads: String(a?.leads ?? 0),
+        qualified_leads: String(a?.qualified_leads ?? 0),
+        meetings_scheduled: String(a?.meetings_scheduled ?? 0),
+        meetings_done: String(a?.meetings_done ?? 0),
+        deals_won: String(a?.deals_won ?? 0),
+        sqft_won: String(a?.sqft_won ?? 0)
+      })
+    );
+    setMetricsSavedAt(Date.now());
   }
 
   useEffect(() => {
@@ -232,6 +247,18 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
           })
         );
         setSpendSavedAt(Date.now());
+
+        setMetricsSavedJson(
+          JSON.stringify({
+            leads: String(a?.leads ?? 0),
+            qualified_leads: String(a?.qualified_leads ?? 0),
+            meetings_scheduled: String(a?.meetings_scheduled ?? 0),
+            meetings_done: String(a?.meetings_done ?? 0),
+            deals_won: String(a?.deals_won ?? 0),
+            sqft_won: String(a?.sqft_won ?? 0)
+          })
+        );
+        setMetricsSavedAt(Date.now());
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load data");
@@ -326,6 +353,33 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       spend_activations: "0"
     });
   }, [actualsForm.spend_activations, actualsForm.spend_digital, actualsForm.spend_inbound, spendSavedJson]);
+
+  const metricsDirty = useMemo(() => {
+    const current = JSON.stringify({
+      leads: actualsForm.leads,
+      qualified_leads: actualsForm.qualified_leads,
+      meetings_scheduled: actualsForm.meetings_scheduled,
+      meetings_done: actualsForm.meetings_done,
+      deals_won: actualsForm.deals_won,
+      sqft_won: actualsForm.sqft_won
+    });
+    return metricsSavedJson ? current !== metricsSavedJson : current !== JSON.stringify({
+      leads: "0",
+      qualified_leads: "0",
+      meetings_scheduled: "0",
+      meetings_done: "0",
+      deals_won: "0",
+      sqft_won: "0"
+    });
+  }, [
+    actualsForm.deals_won,
+    actualsForm.leads,
+    actualsForm.meetings_done,
+    actualsForm.meetings_scheduled,
+    actualsForm.qualified_leads,
+    actualsForm.sqft_won,
+    metricsSavedJson
+  ]);
 
   const allocatedTotal = useMemo(() => {
     return PLANNING_CHANNELS.reduce((sum, ch) => {
@@ -487,6 +541,18 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       sqft_won
     });
     setStatus("Actuals saved.");
+
+    setMetricsSavedJson(
+      JSON.stringify({
+        leads: String(leads),
+        qualified_leads: String(qualified_leads),
+        meetings_scheduled: String(meetings_scheduled),
+        meetings_done: String(meetings_done),
+        deals_won: String(deals_won),
+        sqft_won: String(sqft_won)
+      })
+    );
+    setMetricsSavedAt(Date.now());
     await refresh();
   }
 
@@ -551,6 +617,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     planInputsSavedAt,
     spendDirty,
     spendSavedAt,
+    metricsDirty,
+    metricsSavedAt,
     actuals,
     actualsForm,
     setActualsForm,

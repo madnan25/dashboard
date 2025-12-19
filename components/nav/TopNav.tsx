@@ -56,7 +56,8 @@ export function TopNav() {
   }, [email, profile?.full_name]);
 
   const isCmo = profile?.role === "cmo";
-  const canSeePlanning = profile?.role !== "viewer";
+  // Avoid a "clickable for 1 second" flicker: until we know the role, don't render the link.
+  const canSeePlanning = profile?.role != null && profile.role !== "viewer";
 
   // Hide on auth-only routes
   if (pathname === "/login" || pathname.startsWith("/auth/")) return null;
