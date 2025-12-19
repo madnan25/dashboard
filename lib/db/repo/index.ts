@@ -40,7 +40,11 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     getProjectActuals: (projectId: string, year: number, month: number) => actuals.getProjectActuals(supabase, projectId, year, month),
     upsertProjectActuals: (input: Parameters<typeof actuals.upsertProjectActuals>[1]) => actuals.upsertProjectActuals(supabase, input),
     upsertProjectActualsMetrics: (input: Parameters<typeof actuals.upsertProjectActualsMetrics>[1]) => actuals.upsertProjectActualsMetrics(supabase, input),
-    upsertProjectActualsSpend: (input: Parameters<typeof actuals.upsertProjectActualsSpend>[1]) => actuals.upsertProjectActualsSpend(supabase, input)
+    upsertProjectActualsSpend: (input: Parameters<typeof actuals.upsertProjectActualsSpend>[1]) => actuals.upsertProjectActualsSpend(supabase, input),
+    listProjectActualsChannels: (projectId: string, year: number, month: number) =>
+      actuals.listProjectActualsChannels(supabase, projectId, year, month),
+    upsertProjectActualsChannels: (inputs: Parameters<typeof actuals.upsertProjectActualsChannels>[1]) =>
+      actuals.upsertProjectActualsChannels(supabase, inputs)
   };
 }
 

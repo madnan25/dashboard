@@ -4,13 +4,43 @@ import { useMemo, useState } from "react";
 import { NumberInput } from "@/components/ds/NumberInput";
 import { AppButton } from "@/components/ds/AppButton";
 import { Surface } from "@/components/ds/Surface";
-import type { ProjectActuals } from "@/lib/dashboardDb";
+import type { PlanChannel, ProjectActuals } from "@/lib/dashboardDb";
 
 export function SalesOpsActualsCard(props: {
   isCmo: boolean;
   actuals: ProjectActuals | null;
   metricsDirty: boolean;
   metricsSavedAt: number | null;
+  salesOpsByChannel: Record<
+    PlanChannel,
+    {
+      leads: string;
+      qualified_leads: string;
+      meetings_scheduled: string;
+      meetings_done: string;
+    }
+  >;
+  setSalesOpsByChannel: (
+    updater: (
+      prev: Record<
+        PlanChannel,
+        {
+          leads: string;
+          qualified_leads: string;
+          meetings_scheduled: string;
+          meetings_done: string;
+        }
+      >
+    ) => Record<
+      PlanChannel,
+      {
+        leads: string;
+        qualified_leads: string;
+        meetings_scheduled: string;
+        meetings_done: string;
+      }
+    >
+  ) => void;
   actualsForm: {
     leads: string;
     qualified_leads: string;
@@ -45,7 +75,7 @@ export function SalesOpsActualsCard(props: {
   }) => void;
   onSaveActuals: () => Promise<void> | void;
 }) {
-  const { isCmo, actuals, metricsDirty, metricsSavedAt, actualsForm, setActualsForm, onSaveActuals } = props;
+  const { isCmo, actuals, metricsDirty, metricsSavedAt, salesOpsByChannel, setSalesOpsByChannel, actualsForm, setActualsForm, onSaveActuals } = props;
 
   const [saveFlash, setSaveFlash] = useState<"idle" | "saving" | "saved">("idle");
   const saveLabel = useMemo(() => {
@@ -55,6 +85,9 @@ export function SalesOpsActualsCard(props: {
   }, [metricsDirty, saveFlash]);
 
   const canSave = metricsDirty && saveFlash !== "saving";
+
+  const channels: PlanChannel[] = ["digital", "inbound", "activations"];
+  const label = (ch: PlanChannel) => (ch === "digital" ? "Digital" : ch === "inbound" ? "Inbound" : "Activations");
 
   return (
     <Surface>
@@ -94,26 +127,48 @@ export function SalesOpsActualsCard(props: {
         </AppButton>
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-4">
-        <NumberInput label="Actual leads" unit="leads" value={actualsForm.leads} onValueChange={(v) => setActualsForm((s) => ({ ...s, leads: v }))} />
-        <NumberInput
-          label="Qualified leads"
-          unit="leads"
-          value={actualsForm.qualified_leads}
-          onValueChange={(v) => setActualsForm((s) => ({ ...s, qualified_leads: v }))}
-        />
-        <NumberInput
-          label="Meetings scheduled"
-          unit="meetings"
-          value={actualsForm.meetings_scheduled}
-          onValueChange={(v) => setActualsForm((s) => ({ ...s, meetings_scheduled: v }))}
-        />
-        <NumberInput
-          label="Meetings done"
-          unit="meetings"
-          value={actualsForm.meetings_done}
-          onValueChange={(v) => setActualsForm((s) => ({ ...s, meetings_done: v }))}
-        />
+      <div className="mt-4">
+        <div className="text-xs uppercase tracking-widest text-white/45">Actuals by channel</div>
+        <div className="mt-3 grid gap-4 md:grid-cols-3">
+          {channels.map((ch) => (
+            <div key={ch} className="glass-inset rounded-2xl p-4">
+              <div className="text-sm font-semibold text-white/85">{label(ch)}</div>
+              <div className="mt-3 grid gap-3">
+                <NumberInput
+                  label="Leads"
+                  unit="leads"
+                  value={salesOpsByChannel[ch].leads}
+                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], leads: v } }))}
+                />
+                <NumberInput
+                  label="Qualified"
+                  unit="leads"
+                  value={salesOpsByChannel[ch].qualified_leads}
+                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], qualified_leads: v } }))}
+                />
+                <NumberInput
+                  label="Meetings scheduled"
+                  unit="meetings"
+                  value={salesOpsByChannel[ch].meetings_scheduled}
+                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], meetings_scheduled: v } }))}
+                />
+                <NumberInput
+                  label="Meetings done"
+                  unit="meetings"
+                  value={salesOpsByChannel[ch].meetings_done}
+                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], meetings_done: v } }))}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-4">
+          <NumberInput label="Total leads (computed)" unit="leads" value={actualsForm.leads} onValueChange={() => {}} isDisabled />
+          <NumberInput label="Total qualified (computed)" unit="leads" value={actualsForm.qualified_leads} onValueChange={() => {}} isDisabled />
+          <NumberInput label="Total meetings scheduled (computed)" unit="meetings" value={actualsForm.meetings_scheduled} onValueChange={() => {}} isDisabled />
+          <NumberInput label="Total meetings done (computed)" unit="meetings" value={actualsForm.meetings_done} onValueChange={() => {}} isDisabled />
+        </div>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">

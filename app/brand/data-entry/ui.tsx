@@ -38,6 +38,8 @@ export default function BrandDataEntryClient() {
     actuals,
     actualsForm,
     setActualsForm,
+    salesOpsByChannel,
+    setSalesOpsByChannel,
     allocatedTotal,
     budgetCap,
     remainingBudget,
@@ -160,6 +162,8 @@ export default function BrandDataEntryClient() {
             actuals={actuals}
             metricsDirty={metricsDirty}
             metricsSavedAt={metricsSavedAt}
+            salesOpsByChannel={salesOpsByChannel}
+            setSalesOpsByChannel={setSalesOpsByChannel}
             actualsForm={actualsForm}
             setActualsForm={setActualsForm}
             onSaveActuals={onSaveSalesOpsActuals}

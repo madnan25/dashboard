@@ -66,3 +66,14 @@ export type ProjectActuals = {
   spend_activations: number;
 };
 
+export type ProjectActualsChannel = {
+  project_id: string;
+  year: number;
+  month: number; // 1-12
+  channel: PlanChannel;
+  leads: number;
+  qualified_leads: number;
+  meetings_scheduled: number;
+  meetings_done: number;
+};
+
