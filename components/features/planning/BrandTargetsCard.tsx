@@ -18,7 +18,11 @@ export function BrandTargetsCard(props: {
 }) {
   const { isCmo, profileId, targets, planVersions, monthLabel, activePlanVersionId, setActivePlanVersionId, onCreateDraft, planDisplayName } = props;
 
-  const visibleVersions = isCmo ? planVersions : planVersions.filter((v) => (profileId ? v.created_by === profileId : false));
+  // Brand Managers should always be able to see the month’s approved plan (read-only),
+  // even if it was created by another Brand Manager.
+  const visibleVersions = isCmo
+    ? planVersions
+    : planVersions.filter((v) => (profileId ? v.created_by === profileId : false) || (v.status === "approved" && v.active));
   const selected = activePlanVersionId ? visibleVersions.find((v) => v.id === activePlanVersionId) ?? null : null;
   const statusTone =
     selected?.status === "approved"

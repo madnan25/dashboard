@@ -383,10 +383,16 @@ export function PlanInputsCard(props: {
                 }}
                 isDisabled={!canSubmit}
               >
-                Submit for approval
+                Submit proposal
               </AppButton>
             ) : null}
           </div>
+
+          {!isCmo && planInputsDirty ? (
+            <div className="mt-2 text-xs text-amber-200/90">
+              Tip: click <span className="text-white/85">Save draft</span> first to make sure your latest edits are included in the submission.
+            </div>
+          ) : null}
         </>
       )}
     </Surface>

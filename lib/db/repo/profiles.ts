@@ -36,3 +36,11 @@ export async function updateUserRole(supabase: SupabaseClient, userId: string, r
   if (error) throw error;
 }
 
+export async function listProfilesByIds(supabase: SupabaseClient, ids: string[]): Promise<Profile[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase.from("profiles").select("id, role, full_name, email").in("id", unique);
+  if (error) throw error;
+  return (data as Profile[]) ?? [];
+}
+

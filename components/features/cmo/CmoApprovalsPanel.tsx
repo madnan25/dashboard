@@ -5,8 +5,8 @@ import { Button } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
 import { AppButton } from "@/components/ds/AppButton";
 import { Surface } from "@/components/ds/Surface";
-import type { PlanChannel, PlanChannelInputs, PlanVersion, ProjectTargets } from "@/lib/dashboardDb";
-import { getPlanChannelInputs } from "@/lib/dashboardDb";
+import type { PlanChannel, PlanChannelInputs, PlanVersion, Profile, ProjectTargets } from "@/lib/dashboardDb";
+import { getPlanChannelInputs, listProfilesByIds } from "@/lib/dashboardDb";
 import { computeChannelFunnelFromInputs } from "@/lib/reports/funnelMath";
 
 function planDisplayName(monthLabel: string, status: PlanVersion["status"], active: boolean) {
@@ -31,8 +31,40 @@ export function CmoApprovalsPanel(props: {
   const [viewRows, setViewRows] = useState<PlanChannelInputs[] | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string>("");
+  const [profilesById, setProfilesById] = useState<Record<string, Profile>>({});
 
   const viewing = useMemo(() => (viewId ? planVersions.find((v) => v.id === viewId) ?? null : null), [planVersions, viewId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProfiles() {
+      const ids = planVersions.map((v) => v.created_by).filter(Boolean);
+      if (ids.length === 0) return;
+      try {
+        const rows = await listProfilesByIds(ids);
+        if (cancelled) return;
+        const map: Record<string, Profile> = {};
+        for (const r of rows) map[r.id] = r;
+        setProfilesById(map);
+      } catch {
+        // ignore; UI falls back to id
+      }
+    }
+    loadProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, [planVersions]);
+
+  function displayUser(id: string) {
+    const p = profilesById[id];
+    const name = p?.full_name?.trim();
+    const email = p?.email?.trim();
+    if (name && email) return `${name} (${email})`;
+    if (name) return name;
+    if (email) return email;
+    return `${id.slice(0, 8)}…`;
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +143,7 @@ export function CmoApprovalsPanel(props: {
                       <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/75">ACTIVE</span>
                     ) : null}
                   </div>
+                  <div className="mt-1 text-white/55">Submitted by: {displayUser(v.created_by)}</div>
                   <div className="mt-1 text-white/55">Created: {new Date(v.created_at).toLocaleString()}</div>
                   <div className="text-white/55">ID: {v.id.slice(0, 8)}…</div>
                 </div>
@@ -169,7 +202,7 @@ export function CmoApprovalsPanel(props: {
                   {viewing ? planDisplayName(monthLabel, viewing.status, viewing.active) : "Plan details"}
                 </div>
                 <div className="mt-1 text-sm text-white/55">
-                  {viewing ? `Created: ${new Date(viewing.created_at).toLocaleString()} · ID: ${viewing.id.slice(0, 8)}…` : ""}
+                  {viewing ? `Submitted by: ${displayUser(viewing.created_by)} · Created: ${new Date(viewing.created_at).toLocaleString()} · ID: ${viewing.id.slice(0, 8)}…` : ""}
                 </div>
               </div>
               <AppButton

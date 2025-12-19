@@ -266,7 +266,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
 
         const preferred =
           profile?.role === "brand_manager"
-            ? versions.find((v) => v.created_by === profile.id && (v.status === "draft" || v.status === "rejected"))
+            ? versions.find((v) => v.created_by === profile.id && (v.status === "draft" || v.status === "rejected")) ??
+              versions.find((v) => v.active && v.status === "approved") ??
+              versions[0]
             : versions[0];
         setActivePlanVersionId(preferred?.id ?? null);
 

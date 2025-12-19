@@ -43,6 +43,10 @@ export async function listProfiles(): Promise<Profile[]> {
   return await repo().listProfiles();
 }
 
+export async function listProfilesByIds(ids: string[]): Promise<Profile[]> {
+  return await repo().listProfilesByIds(ids);
+}
+
 export async function updateUserRole(userId: string, role: UserRole): Promise<void> {
   return await repo().updateUserRole(userId, role);
 }
