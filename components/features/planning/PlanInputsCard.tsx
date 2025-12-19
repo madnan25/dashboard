@@ -178,6 +178,7 @@ export function PlanInputsCard(props: {
                   <AppButton
                     intent="ghost"
                     size="sm"
+                    className="h-9 px-3 text-xs"
                     isDisabled={!canEditPlan}
                     onPress={() => {
                       const current = toNumber(channelInputs[ch].target_contribution_percent) ?? 0;
@@ -199,7 +200,7 @@ export function PlanInputsCard(props: {
                       }));
                     }}
                   >
-                    Balance to 100%
+                    Adjust
                   </AppButton>
                 </div>
                 <div className="mt-3 grid gap-3">

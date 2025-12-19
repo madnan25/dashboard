@@ -11,7 +11,20 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Dashboard",
-  description: "Blank slate Next.js + HeroUI project"
+  description: "No nonsense marketing and sales reporting",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://reporting-tan.vercel.app"),
+  openGraph: {
+    title: "Dashboard",
+    description: "No nonsense marketing and sales reporting",
+    type: "website",
+    images: [{ url: "/og.jpeg", width: 1200, height: 630, alt: "Dashboard" }]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Dashboard",
+    description: "No nonsense marketing and sales reporting",
+    images: ["/og.jpeg"]
+  }
 };
 
 export default function RootLayout({
