@@ -1,0 +1,202 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Input } from "@heroui/react";
+import { AppButton } from "@/components/ds/AppButton";
+import { PillSelect } from "@/components/ds/PillSelect";
+import { Surface } from "@/components/ds/Surface";
+import type { Profile, UserRole } from "@/lib/dashboardDb";
+import { cmoCreateUser, listProfiles, updateUserRole } from "@/lib/dashboardDb";
+
+const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: "brand_manager", label: "Brand" },
+  { value: "sales_ops", label: "Sales Ops" },
+  { value: "viewer", label: "Viewer" },
+  { value: "cmo", label: "CMO" }
+];
+
+export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
+  const { onStatus } = props;
+
+  const [rows, setRows] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const [createEmail, setCreateEmail] = useState("");
+  const [createName, setCreateName] = useState("");
+  const [createRole, setCreateRole] = useState<UserRole>("brand_manager");
+  const [creating, setCreating] = useState(false);
+
+  async function refresh() {
+    setLoading(true);
+    try {
+      const data = await listProfiles();
+      setRows(data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh().catch(() => {
+      // ignore; status is shown by parent surfaces elsewhere
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const email = (r.email ?? "").toLowerCase();
+      const name = (r.full_name ?? "").toLowerCase();
+      const id = r.id.toLowerCase();
+      return email.includes(q) || name.includes(q) || id.includes(q);
+    });
+  }, [rows, search]);
+
+  async function onChangeRole(userId: string, role: UserRole) {
+    onStatus("");
+    try {
+      onStatus("Saving role…");
+      await updateUserRole(userId, role);
+      await refresh();
+      onStatus("Role updated.");
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : "Failed to update role");
+    }
+  }
+
+  async function onCreate() {
+    const email = createEmail.trim();
+    if (!email) return;
+    onStatus("");
+    setCreating(true);
+    try {
+      onStatus("Creating user…");
+      await cmoCreateUser({ email, role: createRole, full_name: createName.trim() || null });
+      setCreateEmail("");
+      setCreateName("");
+      setCreateRole("brand_manager");
+      await refresh();
+      onStatus("User created. They can now sign in via magic link.");
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : "Failed to create user");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <Surface>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-lg font-semibold text-white/90">Account management</div>
+          <div className="mt-1 text-sm text-white/55">Assign roles for existing users, or create new users by email (magic-link login).</div>
+        </div>
+        <div className="w-full max-w-[280px]">
+          <Input
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Search by email, name, or ID…"
+            variant="bordered"
+            classNames={{
+              inputWrapper: "glass-inset rounded-2xl border-white/10 bg-white/[0.02]",
+              input: "text-white/90 placeholder:text-white/25"
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-12">
+        <div className="md:col-span-7">
+          <div className="text-sm text-white/65">{loading ? "Loading users…" : `${filtered.length} user(s)`}</div>
+          <div className="mt-3 space-y-2">
+            {filtered.map((r) => (
+              <div key={r.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-[220px]">
+                    <div className="text-sm font-semibold text-white/90">{r.full_name?.trim() || "—"}</div>
+                    <div className="mt-1 text-xs text-white/55">{r.email ?? "No email yet (backfill needed)"}</div>
+                    <div className="mt-1 text-[11px] text-white/35">ID: {r.id.slice(0, 8)}…</div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="w-[160px]">
+                      <PillSelect
+                        value={r.role}
+                        onChange={(next) => onChangeRole(r.id, next as UserRole)}
+                        ariaLabel="User role"
+                      >
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </PillSelect>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {!loading && filtered.length === 0 ? <div className="text-sm text-white/60">No users found.</div> : null}
+          </div>
+        </div>
+
+        <div className="md:col-span-5">
+          <div className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+            <div className="text-sm font-semibold text-white/85">Create user</div>
+            <div className="mt-1 text-xs text-white/55">Creates an Auth user (no password). They will sign in via magic link like everyone else.</div>
+
+            <div className="mt-4 space-y-3">
+              <Input
+                value={createEmail}
+                onValueChange={setCreateEmail}
+                placeholder="email@company.com"
+                variant="bordered"
+                classNames={{
+                  inputWrapper: "glass-inset rounded-2xl border-white/10 bg-white/[0.02]",
+                  input: "text-white/90 placeholder:text-white/25"
+                }}
+              />
+
+              <Input
+                value={createName}
+                onValueChange={setCreateName}
+                placeholder="Full name (optional)"
+                variant="bordered"
+                classNames={{
+                  inputWrapper: "glass-inset rounded-2xl border-white/10 bg-white/[0.02]",
+                  input: "text-white/90 placeholder:text-white/25"
+                }}
+              />
+
+              <PillSelect value={createRole} onChange={(v) => setCreateRole(v as UserRole)} ariaLabel="New user role">
+                {ROLE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </PillSelect>
+
+              <AppButton
+                intent="primary"
+                className="w-full"
+                onPress={onCreate}
+                isDisabled={!createEmail.trim() || creating}
+              >
+                {creating ? "Creating…" : "Create user"}
+              </AppButton>
+
+              <div className="text-[11px] text-white/45">
+                Note: your Vercel project must have <code>SUPABASE_SERVICE_ROLE_KEY</code> set (server-only) for user creation.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Surface>
+  );
+}
+

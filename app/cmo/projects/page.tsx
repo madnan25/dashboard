@@ -9,6 +9,7 @@ import { Surface } from "@/components/ds/Surface";
 import { CmoApprovalsPanel } from "@/components/features/cmo/CmoApprovalsPanel";
 import { CmoProjectsPanel } from "@/components/features/cmo/CmoProjectsPanel";
 import { CmoTargetsPanel } from "@/components/features/cmo/CmoTargetsPanel";
+import { CmoUsersPanel } from "@/components/features/cmo/CmoUsersPanel";
 import { MONTHS } from "@/lib/digitalSnapshot";
 import {
   Project,
@@ -325,6 +326,8 @@ export default function CmoProjectsPage() {
             />
           </div>
         </div>
+
+        <CmoUsersPanel onStatus={setStatus} />
       </div>
     </main>
   );

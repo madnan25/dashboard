@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Profile } from "@/lib/db/types";
+import type { Profile, UserRole } from "@/lib/db/types";
 
 async function requireUserId(supabase: SupabaseClient) {
   const { data, error } = await supabase.auth.getUser();
@@ -11,7 +11,7 @@ export async function getCurrentProfile(supabase: SupabaseClient): Promise<Profi
   const userId = await requireUserId(supabase).catch(() => null);
   if (!userId) return null;
 
-  const { data, error } = await supabase.from("profiles").select("id, role, full_name").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", userId).maybeSingle();
   if (error) throw error;
   return (data as Profile | null) ?? null;
 }
@@ -19,6 +19,20 @@ export async function getCurrentProfile(supabase: SupabaseClient): Promise<Profi
 export async function updateMyFullName(supabase: SupabaseClient, full_name: string): Promise<void> {
   const userId = await requireUserId(supabase);
   const { error } = await supabase.from("profiles").update({ full_name }).eq("id", userId);
+  if (error) throw error;
+}
+
+export async function listProfiles(supabase: SupabaseClient): Promise<Profile[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, role, full_name, email")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as Profile[]) ?? [];
+}
+
+export async function updateUserRole(supabase: SupabaseClient, userId: string, role: UserRole): Promise<void> {
+  const { error } = await supabase.from("profiles").update({ role }).eq("id", userId);
   if (error) throw error;
 }
 

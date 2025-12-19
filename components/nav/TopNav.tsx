@@ -16,6 +16,8 @@ function roleLabel(role: Profile["role"] | null) {
       return "Brand";
     case "sales_ops":
       return "Sales Ops";
+    case "viewer":
+      return "Viewer";
     default:
       return "—";
   }
@@ -54,6 +56,7 @@ export function TopNav() {
   }, [email, profile?.full_name]);
 
   const isCmo = profile?.role === "cmo";
+  const canSeePlanning = profile?.role !== "viewer";
 
   // Hide on auth-only routes
   if (pathname === "/login" || pathname.startsWith("/auth/")) return null;
@@ -96,14 +99,16 @@ export function TopNav() {
               >
                 Projects
               </Link>
-              <Link
-                href="/brand/data-entry"
-                prefetch
-                onMouseEnter={() => router.prefetch("/brand/data-entry")}
-                className={`px-3 py-2 text-sm ${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}
-              >
-                Planning
-              </Link>
+              {canSeePlanning ? (
+                <Link
+                  href="/brand/data-entry"
+                  prefetch
+                  onMouseEnter={() => router.prefetch("/brand/data-entry")}
+                  className={`px-3 py-2 text-sm ${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}
+                >
+                  Planning
+                </Link>
+              ) : null}
               {isCmo ? (
                 <Link
                   href="/cmo/projects"

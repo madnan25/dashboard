@@ -11,6 +11,9 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     // profiles
     getCurrentProfile: () => profiles.getCurrentProfile(supabase),
     updateMyFullName: (full_name: string) => profiles.updateMyFullName(supabase, full_name),
+    listProfiles: () => profiles.listProfiles(supabase),
+    updateUserRole: (userId: string, role: Parameters<typeof profiles.updateUserRole>[2]) =>
+      profiles.updateUserRole(supabase, userId, role),
 
     // projects
     listProjects: () => projects.listProjects(supabase),

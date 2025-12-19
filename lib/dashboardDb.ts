@@ -18,7 +18,8 @@ import type {
   Profile,
   Project,
   ProjectActuals,
-  ProjectTargets
+  ProjectTargets,
+  UserRole
 } from "@/lib/db/types";
 
 function repo() {
@@ -33,6 +34,14 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
 export async function updateMyFullName(full_name: string): Promise<void> {
   return await repo().updateMyFullName(full_name);
+}
+
+export async function listProfiles(): Promise<Profile[]> {
+  return await repo().listProfiles();
+}
+
+export async function updateUserRole(userId: string, role: UserRole): Promise<void> {
+  return await repo().updateUserRole(userId, role);
 }
 
 export async function listProjects(): Promise<Project[]> {
@@ -122,5 +131,17 @@ export async function getProjectActuals(
 
 export async function upsertProjectActuals(input: ProjectActuals): Promise<void> {
   return await repo().upsertProjectActuals(input);
+}
+
+export async function cmoCreateUser(input: { email: string; role: UserRole; full_name?: string | null }): Promise<{ userId: string }> {
+  const res = await fetch("/api/cmo/users", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  const body = (await res.json().catch(() => ({}))) as { userId?: string; error?: string };
+  if (!res.ok) throw new Error(body.error || "Failed to create user");
+  if (!body.userId) throw new Error("Failed to create user");
+  return { userId: body.userId };
 }
 
