@@ -29,6 +29,7 @@ export function TopNav() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [scrollT, setScrollT] = useState(0); // 0..1
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +47,24 @@ export function TopNav() {
     load();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let raf = 0;
+    function onScroll() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const y = window.scrollY || 0;
+        const t = Math.max(0, Math.min(1, y / 140));
+        setScrollT(t);
+      });
+    }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
     };
   }, []);
 
@@ -74,7 +93,12 @@ export function TopNav() {
 
   return (
     <div className="sticky top-0 z-40 p-4 md:p-6">
-      <Surface className="px-4 py-3 md:px-5 md:py-4 border border-white/10">
+      <Surface
+        className="px-4 py-3 md:px-5 md:py-4 border border-white/10 transition-colors"
+        style={{
+          background: `linear-gradient(180deg, rgba(0,0,0,${0.18 + scrollT * 0.55}), rgba(0,0,0,${0.10 + scrollT * 0.35}))`
+        }}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Link href="/" className="group inline-flex items-center gap-2">

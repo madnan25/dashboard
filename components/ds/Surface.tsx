@@ -4,12 +4,18 @@ import * as React from "react";
 
 export function Surface({
   children,
-  className = ""
+  className = "",
+  style
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
-  return <div className={`glass-inset rounded-3xl p-5 ${className}`}>{children}</div>;
+  return (
+    <div style={style} className={`glass-inset rounded-3xl p-5 ${className}`}>
+      {children}
+    </div>
+  );
 }
 
 export function PageShell({
