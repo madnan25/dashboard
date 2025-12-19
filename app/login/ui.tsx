@@ -81,6 +81,83 @@ export default function LoginForm() {
         }}
       />
 
+      {/* Ambient circuit-like "lights" travelling through the grid */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-60 mix-blend-screen motion-reduce:hidden">
+        {/* horizontal traces */}
+        <span
+          className="absolute left-[-20%] top-[18%] h-[2px] w-[220px] rounded-full"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, rgba(59,130,246,0.00), rgba(59,130,246,0.55), rgba(124,58,237,0.40), rgba(16,185,129,0.25), transparent)",
+            filter: "blur(0.4px)",
+            animation: "circuit-x 9.5s ease-in-out infinite",
+            animationDelay: "0.6s"
+          }}
+        />
+        <span
+          className="absolute left-[-25%] top-[52%] h-[2px] w-[180px] rounded-full"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, rgba(124,58,237,0.00), rgba(124,58,237,0.55), rgba(59,130,246,0.35), transparent)",
+            filter: "blur(0.5px)",
+            animation: "circuit-x 12.5s ease-in-out infinite",
+            animationDelay: "2.2s"
+          }}
+        />
+        {/* vertical trace */}
+        <span
+          className="absolute top-[-25%] left-[72%] w-[2px] h-[240px] rounded-full"
+          style={{
+            background:
+              "linear-gradient(180deg, transparent, rgba(16,185,129,0.00), rgba(16,185,129,0.55), rgba(59,130,246,0.28), transparent)",
+            filter: "blur(0.6px)",
+            animation: "circuit-y 11.5s ease-in-out infinite",
+            animationDelay: "1.2s"
+          }}
+        />
+      </div>
+
+      <style jsx global>{`
+        @keyframes circuit-x {
+          0% {
+            transform: translateX(0);
+            opacity: 0;
+          }
+          8% {
+            opacity: 0.9;
+          }
+          50% {
+            opacity: 0.85;
+          }
+          92% {
+            opacity: 0.9;
+          }
+          100% {
+            transform: translateX(170%);
+            opacity: 0;
+          }
+        }
+        @keyframes circuit-y {
+          0% {
+            transform: translateY(0);
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.85;
+          }
+          50% {
+            opacity: 0.75;
+          }
+          90% {
+            opacity: 0.85;
+          }
+          100% {
+            transform: translateY(165%);
+            opacity: 0;
+          }
+        }
+      `}</style>
+
       <div className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-6xl items-center justify-center">
         <div className="w-full max-w-[460px]">
           <PageShell className="relative overflow-hidden">
