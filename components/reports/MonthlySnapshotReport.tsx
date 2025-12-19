@@ -18,10 +18,12 @@ import {
   PlanVersion,
   Project,
   ProjectActuals,
+  ProjectActualsChannel,
   ProjectTargets,
   getPlanChannelInputs,
   getProjectActuals,
   getProjectTargets,
+  listProjectActualsChannels,
   listPlanVersions,
   listProjects
 } from "@/lib/dashboardDb";
@@ -65,6 +67,7 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
   const [activePlanVersion, setActivePlanVersion] = useState<PlanVersion | null>(null);
   const [channelInputs, setChannelInputs] = useState<PlanChannelInputs | null>(null);
   const [actuals, setActuals] = useState<ProjectActuals | null>(null);
+  const [channelActuals, setChannelActuals] = useState<ProjectActualsChannel | null>(null);
   const [status, setStatus] = useState<string>("");
 
   const envMissing =
@@ -129,6 +132,8 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
         const active = versions.find((v) => v.active && v.status === "approved") ?? null;
         const inputs = active ? await getPlanChannelInputs(active.id) : [];
         const row = (inputs ?? []).find((r) => r.channel === channel) ?? null;
+        const channelRows = await listProjectActualsChannels(projectId, selectedYear, month);
+        const aCh = (channelRows ?? []).find((r) => r.channel === channel) ?? null;
 
         if (cancelled) return;
 
@@ -136,6 +141,7 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
         setActivePlanVersion(active);
         setChannelInputs(row);
         setActuals(a);
+        setChannelActuals(aCh);
 
         // Trend (last 6 months) from actuals only. Budget spend not tracked yet.
         const monthsBack = 6;
@@ -187,12 +193,12 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
       monthLabel: monthLabel(selectedMonthIndex, selectedYear),
       budgetAllocated,
       budgetSpent,
-      leadsGenerated: actuals?.leads ?? 0,
-      qualifiedLeads: actuals?.qualified_leads ?? 0,
-      meetingsScheduled: actuals?.meetings_scheduled ?? 0,
-      meetingsCompleted: actuals?.meetings_done ?? 0,
-      dealsWon: actuals?.deals_won ?? 0,
-      sqftWon: actuals?.sqft_won ?? 0,
+      leadsGenerated: channelActuals?.leads ?? 0,
+      qualifiedLeads: channelActuals?.qualified_leads ?? 0,
+      meetingsScheduled: channelActuals?.meetings_scheduled ?? 0,
+      meetingsCompleted: channelActuals?.meetings_done ?? 0,
+      dealsWon: channelActuals?.deals_won ?? 0,
+      sqftWon: channelActuals?.sqft_won ?? 0,
       targets: {
         sqftWon: computed.targetSqft,
         leadsGenerated: computed.targetLeads,
@@ -202,7 +208,7 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
         dealsWon: computed.channelDealsRequired
       }
     };
-  }, [actuals, channel, computed, channelInputs, selectedMonthIndex, selectedYear]);
+  }, [actuals, channel, channelActuals, computed, channelInputs, selectedMonthIndex, selectedYear]);
 
   const budgetUtilizedPctRaw =
     snapshot.budgetAllocated > 0 ? (snapshot.budgetSpent / snapshot.budgetAllocated) * 100 : NaN;
@@ -225,7 +231,9 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
   const contributionRows: ContributionRow[] = [
     { stage: "Leads", target: snapshot.targets.leadsGenerated, actual: snapshot.leadsGenerated, variance: snapshot.leadsGenerated - snapshot.targets.leadsGenerated },
     { stage: "Qualified Leads", target: snapshot.targets.qualifiedLeads, actual: snapshot.qualifiedLeads, variance: snapshot.qualifiedLeads - snapshot.targets.qualifiedLeads },
-    { stage: "Meetings Done", target: snapshot.targets.meetingsCompleted, actual: snapshot.meetingsCompleted, variance: snapshot.meetingsCompleted - snapshot.targets.meetingsCompleted }
+    { stage: "Meetings Done", target: snapshot.targets.meetingsCompleted, actual: snapshot.meetingsCompleted, variance: snapshot.meetingsCompleted - snapshot.targets.meetingsCompleted },
+    { stage: "Deals won", target: snapshot.targets.dealsWon, actual: snapshot.dealsWon, variance: snapshot.dealsWon - snapshot.targets.dealsWon },
+    { stage: "Sqft won", target: snapshot.targets.sqftWon, actual: snapshot.sqftWon, variance: snapshot.sqftWon - snapshot.targets.sqftWon }
   ];
 
   const leadToQualifiedPct = clampPercent((snapshot.qualifiedLeads / Math.max(snapshot.leadsGenerated, 1)) * 100);
