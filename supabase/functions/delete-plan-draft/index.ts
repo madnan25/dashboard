@@ -2,12 +2,27 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-function json(status: number, body: unknown) {
+function corsHeaders(req: Request) {
+  // Supabase Functions are called cross-origin from the Vercel app.
+  // We must answer CORS preflights, otherwise the browser blocks the request.
+  const origin = req.headers.get("origin") ?? "*";
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-credentials": "true",
+    "access-control-allow-headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-authorization, x-supabase-client, x-requested-with",
+    "access-control-allow-methods": "POST, OPTIONS",
+    vary: "origin"
+  } as const;
+}
+
+function json(req: Request, status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store"
+      "cache-control": "no-store",
+      ...corsHeaders(req)
     }
   });
 }
@@ -36,27 +51,28 @@ function getUserIdFromBearer(req: Request): string | null {
 }
 
 Deno.serve(async (req) => {
-  if (req.method !== "POST") return json(405, { ok: false, error: "Method not allowed" });
+  if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: corsHeaders(req) });
+  if (req.method !== "POST") return json(req, 405, { ok: false, error: "Method not allowed" });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) {
-    return json(500, { ok: false, error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" });
+    return json(req, 500, { ok: false, error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" });
   }
 
   const userId = getUserIdFromBearer(req);
-  if (!userId) return json(401, { ok: false, error: "Unauthorized" });
+  if (!userId) return json(req, 401, { ok: false, error: "Unauthorized" });
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return json(400, { ok: false, error: "Invalid JSON body" });
+    return json(req, 400, { ok: false, error: "Invalid JSON body" });
   }
 
   const planVersionId = (body as { planVersionId?: unknown })?.planVersionId;
   if (typeof planVersionId !== "string" || planVersionId.length < 10) {
-    return json(400, { ok: false, error: "Missing planVersionId" });
+    return json(req, 400, { ok: false, error: "Missing planVersionId" });
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -71,7 +87,8 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (profileError) return json(500, { ok: false, error: profileError.message });
-  if (!profile || profile.role !== "cmo") return json(403, { ok: false, error: "CMO only" });
+  if (profileError) return json(req, 500, { ok: false, error: profileError.message });
+  if (!profile || profile.role !== "cmo") return json(req, 403, { ok: false, error: "CMO only" });
 
   // Guard: only draft/rejected can be purged
   const { data: pv, error: pvErr } = await admin
@@ -80,16 +97,16 @@ Deno.serve(async (req) => {
     .eq("id", planVersionId)
     .maybeSingle();
 
-  if (pvErr) return json(500, { ok: false, error: pvErr.message });
-  if (!pv) return json(404, { ok: false, error: "Plan version not found" });
+  if (pvErr) return json(req, 500, { ok: false, error: pvErr.message });
+  if (!pv) return json(req, 404, { ok: false, error: "Plan version not found" });
   if (pv.status !== "draft" && pv.status !== "rejected") {
-    return json(400, { ok: false, error: "Only draft/rejected plans can be deleted" });
+    return json(req, 400, { ok: false, error: "Only draft/rejected plans can be deleted" });
   }
-  if (pv.active) return json(400, { ok: false, error: "Cannot delete an active plan" });
+  if (pv.active) return json(req, 400, { ok: false, error: "Cannot delete an active plan" });
 
   // Purge: deleting the plan version cascades to channel inputs
   const { error: delErr } = await admin.from("project_plan_versions").delete().eq("id", planVersionId);
-  if (delErr) return json(500, { ok: false, error: delErr.message });
+  if (delErr) return json(req, 500, { ok: false, error: delErr.message });
 
-  return json(200, { ok: true });
+  return json(req, 200, { ok: true });
 });
