@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseEnv } from "@/lib/supabase/env";
 import type { UserRole } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +15,17 @@ function json(status: number, body: unknown) {
 }
 
 export async function POST(req: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceKey) {
+  if (!serviceKey) {
     return json(500, { error: "Server auth is not configured. Missing SUPABASE_SERVICE_ROLE_KEY." });
+  }
+
+  let supabaseUrl: string;
+  try {
+    // Normalize URL (allows bare ref or full URL).
+    supabaseUrl = getSupabaseEnv().url;
+  } catch (e) {
+    return json(500, { error: e instanceof Error ? e.message : "Missing Supabase env vars" });
   }
 
   // Authenticate requester via cookies (normal anon-key server client)

@@ -18,6 +18,8 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
 export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
   const { onStatus } = props;
 
+  const [localStatus, setLocalStatus] = useState<string>("");
+
   const [rows, setRows] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -71,17 +73,22 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
     const email = createEmail.trim();
     if (!email) return;
     onStatus("");
+    setLocalStatus("");
     setCreating(true);
     try {
       onStatus("Creating user…");
+      setLocalStatus("Creating user…");
       await cmoCreateUser({ email, role: createRole, full_name: createName.trim() || null });
       setCreateEmail("");
       setCreateName("");
       setCreateRole("brand_manager");
       await refresh();
       onStatus("User created. They can now sign in via magic link.");
+      setLocalStatus("User created. They can now sign in via magic link.");
     } catch (e) {
-      onStatus(e instanceof Error ? e.message : "Failed to create user");
+      const msg = e instanceof Error ? e.message : "Failed to create user";
+      onStatus(msg);
+      setLocalStatus(msg);
     } finally {
       setCreating(false);
     }
@@ -173,6 +180,21 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
               >
                 {creating ? "Creating…" : "Create user"}
               </AppButton>
+
+              {localStatus ? (
+                <div
+                  className={[
+                    "rounded-2xl border px-4 py-3 text-xs",
+                    localStatus.toLowerCase().includes("created")
+                      ? "border-emerald-400/15 bg-emerald-500/10 text-emerald-200"
+                      : localStatus.toLowerCase().includes("missing") || localStatus.toLowerCase().includes("failed") || localStatus.toLowerCase().includes("error")
+                        ? "border-rose-400/20 bg-rose-500/10 text-rose-200"
+                        : "border-white/10 bg-white/[0.03] text-white/70"
+                  ].join(" ")}
+                >
+                  {localStatus}
+                </div>
+              ) : null}
 
               <div className="text-[11px] text-white/45">
                 Note: your Vercel project must have <code>SUPABASE_SERVICE_ROLE_KEY</code> set (server-only) for user creation.

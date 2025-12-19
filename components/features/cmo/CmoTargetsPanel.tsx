@@ -1,7 +1,8 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { useMemo, useState } from "react";
 import { NumberInput } from "@/components/ds/NumberInput";
+import { AppButton } from "@/components/ds/AppButton";
 import { Surface } from "@/components/ds/Surface";
 import type { ProjectTargets } from "@/lib/dashboardDb";
 
@@ -35,6 +36,28 @@ export function CmoTargetsPanel(props: {
   isDisabled: boolean;
 }) {
   const { monthLabel, targets, targetsForm, setTargetsForm, onSaveTargets, isDisabled } = props;
+
+  const [saveFlash, setSaveFlash] = useState<"idle" | "saving" | "saved">("idle");
+
+  const targetsDirty = useMemo(() => {
+    const current = JSON.stringify(targetsForm);
+    const saved = JSON.stringify({
+      sales_target_sqft: String(targets?.sales_target_sqft ?? 0),
+      avg_sqft_per_deal: String(targets?.avg_sqft_per_deal ?? 0),
+      total_budget: String(targets?.total_budget ?? 0),
+      qualified_to_meeting_done_percent: String(targets?.qualified_to_meeting_done_percent ?? 10),
+      meeting_done_to_close_percent: String(targets?.meeting_done_to_close_percent ?? 40)
+    });
+    return current !== saved;
+  }, [targets, targetsForm]);
+
+  const saveLabel = useMemo(() => {
+    if (saveFlash === "saving") return "Saving…";
+    if (saveFlash === "saved") return "Saved";
+    return targetsDirty ? "Save targets" : "Saved";
+  }, [saveFlash, targetsDirty]);
+
+  const canSave = !isDisabled && targetsDirty && saveFlash !== "saving";
 
   return (
     <Surface>
@@ -81,9 +104,23 @@ export function CmoTargetsPanel(props: {
 
       <div className="mt-4 flex items-center justify-between gap-3">
         <div className="text-xs text-white/45">Last saved: {targets ? `${targets.month}/${targets.year}` : "—"}</div>
-        <Button color="primary" onPress={onSaveTargets} isDisabled={isDisabled}>
-          Save targets
-        </Button>
+        <AppButton
+          intent="primary"
+          className="h-11 px-6"
+          isDisabled={!canSave}
+          onPress={async () => {
+            setSaveFlash("saving");
+            try {
+              await onSaveTargets();
+              setSaveFlash("saved");
+              window.setTimeout(() => setSaveFlash("idle"), 900);
+            } catch {
+              setSaveFlash("idle");
+            }
+          }}
+        >
+          {saveLabel}
+        </AppButton>
       </div>
     </Surface>
   );
