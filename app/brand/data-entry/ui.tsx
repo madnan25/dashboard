@@ -7,6 +7,7 @@ import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { PlanningProjectBar } from "@/components/features/planning/PlanningProjectBar";
 import { BrandTargetsCard } from "@/components/features/planning/BrandTargetsCard";
 import { PlanInputsCard } from "@/components/features/planning/PlanInputsCard";
+import { BrandSpendCard } from "@/components/features/planning/BrandSpendCard";
 import { SalesOpsActualsCard } from "@/components/features/planning/SalesOpsActualsCard";
 import { planDisplayName, usePlanningData } from "@/components/features/planning/usePlanningData";
 
@@ -42,7 +43,8 @@ export default function BrandDataEntryClient() {
     onCreateDraft,
     onSavePlanInputs,
     onSubmitForApproval,
-    onSaveActuals
+    onSaveSalesOpsActuals,
+    onSaveSpendActuals
   } = usePlanningData({ year, monthIndex });
 
   return (
@@ -123,14 +125,31 @@ export default function BrandDataEntryClient() {
           </div>
         ) : null}
 
-        {profile?.role === "sales_ops" || isCmo ? (
-          <SalesOpsActualsCard
+        {profile?.role === "brand_manager" || isCmo ? (
+          <BrandSpendCard
             isCmo={isCmo}
             actuals={actuals}
-            actualsForm={actualsForm}
-            setActualsForm={setActualsForm}
-            onSaveActuals={onSaveActuals}
+            actualsForm={{
+              spend_digital: actualsForm.spend_digital,
+              spend_inbound: actualsForm.spend_inbound,
+              spend_activations: actualsForm.spend_activations
+            }}
+            setActualsForm={(updater) =>
+              setActualsForm((prev) => ({
+                ...prev,
+                ...updater({
+                  spend_digital: prev.spend_digital,
+                  spend_inbound: prev.spend_inbound,
+                  spend_activations: prev.spend_activations
+                })
+              }))
+            }
+            onSaveSpend={onSaveSpendActuals}
           />
+        ) : null}
+
+        {profile?.role === "sales_ops" || isCmo ? (
+          <SalesOpsActualsCard isCmo={isCmo} actuals={actuals} actualsForm={actualsForm} setActualsForm={setActualsForm} onSaveActuals={onSaveSalesOpsActuals} />
         ) : null}
 
         {profile && profile.role !== "cmo" && profile.role !== "brand_manager" && profile.role !== "sales_ops" ? (

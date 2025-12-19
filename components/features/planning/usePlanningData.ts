@@ -25,7 +25,8 @@ import {
   rejectPlanVersion,
   updatePlanVersionStatus,
   upsertPlanChannelInputs,
-  upsertProjectActuals,
+  upsertProjectActualsMetrics,
+  upsertProjectActualsSpend,
   upsertProjectTargets
 } from "@/lib/dashboardDb";
 
@@ -417,7 +418,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     await refresh();
   }
 
-  async function onSaveActuals() {
+  async function onSaveSalesOpsActuals() {
     if (!projectId) return;
 
     const leads = toNumber(actualsForm.leads);
@@ -426,9 +427,6 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     const meetings_done = toNumber(actualsForm.meetings_done);
     const deals_won = toNumber(actualsForm.deals_won);
     const sqft_won = toNumber(actualsForm.sqft_won);
-    const spend_digital = toNumber(actualsForm.spend_digital);
-    const spend_inbound = toNumber(actualsForm.spend_inbound);
-    const spend_activations = toNumber(actualsForm.spend_activations);
 
     if (
       leads == null ||
@@ -436,17 +434,14 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       meetings_scheduled == null ||
       meetings_done == null ||
       deals_won == null ||
-      sqft_won == null ||
-      spend_digital == null ||
-      spend_inbound == null ||
-      spend_activations == null
+      sqft_won == null
     ) {
       setStatus("Please enter valid numbers for actuals.");
       return;
     }
 
     setStatus("Saving actuals...");
-    await upsertProjectActuals({
+    await upsertProjectActualsMetrics({
       project_id: projectId,
       year,
       month,
@@ -455,12 +450,34 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       meetings_scheduled,
       meetings_done,
       deals_won,
-      sqft_won,
+      sqft_won
+    });
+    setStatus("Actuals saved.");
+    await refresh();
+  }
+
+  async function onSaveSpendActuals() {
+    if (!projectId) return;
+
+    const spend_digital = toNumber(actualsForm.spend_digital);
+    const spend_inbound = toNumber(actualsForm.spend_inbound);
+    const spend_activations = toNumber(actualsForm.spend_activations);
+
+    if (spend_digital == null || spend_inbound == null || spend_activations == null) {
+      setStatus("Please enter valid numbers for spend.");
+      return;
+    }
+
+    setStatus("Saving spend...");
+    await upsertProjectActualsSpend({
+      project_id: projectId,
+      year,
+      month,
       spend_digital,
       spend_inbound,
       spend_activations
     });
-    setStatus("Actuals saved.");
+    setStatus("Spend saved.");
     await refresh();
   }
 
@@ -505,7 +522,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     onSubmitForApproval,
     onApprove,
     onReject,
-    onSaveActuals
+    onSaveSalesOpsActuals,
+    onSaveSpendActuals
   };
 }
 

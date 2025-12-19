@@ -83,30 +83,6 @@ export function SalesOpsActualsCard(props: {
         <NumberInput label="Sqft won" unit="sqft" value={actualsForm.sqft_won} onValueChange={(v) => setActualsForm((s) => ({ ...s, sqft_won: v }))} />
       </div>
 
-      <div className="mt-4">
-        <div className="text-xs uppercase tracking-widest text-white/45">Spend (actual)</div>
-        <div className="mt-3 grid gap-4 md:grid-cols-3">
-          <NumberInput
-            label="Digital spend"
-            unit="PKR"
-            value={actualsForm.spend_digital}
-            onValueChange={(v) => setActualsForm((s) => ({ ...s, spend_digital: v }))}
-          />
-          <NumberInput
-            label="Inbound spend"
-            unit="PKR"
-            value={actualsForm.spend_inbound}
-            onValueChange={(v) => setActualsForm((s) => ({ ...s, spend_inbound: v }))}
-          />
-          <NumberInput
-            label="Activations spend"
-            unit="PKR"
-            value={actualsForm.spend_activations}
-            onValueChange={(v) => setActualsForm((s) => ({ ...s, spend_activations: v }))}
-          />
-        </div>
-      </div>
-
       {actuals ? (
         <div className="mt-3 text-xs text-white/45">Last loaded values are from Supabase.</div>
       ) : (

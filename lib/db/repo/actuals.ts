@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProjectActuals } from "@/lib/db/types";
 
+export type ProjectActualsMetricsInput = Pick<
+  ProjectActuals,
+  "project_id" | "year" | "month" | "leads" | "qualified_leads" | "meetings_scheduled" | "meetings_done" | "deals_won" | "sqft_won"
+>;
+
+export type ProjectActualsSpendInput = Pick<ProjectActuals, "project_id" | "year" | "month" | "spend_digital" | "spend_inbound" | "spend_activations">;
+
 export async function getProjectActuals(
   supabase: SupabaseClient,
   projectId: string,
@@ -21,6 +28,17 @@ export async function getProjectActuals(
 }
 
 export async function upsertProjectActuals(supabase: SupabaseClient, input: ProjectActuals): Promise<void> {
+  const { error } = await supabase.from("project_actuals").upsert(input, { onConflict: "project_id,year,month" });
+  if (error) throw error;
+}
+
+// Partial upserts to avoid one role overwriting another role's fields.
+export async function upsertProjectActualsMetrics(supabase: SupabaseClient, input: ProjectActualsMetricsInput): Promise<void> {
+  const { error } = await supabase.from("project_actuals").upsert(input, { onConflict: "project_id,year,month" });
+  if (error) throw error;
+}
+
+export async function upsertProjectActualsSpend(supabase: SupabaseClient, input: ProjectActualsSpendInput): Promise<void> {
   const { error } = await supabase.from("project_actuals").upsert(input, { onConflict: "project_id,year,month" });
   if (error) throw error;
 }

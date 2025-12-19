@@ -1,5 +1,6 @@
 import { createBrowserDbClient } from "@/lib/db/client/browser";
 import { createDashboardRepo } from "@/lib/db/repo";
+import type { ProjectActualsMetricsInput, ProjectActualsSpendInput } from "@/lib/db/repo/actuals";
 export type {
   PlanChannel,
   PlanChannelInputs,
@@ -131,6 +132,14 @@ export async function getProjectActuals(
 
 export async function upsertProjectActuals(input: ProjectActuals): Promise<void> {
   return await repo().upsertProjectActuals(input);
+}
+
+export async function upsertProjectActualsMetrics(input: ProjectActualsMetricsInput): Promise<void> {
+  return await repo().upsertProjectActualsMetrics(input);
+}
+
+export async function upsertProjectActualsSpend(input: ProjectActualsSpendInput): Promise<void> {
+  return await repo().upsertProjectActualsSpend(input);
 }
 
 export async function cmoCreateUser(input: { email: string; role: UserRole; full_name?: string | null }): Promise<{ userId: string }> {
