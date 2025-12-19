@@ -96,7 +96,11 @@ export function TopNav() {
       <Surface
         className="px-4 py-3 md:px-5 md:py-4 border border-white/10 transition-colors"
         style={{
-          background: `linear-gradient(180deg, rgba(0,0,0,${0.18 + scrollT * 0.55}), rgba(0,0,0,${0.10 + scrollT * 0.35}))`
+          // Keep the original "glass" color, but make it less transparent + blurrier on scroll
+          backgroundColor: `rgba(255,255,255,${0.03 + scrollT * 0.07})`,
+          backdropFilter: `blur(${10 + scrollT * 8}px)`,
+          WebkitBackdropFilter: `blur(${10 + scrollT * 8}px)`,
+          boxShadow: `0 12px 40px rgba(0,0,0,${0.18 + scrollT * 0.30}), inset 0 1px 0 rgba(255,255,255,0.06)`
         }}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
