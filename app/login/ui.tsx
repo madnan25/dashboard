@@ -81,79 +81,115 @@ export default function LoginForm() {
         }}
       />
 
-      {/* Ambient circuit-like "lights" travelling through the grid */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-60 mix-blend-screen motion-reduce:hidden">
-        {/* horizontal traces */}
+      {/* Ambient "electric traces" traveling exactly ON grid lines (42px spacing) */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-75 mix-blend-screen motion-reduce:hidden">
+        {/* Horizontal traces pinned to Y grid lines: 42 * n */}
         <span
-          className="absolute left-[-20%] top-[18%] h-[2px] w-[220px] rounded-full"
+          className="absolute left-[-30vw] h-px w-[260px] rounded-full"
           style={{
+            top: "calc(42px * 4)",
             background:
-              "linear-gradient(90deg, transparent, rgba(59,130,246,0.00), rgba(59,130,246,0.55), rgba(124,58,237,0.40), rgba(16,185,129,0.25), transparent)",
-            filter: "blur(0.4px)",
-            animation: "circuit-x 9.5s ease-in-out infinite",
-            animationDelay: "0.6s"
+              "linear-gradient(90deg, transparent, rgba(34,211,238,0), rgba(34,211,238,0.92), rgba(16,185,129,0.70), rgba(124,58,237,0.35), transparent)",
+            filter: "drop-shadow(0 0 10px rgba(34,211,238,0.28)) drop-shadow(0 0 18px rgba(16,185,129,0.14))",
+            animation: "trace-x 10.8s ease-in-out infinite",
+            animationDelay: "0.8s"
           }}
         />
         <span
-          className="absolute left-[-25%] top-[52%] h-[2px] w-[180px] rounded-full"
+          className="absolute left-[-35vw] h-px w-[210px] rounded-full"
           style={{
+            top: "calc(42px * 9)",
             background:
-              "linear-gradient(90deg, transparent, rgba(124,58,237,0.00), rgba(124,58,237,0.55), rgba(59,130,246,0.35), transparent)",
-            filter: "blur(0.5px)",
-            animation: "circuit-x 12.5s ease-in-out infinite",
-            animationDelay: "2.2s"
+              "linear-gradient(90deg, transparent, rgba(16,185,129,0), rgba(16,185,129,0.85), rgba(34,211,238,0.55), transparent)",
+            filter: "drop-shadow(0 0 10px rgba(16,185,129,0.22))",
+            animation: "trace-x 13.6s ease-in-out infinite",
+            animationDelay: "3.1s"
           }}
         />
-        {/* vertical trace */}
+
+        {/* Vertical trace pinned to X grid line: 42 * n */}
         <span
-          className="absolute top-[-25%] left-[72%] w-[2px] h-[240px] rounded-full"
+          className="absolute top-[-30vh] w-px h-[280px] rounded-full"
           style={{
+            left: "calc(42px * 13)",
             background:
-              "linear-gradient(180deg, transparent, rgba(16,185,129,0.00), rgba(16,185,129,0.55), rgba(59,130,246,0.28), transparent)",
-            filter: "blur(0.6px)",
-            animation: "circuit-y 11.5s ease-in-out infinite",
-            animationDelay: "1.2s"
+              "linear-gradient(180deg, transparent, rgba(34,211,238,0), rgba(34,211,238,0.88), rgba(16,185,129,0.55), transparent)",
+            filter: "drop-shadow(0 0 12px rgba(34,211,238,0.22))",
+            animation: "trace-y 12.4s ease-in-out infinite",
+            animationDelay: "1.9s"
+          }}
+        />
+
+        {/* Subtle flicker node (tiny pulse) pinned to intersection */}
+        <span
+          className="absolute h-[6px] w-[6px] rounded-full"
+          style={{
+            left: "calc(42px * 9)",
+            top: "calc(42px * 7)",
+            background: "radial-gradient(circle, rgba(34,211,238,0.95), rgba(34,211,238,0.0) 70%)",
+            filter: "drop-shadow(0 0 10px rgba(34,211,238,0.25))",
+            animation: "trace-node 5.2s steps(2, end) infinite",
+            opacity: 0.35
           }}
         />
       </div>
 
       <style jsx global>{`
-        @keyframes circuit-x {
+        @keyframes trace-x {
           0% {
             transform: translateX(0);
+            opacity: 0;
+          }
+          7% {
+            opacity: 0.95;
+          }
+          55% {
+            opacity: 0.82;
+          }
+          93% {
+            opacity: 0.9;
+          }
+          100% {
+            transform: translateX(170vw);
+            opacity: 0;
+          }
+        }
+        @keyframes trace-y {
+          0% {
+            transform: translateY(0);
             opacity: 0;
           }
           8% {
             opacity: 0.9;
           }
-          50% {
-            opacity: 0.85;
+          55% {
+            opacity: 0.78;
           }
           92% {
-            opacity: 0.9;
+            opacity: 0.88;
           }
           100% {
-            transform: translateX(170%);
+            transform: translateY(170vh);
             opacity: 0;
           }
         }
-        @keyframes circuit-y {
-          0% {
-            transform: translateY(0);
-            opacity: 0;
+        @keyframes trace-node {
+          0%,
+          70% {
+            opacity: 0.22;
           }
-          10% {
-            opacity: 0.85;
+          72% {
+            opacity: 0.65;
           }
-          50% {
-            opacity: 0.75;
+          74% {
+            opacity: 0.28;
           }
-          90% {
-            opacity: 0.85;
+          76% {
+            opacity: 0.58;
           }
+          78%,
           100% {
-            transform: translateY(165%);
-            opacity: 0;
+            opacity: 0.22;
           }
         }
       `}</style>
