@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { PageShell, Surface } from "@/components/ds/Surface";
 import { SnapshotChartsAndDetails } from "@/components/reports/monthlySnapshot/SnapshotChartsAndDetails";
-import { SnapshotComputedOutputs } from "@/components/reports/monthlySnapshot/SnapshotComputedOutputs";
 import { SnapshotKpiSummary } from "@/components/reports/monthlySnapshot/SnapshotKpiSummary";
 import { MONTHS, clampPercent, monthLabel } from "@/lib/digitalSnapshot";
 import { formatNumber, formatPKR } from "@/lib/format";
@@ -57,7 +56,6 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
 
   const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(11);
-  const [computedExpanded, setComputedExpanded] = useState(false);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<string>(fixedProjectId ?? "");
@@ -195,10 +193,12 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
       dealsWon: actuals?.deals_won ?? 0,
       sqftWon: actuals?.sqft_won ?? 0,
       targets: {
+        sqftWon: computed.targetSqft,
         leadsGenerated: computed.targetLeads,
         qualifiedLeads: computed.targetQualifiedLeads,
         meetingsScheduled: computed.meetingsScheduledRequired,
-        meetingsCompleted: computed.meetingsDoneRequired
+        meetingsCompleted: computed.meetingsDoneRequired,
+        dealsWon: computed.channelDealsRequired
       }
     };
   }, [actuals, channel, computed, channelInputs, selectedMonthIndex, selectedYear]);
@@ -277,18 +277,6 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
         ) : null}
 
         <PageShell>
-          <SnapshotComputedOutputs
-            channel={channel}
-            targets={targets}
-            channelInputs={channelInputs}
-            activePlanVersion={activePlanVersion}
-            computedExpanded={computedExpanded}
-            setComputedExpanded={setComputedExpanded}
-            computed={computed}
-            snapshot={{ budgetAllocated: snapshot.budgetAllocated }}
-            channelTitle={channelTitle}
-          />
-
           <SnapshotKpiSummary
             snapshot={snapshot}
             budgetUtilizedDisplay={budgetUtilizedDisplay}

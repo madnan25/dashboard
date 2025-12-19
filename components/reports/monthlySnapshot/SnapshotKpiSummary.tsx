@@ -12,12 +12,21 @@ export function SnapshotKpiSummary(props: {
     meetingsCompleted: number;
     dealsWon: number;
     sqftWon: number;
+    targets: {
+      leadsGenerated: number;
+      qualifiedLeads: number;
+      meetingsScheduled: number;
+      meetingsCompleted: number;
+      dealsWon: number;
+      sqftWon: number;
+    };
   };
   budgetUtilizedDisplay: string;
   leadToQualifiedPct: number;
   qualifiedToMeetingPct: number;
 }) {
-  const { snapshot, budgetUtilizedDisplay, leadToQualifiedPct, qualifiedToMeetingPct } = props;
+  const { snapshot, budgetUtilizedDisplay } = props;
+  const pctOf = (actual: number, target: number) => (target > 0 ? (actual / target) * 100 : 0);
 
   return (
     <>
@@ -27,18 +36,26 @@ export function SnapshotKpiSummary(props: {
         <KpiCard
           label="Qualified Leads"
           value={formatNumber(snapshot.qualifiedLeads)}
-          helper={`${leadToQualifiedPct.toFixed(0)}% of ${formatNumber(snapshot.leadsGenerated)} leads`}
+          helper={`Target: ${formatNumber(snapshot.targets.qualifiedLeads)} · ${pctOf(snapshot.qualifiedLeads, snapshot.targets.qualifiedLeads).toFixed(0)}% of target`}
         />
         <KpiCard
           label="Meetings Completed"
           value={formatNumber(snapshot.meetingsCompleted)}
-          helper={`${qualifiedToMeetingPct.toFixed(0)}% of ${formatNumber(snapshot.qualifiedLeads)} qualified`}
+          helper={`Target: ${formatNumber(snapshot.targets.meetingsCompleted)} · ${pctOf(snapshot.meetingsCompleted, snapshot.targets.meetingsCompleted).toFixed(0)}% of target`}
         />
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <KpiCard label="Deals Won" value={formatNumber(snapshot.dealsWon)} helper="Sales Ops actual" />
-        <KpiCard label="Sqft Won" value={formatNumber(snapshot.sqftWon)} helper="Sales Ops actual" />
+        <KpiCard
+          label="Deals Won"
+          value={formatNumber(snapshot.dealsWon)}
+          helper={`Target: ${formatNumber(snapshot.targets.dealsWon)} · ${pctOf(snapshot.dealsWon, snapshot.targets.dealsWon).toFixed(0)}% of target`}
+        />
+        <KpiCard
+          label="Sqft Won"
+          value={formatNumber(snapshot.sqftWon)}
+          helper={`Target: ${formatNumber(snapshot.targets.sqftWon)} · ${pctOf(snapshot.sqftWon, snapshot.targets.sqftWon).toFixed(0)}% of target`}
+        />
       </div>
     </>
   );
