@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@heroui/react";
+import type * as React from "react";
 import { Surface } from "@/components/ds/Surface";
 import type { Project } from "@/lib/dashboardDb";
 
@@ -10,9 +11,10 @@ export function PlanningProjectBar(props: {
   projects: Project[];
   projectId: string;
   setProjectId: (id: string) => void;
+  right?: React.ReactNode;
   isDisabled?: boolean;
 }) {
-  const { status, projects, projectId, setProjectId, isDisabled } = props;
+  const { status, projects, projectId, setProjectId, right, isDisabled } = props;
 
   return (
     <Surface>
@@ -32,6 +34,7 @@ export function PlanningProjectBar(props: {
               </option>
             ))}
           </select>
+          {right}
           <Button as={Link} href={projectId ? `/projects/${projectId}/digital` : "/projects"} variant="flat" className="glass-inset text-white/80">
             Open Digital Snapshot
           </Button>

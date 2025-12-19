@@ -50,6 +50,14 @@ export default function BrandDataEntryPage() {
           title="Planning & Actuals"
           subtitle="Role-based entry with approvals (Supabase-backed)."
           showBack
+        />
+
+        <PlanningProjectBar
+          status={status}
+          projects={projects}
+          projectId={projectId}
+          setProjectId={setProjectId}
+          isDisabled={envMissing}
           right={
             <MonthYearPicker
               monthIndex={monthIndex}
@@ -62,8 +70,6 @@ export default function BrandDataEntryPage() {
             />
           }
         />
-
-        <PlanningProjectBar status={status} projects={projects} projectId={projectId} setProjectId={setProjectId} isDisabled={envMissing} />
 
         {envMissing ? (
           <Surface>
