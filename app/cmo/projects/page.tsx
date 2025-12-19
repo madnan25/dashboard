@@ -203,7 +203,7 @@ export default function CmoProjectsPage() {
   }
 
   async function onDelete(versionId: string) {
-    if (!confirm("Delete this draft? This cannot be undone.")) return;
+    if (!confirm("Delete this plan version? Only draft/rejected plans can be deleted. This cannot be undone.")) return;
     try {
       setStatus("Deleting...");
       await purgeDraftPlanVersion(versionId);

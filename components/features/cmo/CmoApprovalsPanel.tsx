@@ -80,7 +80,7 @@ export function CmoApprovalsPanel(props: {
                           Reject
                         </Button>
                       ) : null}
-                      {v.status === "draft" ? (
+                      {v.status === "draft" || v.status === "rejected" ? (
                         <Button variant="flat" className="glass-inset text-white/80" onPress={() => onDelete(v.id)}>
                           Delete
                         </Button>

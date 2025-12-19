@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     auth: { persistSession: false }
   });
 
-  // Authorize: only CMO can purge drafts
+  // Authorize: only CMO can purge plan versions
   const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("role")
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
   if (profileError) return json(500, { ok: false, error: profileError.message });
   if (!profile || profile.role !== "cmo") return json(403, { ok: false, error: "CMO only" });
 
-  // Guard: only drafts can be purged
+  // Guard: only draft/rejected can be purged
   const { data: pv, error: pvErr } = await admin
     .from("project_plan_versions")
     .select("id,status,active")
@@ -82,7 +82,9 @@ Deno.serve(async (req) => {
 
   if (pvErr) return json(500, { ok: false, error: pvErr.message });
   if (!pv) return json(404, { ok: false, error: "Plan version not found" });
-  if (pv.status !== "draft") return json(400, { ok: false, error: "Only draft plans can be deleted" });
+  if (pv.status !== "draft" && pv.status !== "rejected") {
+    return json(400, { ok: false, error: "Only draft/rejected plans can be deleted" });
+  }
   if (pv.active) return json(400, { ok: false, error: "Cannot delete an active plan" });
 
   // Purge: deleting the plan version cascades to channel inputs
