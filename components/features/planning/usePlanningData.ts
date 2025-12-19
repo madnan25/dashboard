@@ -93,6 +93,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     inbound: emptyChannelForm()
   });
 
+  const [planInputsSavedJson, setPlanInputsSavedJson] = useState<string>("");
+  const [planInputsSavedAt, setPlanInputsSavedAt] = useState<number | null>(null);
+
   const [actuals, setActuals] = useState<ProjectActuals | null>(null);
   const [actualsForm, setActualsForm] = useState({
     leads: "0",
@@ -252,6 +255,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         }
 
         setChannelInputs(next);
+        setPlanInputsSavedJson(JSON.stringify(next));
+        setPlanInputsSavedAt(Date.now());
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load channel inputs");
@@ -276,6 +281,16 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     () => (activePlanVersionId ? planVersions.find((v) => v.id === activePlanVersionId) ?? null : null),
     [activePlanVersionId, planVersions]
   );
+
+  const planInputsDirty = useMemo(() => {
+    if (!activeVersion) return false;
+    const current = JSON.stringify(channelInputs);
+    return planInputsSavedJson ? current !== planInputsSavedJson : current !== JSON.stringify({
+      digital: emptyChannelForm(),
+      activations: emptyChannelForm(),
+      inbound: emptyChannelForm()
+    });
+  }, [activeVersion, channelInputs, planInputsSavedJson]);
 
   const allocatedTotal = useMemo(() => {
     return PLANNING_CHANNELS.reduce((sum, ch) => {
@@ -325,6 +340,10 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     setStatus("Draft created.");
     await refresh();
     setActivePlanVersionId(v.id);
+    // New draft starts as "saved" with empty values
+    const empty = { digital: emptyChannelForm(), activations: emptyChannelForm(), inbound: emptyChannelForm() } as const;
+    setPlanInputsSavedJson(JSON.stringify(empty));
+    setPlanInputsSavedAt(Date.now());
   }
 
   async function onSavePlanInputs() {
@@ -366,6 +385,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     setStatus("Saving plan inputs...");
     await Promise.all(payloads.map((p) => upsertPlanChannelInputs(p)));
     setStatus("Plan inputs saved.");
+    setPlanInputsSavedJson(JSON.stringify(channelInputs));
+    setPlanInputsSavedAt(Date.now());
   }
 
   async function onSubmitForApproval() {
@@ -460,6 +481,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     activeVersion,
     channelInputs,
     setChannelInputs,
+    planInputsDirty,
+    planInputsSavedAt,
     actuals,
     actualsForm,
     setActualsForm,

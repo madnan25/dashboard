@@ -28,6 +28,8 @@ export default function BrandDataEntryPage() {
     activeVersion,
     channelInputs,
     setChannelInputs,
+    planInputsDirty,
+    planInputsSavedAt,
     actuals,
     actualsForm,
     setActualsForm,
@@ -111,6 +113,8 @@ export default function BrandDataEntryPage() {
               remainingBudget={remainingBudget}
               channelInputs={channelInputs}
               setChannelInputs={setChannelInputs}
+              planInputsDirty={planInputsDirty}
+              planInputsSavedAt={planInputsSavedAt}
               onSavePlanInputs={onSavePlanInputs}
               onSubmitForApproval={onSubmitForApproval}
             />

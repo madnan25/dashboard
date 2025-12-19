@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import { Button } from "@heroui/react";
+import { useEffect, useMemo, useState } from "react";
+import { AppButton } from "@/components/ds/AppButton";
 import { Surface } from "@/components/ds/Surface";
-import type { PlanVersion } from "@/lib/dashboardDb";
+import type { PlanChannel, PlanChannelInputs, PlanVersion, ProjectTargets } from "@/lib/dashboardDb";
+import { getPlanChannelInputs } from "@/lib/dashboardDb";
+import { computeChannelFunnelFromInputs } from "@/lib/reports/funnelMath";
 
 function planDisplayName(monthLabel: string, status: PlanVersion["status"], active: boolean) {
   if (status === "approved") return `${monthLabel} – Approved plan`;
@@ -15,12 +19,54 @@ function planDisplayName(monthLabel: string, status: PlanVersion["status"], acti
 
 export function CmoApprovalsPanel(props: {
   monthLabel: string;
+  targets: ProjectTargets | null;
   planVersions: PlanVersion[];
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const { monthLabel, planVersions, onApprove, onReject, onDelete } = props;
+  const { monthLabel, targets, planVersions, onApprove, onReject, onDelete } = props;
+
+  const [viewId, setViewId] = useState<string | null>(null);
+  const [viewRows, setViewRows] = useState<PlanChannelInputs[] | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState<string>("");
+
+  const viewing = useMemo(() => (viewId ? planVersions.find((v) => v.id === viewId) ?? null : null), [planVersions, viewId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!viewId) return;
+      try {
+        setViewError("");
+        setViewLoading(true);
+        const rows = await getPlanChannelInputs(viewId);
+        if (cancelled) return;
+        setViewRows(rows ?? []);
+      } catch (e) {
+        if (cancelled) return;
+        setViewError(e instanceof Error ? e.message : "Failed to load plan details");
+        setViewRows(null);
+      } finally {
+        if (cancelled) return;
+        setViewLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewId]);
+
+  const byChannel = useMemo(() => {
+    const out: Record<PlanChannel, PlanChannelInputs | null> = { digital: null, inbound: null, activations: null };
+    for (const r of viewRows ?? []) out[r.channel] = r;
+    return out;
+  }, [viewRows]);
+
+  const channels: PlanChannel[] = ["digital", "inbound", "activations"];
+  const channelLabel = (ch: PlanChannel) => (ch === "digital" ? "Digital" : ch === "inbound" ? "Inbound" : "Activations");
 
   return (
     <Surface>
@@ -35,9 +81,9 @@ export function CmoApprovalsPanel(props: {
             .
           </div>
         </div>
-        <Button as={Link} href="/brand/data-entry" size="sm" variant="flat" className="glass-inset text-white/80">
-          Open data entry
-        </Button>
+        <AppButton as={Link} href="/brand/data-entry" size="sm" intent="secondary">
+          Open planning
+        </AppButton>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -72,28 +118,31 @@ export function CmoApprovalsPanel(props: {
                 <div className="flex items-center gap-2">
                   {v.status !== "approved" ? (
                     <>
-                      <Button color="primary" onPress={() => onApprove(v.id)}>
+                      <AppButton intent="primary" onPress={() => onApprove(v.id)}>
                         Approve now
-                      </Button>
+                      </AppButton>
+                      <AppButton intent="secondary" onPress={() => setViewId(v.id)}>
+                        View details
+                      </AppButton>
                       {v.status !== "rejected" ? (
-                        <Button variant="flat" className="glass-inset text-white/80" onPress={() => onReject(v.id)}>
+                        <AppButton intent="secondary" onPress={() => onReject(v.id)}>
                           Reject
-                        </Button>
+                        </AppButton>
                       ) : null}
                       {v.status === "draft" || v.status === "rejected" ? (
-                        <Button variant="flat" className="glass-inset text-white/80" onPress={() => onDelete(v.id)}>
+                        <AppButton intent="danger" onPress={() => onDelete(v.id)}>
                           Delete
-                        </Button>
+                        </AppButton>
                       ) : null}
                     </>
                   ) : (
                     <>
-                      <Button variant="flat" className="glass-inset text-white/80" onPress={() => onReject(v.id)}>
+                      <AppButton intent="secondary" onPress={() => setViewId(v.id)}>
+                        View details
+                      </AppButton>
+                      <AppButton intent="secondary" onPress={() => onReject(v.id)}>
                         Reject approved
-                      </Button>
-                      <Button as={Link} href="/brand/data-entry" variant="flat" className="glass-inset text-white/80">
-                        View / edit
-                      </Button>
+                      </AppButton>
                     </>
                   )}
                 </div>
@@ -102,6 +151,99 @@ export function CmoApprovalsPanel(props: {
           );
         })}
       </div>
+
+      {viewId ? (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur"
+            onClick={() => {
+              setViewId(null);
+              setViewRows(null);
+              setViewError("");
+            }}
+          />
+          <div className="relative w-full max-w-3xl rounded-3xl border border-white/10 bg-black/75 shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 p-5">
+              <div className="min-w-0">
+                <div className="truncate text-lg font-semibold text-white/90">
+                  {viewing ? planDisplayName(monthLabel, viewing.status, viewing.active) : "Plan details"}
+                </div>
+                <div className="mt-1 text-sm text-white/55">
+                  {viewing ? `Created: ${new Date(viewing.created_at).toLocaleString()} · ID: ${viewing.id.slice(0, 8)}…` : ""}
+                </div>
+              </div>
+              <AppButton
+                intent="ghost"
+                onPress={() => {
+                  setViewId(null);
+                  setViewRows(null);
+                  setViewError("");
+                }}
+              >
+                Close
+              </AppButton>
+            </div>
+
+            <div className="p-5">
+              {!targets ? (
+                <div className="text-sm text-amber-200/90">Set CMO targets/rates for this month to view computed requirements.</div>
+              ) : null}
+              {viewError ? <div className="text-sm text-rose-200/90">{viewError}</div> : null}
+              {viewLoading ? <div className="text-sm text-white/60">Loading…</div> : null}
+
+              {!viewLoading && viewRows ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  {channels.map((ch) => {
+                    const row = byChannel[ch];
+                    const computed = computeChannelFunnelFromInputs({ targets, inputs: row });
+                    return (
+                      <div key={ch} className="glass-inset rounded-2xl p-4">
+                        <div className="text-sm font-semibold text-white/85">{channelLabel(ch)}</div>
+                        <div className="mt-2 space-y-1 text-xs text-white/70">
+                          <div className="flex items-center justify-between">
+                            <span>Contribution</span>
+                            <span className="font-semibold text-white/85">{Number(row?.target_contribution_percent ?? 0).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Qualification</span>
+                            <span className="font-semibold text-white/85">{Number(row?.qualification_percent ?? 0).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Budget</span>
+                            <span className="font-semibold text-white/85">{Number(row?.allocated_budget ?? 0).toLocaleString()}</span>
+                          </div>
+                          <div className="mt-2 border-t border-white/10 pt-2 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span>Target sqft</span>
+                              <span className="font-semibold text-white/85">{computed.targetSqft.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Deals required</span>
+                              <span className="font-semibold text-white/85">{computed.dealsRequired.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Meetings done</span>
+                              <span className="font-semibold text-white/85">{computed.meetingsDoneRequired.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Qualified</span>
+                              <span className="font-semibold text-white/85">{computed.qualifiedRequired.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Leads</span>
+                              <span className="font-semibold text-white/85">{computed.leadsRequired.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Surface>
   );
 }

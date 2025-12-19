@@ -317,6 +317,7 @@ export default function CmoProjectsPage() {
             />
             <CmoApprovalsPanel
               monthLabel={monthLabel}
+              targets={targets}
               planVersions={planVersions}
               onApprove={onApprove}
               onReject={onReject}

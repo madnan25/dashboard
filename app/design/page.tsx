@@ -5,6 +5,7 @@ import { NavCard } from "@/components/ds/NavCard";
 import { PageShell, Surface } from "@/components/ds/Surface";
 import { KpiCard } from "@/components/ds/KpiCard";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
+import { AppButton } from "@/components/ds/AppButton";
 import { BackButton } from "@/components/nav/BackButton";
 import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
@@ -41,6 +42,26 @@ export default function DesignSystemPage() {
               label="← Back"
               className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15"
             />
+          </div>
+        </PageShell>
+
+        <PageShell>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold text-white/90">Buttons</div>
+              <div className="text-sm text-white/55">Primary/secondary/danger buttons used across the app.</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <AppButton intent="secondary" size="sm">
+                Secondary
+              </AppButton>
+              <AppButton intent="primary" size="sm">
+                Primary
+              </AppButton>
+              <AppButton intent="danger" size="sm">
+                Danger
+              </AppButton>
+            </div>
           </div>
         </PageShell>
 

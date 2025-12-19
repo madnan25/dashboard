@@ -1,7 +1,8 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { useMemo, useState } from "react";
 import { NumberInput } from "@/components/ds/NumberInput";
+import { AppButton } from "@/components/ds/AppButton";
 import { Surface } from "@/components/ds/Surface";
 import type { PlanChannel, PlanVersion, ProjectTargets } from "@/lib/dashboardDb";
 import {
@@ -32,6 +33,8 @@ export function PlanInputsCard(props: {
   allocatedTotal: number;
   budgetCap: number;
   remainingBudget: number;
+  planInputsDirty: boolean;
+  planInputsSavedAt: number | null;
   channelInputs: Record<
     PlanChannel,
     {
@@ -65,8 +68,8 @@ export function PlanInputsCard(props: {
       }
     >
   ) => void;
-  onSavePlanInputs: () => void;
-  onSubmitForApproval: () => void;
+  onSavePlanInputs: () => Promise<void> | void;
+  onSubmitForApproval: () => Promise<void> | void;
 }) {
   const {
     activeVersion,
@@ -76,6 +79,8 @@ export function PlanInputsCard(props: {
     allocatedTotal,
     budgetCap,
     remainingBudget,
+    planInputsDirty,
+    planInputsSavedAt,
     channelInputs,
     setChannelInputs,
     onSavePlanInputs,
@@ -95,6 +100,16 @@ export function PlanInputsCard(props: {
   }, 0);
 
   const isOverTotalTarget = totalContributionPct > 100.0001;
+
+  const [saveFlash, setSaveFlash] = useState<"idle" | "saving" | "saved">("idle");
+
+  const saveLabel = useMemo(() => {
+    if (saveFlash === "saving") return "Saving…";
+    if (saveFlash === "saved") return "Saved";
+    return planInputsDirty ? "Save draft" : "Saved";
+  }, [planInputsDirty, saveFlash]);
+
+  const canSave = canEditPlan && planInputsDirty && !isOverTotalTarget && saveFlash !== "saving";
 
   return (
     <Surface className="md:col-span-7">
@@ -260,18 +275,51 @@ export function PlanInputsCard(props: {
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-            <Button
-              variant="flat"
-              className="glass-inset text-white/80"
-              onPress={onSavePlanInputs}
-              isDisabled={!canEditPlan || isOverTotalTarget}
+            {planInputsSavedAt ? (
+              <div className="mr-auto text-xs text-white/45">
+                Last saved: {new Date(planInputsSavedAt).toLocaleTimeString()}
+                {planInputsDirty ? <span className="ml-2 text-amber-200/90">Unsaved changes</span> : null}
+              </div>
+            ) : planInputsDirty ? (
+              <div className="mr-auto text-xs text-amber-200/90">Unsaved changes</div>
+            ) : (
+              <div className="mr-auto text-xs text-white/45"> </div>
+            )}
+
+            <AppButton
+              intent="secondary"
+              onPress={async () => {
+                if (!canSave) return;
+                setSaveFlash("saving");
+                try {
+                  await onSavePlanInputs();
+                  setSaveFlash("saved");
+                  window.setTimeout(() => setSaveFlash("idle"), 1400);
+                } catch {
+                  setSaveFlash("idle");
+                }
+              }}
+              isDisabled={!canSave}
             >
-              Save draft
-            </Button>
+              {saveLabel}
+            </AppButton>
             {!isCmo ? (
-              <Button color="primary" onPress={onSubmitForApproval} isDisabled={!canEditPlan || isOverTotalTarget}>
+              <AppButton
+                intent="primary"
+                onPress={async () => {
+                  if (!canEditPlan || isOverTotalTarget) return;
+                  if (planInputsDirty) {
+                    const ok = confirm(
+                      "You have unsaved changes.\n\nIf you submit now, ONLY the last saved values will be submitted and any unsaved edits will be lost.\n\nPress Cancel to go back and Save first."
+                    );
+                    if (!ok) return;
+                  }
+                  await onSubmitForApproval();
+                }}
+                isDisabled={!canEditPlan || isOverTotalTarget}
+              >
                 Submit for approval
-              </Button>
+              </AppButton>
             ) : null}
           </div>
         </>
