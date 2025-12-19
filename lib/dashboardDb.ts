@@ -85,7 +85,20 @@ export async function purgeDraftPlanVersion(planVersionId: string): Promise<void
   const { data, error } = await supabase.functions.invoke("delete-plan-draft", {
     body: { planVersionId }
   });
-  if (error) throw error;
+  if (error) {
+    // Supabase returns FunctionsHttpError with a Response in `context`
+    const anyErr = error as unknown as { message?: string; context?: Response };
+    const ctx = anyErr?.context;
+    if (ctx && typeof ctx.json === "function") {
+      try {
+        const body = (await ctx.json()) as { error?: unknown };
+        if (typeof body?.error === "string" && body.error) throw new Error(body.error);
+      } catch (e) {
+        if (e instanceof Error) throw e;
+      }
+    }
+    throw new Error(anyErr?.message || "Failed to purge plan version");
+  }
   if (!data || data.ok !== true) {
     throw new Error((data && typeof data.error === "string" && data.error) || "Failed to purge draft plan");
   }

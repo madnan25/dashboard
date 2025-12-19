@@ -210,7 +210,10 @@ export default function CmoProjectsPage() {
       setStatus("Deleted.");
       await refreshVersions();
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to delete");
+      const msg = e instanceof Error ? e.message : "Failed to delete";
+      setStatus(msg);
+      // Make failures impossible to miss
+      alert(msg);
     }
   }
 
