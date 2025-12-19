@@ -5,12 +5,26 @@ import type { PlanChannel, PlanChannelInputs, PlanVersion, ProjectActuals, Proje
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_YEAR = 2025;
-const DEFAULT_MONTH_INDEX = 11; // Dec
+function defaultYearMonth() {
+  const d = new Date();
+  return { year: d.getFullYear(), monthIndex: d.getMonth() };
+}
 
-export default async function ProjectHubPage({ params }: { params?: Promise<{ projectId: string }> }) {
+export default async function ProjectHubPage({
+  params,
+  searchParams
+}: {
+  params?: Promise<{ projectId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const resolved = (await params) ?? { projectId: "" };
   const projectId = resolved.projectId;
+  const sp = (await searchParams) ?? {};
+  const defaults = defaultYearMonth();
+  const year = Number(sp.year ?? defaults.year);
+  const monthIndex = Number(sp.monthIndex ?? defaults.monthIndex);
+  const safeYear = Number.isFinite(year) ? year : defaults.year;
+  const safeMonthIndex = Number.isFinite(monthIndex) ? monthIndex : defaults.monthIndex;
 
   const envMissing = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (envMissing) {
@@ -20,14 +34,14 @@ export default async function ProjectHubPage({ params }: { params?: Promise<{ pr
   const supabase = await createServerDbClient();
   const repo = createDashboardRepo(supabase);
 
-  const month = DEFAULT_MONTH_INDEX + 1;
+  const month = safeMonthIndex + 1;
 
   const [{ data: proj }, profile, targets, versions, actuals] = await Promise.all([
     supabase.from("projects").select("name").eq("id", projectId).maybeSingle(),
     repo.getCurrentProfile(),
-    repo.getProjectTargets(projectId, DEFAULT_YEAR, month),
-    repo.listPlanVersions(projectId, DEFAULT_YEAR, month),
-    repo.getProjectActuals(projectId, DEFAULT_YEAR, month)
+    repo.getProjectTargets(projectId, safeYear, month),
+    repo.listPlanVersions(projectId, safeYear, month),
+    repo.getProjectActuals(projectId, safeYear, month)
   ]);
 
   const active: PlanVersion | null = versions.find((v) => v.active && v.status === "approved") ?? null;
@@ -39,8 +53,8 @@ export default async function ProjectHubPage({ params }: { params?: Promise<{ pr
     <ProjectHub
       projectId={projectId}
       initial={{
-        year: DEFAULT_YEAR,
-        monthIndex: DEFAULT_MONTH_INDEX,
+        year: safeYear,
+        monthIndex: safeMonthIndex,
         projectName: proj?.name ?? "—",
         role: profile?.role ?? null,
         targets: (targets as ProjectTargets | null) ?? null,

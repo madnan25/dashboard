@@ -87,7 +87,12 @@ export function MonthYearPicker({
         )}
         onPress={() => setOpen((v) => !v)}
       >
-        {label}
+        <span className="flex items-center gap-2">
+          <span>{label}</span>
+          <span className={cn("text-white/45 transition-transform", open ? "rotate-180" : "")} aria-hidden="true">
+            ▾
+          </span>
+        </span>
       </Button>
 
       {open ? (

@@ -11,8 +11,8 @@ import { SalesOpsActualsCard } from "@/components/features/planning/SalesOpsActu
 import { planDisplayName, usePlanningData } from "@/components/features/planning/usePlanningData";
 
 export default function BrandDataEntryPage() {
-  const [year, setYear] = useState(2025);
-  const [monthIndex, setMonthIndex] = useState(11);
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [monthIndex, setMonthIndex] = useState(() => new Date().getMonth());
 
   const {
     envMissing,
@@ -60,6 +60,7 @@ export default function BrandDataEntryPage() {
           projectId={projectId}
           setProjectId={setProjectId}
           isDisabled={envMissing}
+          snapshotHref={projectId ? `/projects/${projectId}?year=${encodeURIComponent(String(year))}&monthIndex=${encodeURIComponent(String(monthIndex))}` : "/projects"}
           right={
             <MonthYearPicker
               monthIndex={monthIndex}

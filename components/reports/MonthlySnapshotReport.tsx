@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@heroui/react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
+import { PillSelect } from "@/components/ds/PillSelect";
 import { PageShell, Surface } from "@/components/ds/Surface";
 import { SnapshotChartsAndDetails } from "@/components/reports/monthlySnapshot/SnapshotChartsAndDetails";
 import { SnapshotKpiSummary } from "@/components/reports/monthlySnapshot/SnapshotKpiSummary";
@@ -54,8 +55,8 @@ function channelTitle(channel: PlanChannel) {
 export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjectId?: string; backHref?: string }) {
   const { channel, fixedProjectId, backHref } = props;
 
-  const [selectedYear, setSelectedYear] = useState(2025);
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(11);
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(() => new Date().getMonth());
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<string>(fixedProjectId ?? "");
@@ -253,18 +254,13 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
                 }}
               />
               {!fixedProjectId ? (
-                <select
-                  className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/85 hover:bg-white/[0.04]"
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  disabled={envMissing}
-                >
+                <PillSelect value={projectId} onChange={setProjectId} disabled={envMissing} ariaLabel="Project">
                   {projects.map((p) => (
                     <option key={p.id} value={p.id} className="bg-zinc-900">
                       {p.name}
                     </option>
                   ))}
-                </select>
+                </PillSelect>
               ) : null}
             </div>
           }

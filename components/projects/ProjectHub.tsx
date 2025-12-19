@@ -46,8 +46,8 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
   const projectId = props.projectId;
   const initial = props.initial;
 
-  const [selectedYear, setSelectedYear] = useState(initial?.year ?? 2025);
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(initial?.monthIndex ?? 11);
+  const [selectedYear, setSelectedYear] = useState(initial?.year ?? new Date().getFullYear());
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(initial?.monthIndex ?? new Date().getMonth());
   const month = useMemo(() => monthNumber(selectedMonthIndex), [selectedMonthIndex]);
   const monthLabel = useMemo(() => `${MONTHS[selectedMonthIndex]} ${selectedYear}`, [selectedMonthIndex, selectedYear]);
 

@@ -36,8 +36,8 @@ function toNumber(value: string) {
 }
 
 export default function CmoProjectsPage() {
-  const [year, setYear] = useState(2025);
-  const [monthIndex, setMonthIndex] = useState(11);
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [monthIndex, setMonthIndex] = useState(() => new Date().getMonth());
   const month = useMemo(() => monthNumber(monthIndex), [monthIndex]);
   const monthLabel = useMemo(() => `${MONTHS[monthIndex]} ${year}`, [monthIndex, year]);
 

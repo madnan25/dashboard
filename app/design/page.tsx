@@ -6,6 +6,7 @@ import { PageShell, Surface } from "@/components/ds/Surface";
 import { KpiCard } from "@/components/ds/KpiCard";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { AppButton } from "@/components/ds/AppButton";
+import { PillSelect } from "@/components/ds/PillSelect";
 import { BackButton } from "@/components/nav/BackButton";
 import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
@@ -90,6 +91,19 @@ export default function DesignSystemPage() {
                 setYear(next.year);
               }}
             />
+          </div>
+        </PageShell>
+
+        <PageShell>
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-lg font-semibold text-white/90">PillSelect</div>
+            <div className="w-[220px]">
+              <PillSelect value="fractional" onChange={() => {}} ariaLabel="Example select">
+                <option className="bg-zinc-900" value="fractional">
+                  Fractional
+                </option>
+              </PillSelect>
+            </div>
           </div>
         </PageShell>
 
