@@ -1,13 +1,16 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { useMemo, useState } from "react";
 import { NumberInput } from "@/components/ds/NumberInput";
+import { AppButton } from "@/components/ds/AppButton";
 import { Surface } from "@/components/ds/Surface";
 import type { ProjectActuals } from "@/lib/dashboardDb";
 
 export function BrandSpendCard(props: {
   isCmo: boolean;
   actuals: ProjectActuals | null;
+  spendDirty: boolean;
+  spendSavedAt: number | null;
   actualsForm: {
     spend_digital: string;
     spend_inbound: string;
@@ -22,9 +25,19 @@ export function BrandSpendCard(props: {
     spend_inbound: string;
     spend_activations: string;
   }) => void;
-  onSaveSpend: () => void;
+  onSaveSpend: () => Promise<void> | void;
 }) {
-  const { isCmo, actuals, actualsForm, setActualsForm, onSaveSpend } = props;
+  const { isCmo, actuals, spendDirty, spendSavedAt, actualsForm, setActualsForm, onSaveSpend } = props;
+
+  const [saveFlash, setSaveFlash] = useState<"idle" | "saving" | "saved">("idle");
+
+  const saveLabel = useMemo(() => {
+    if (saveFlash === "saving") return "Saving…";
+    if (saveFlash === "saved") return "Saved";
+    return spendDirty ? "Save spend" : "Saved";
+  }, [saveFlash, spendDirty]);
+
+  const canSave = spendDirty && saveFlash !== "saving";
 
   return (
     <Surface>
@@ -34,10 +47,36 @@ export function BrandSpendCard(props: {
           <div className="mt-1 text-sm text-white/55">
             Track channel spend here. (Actuals metrics remain in Sales Ops.)
           </div>
+          <div className="mt-2 text-xs text-white/45">
+            {spendSavedAt ? (
+              <>
+                Last saved: {new Date(spendSavedAt).toLocaleTimeString()}
+                {spendDirty ? <span className="ml-2 text-amber-200/80">Unsaved changes</span> : null}
+              </>
+            ) : spendDirty ? (
+              <span className="text-amber-200/80">Unsaved changes</span>
+            ) : (
+              <span> </span>
+            )}
+          </div>
         </div>
-        <Button color="primary" onPress={onSaveSpend}>
-          Save spend
-        </Button>
+        <AppButton
+          intent="primary"
+          className="h-11 px-6"
+          isDisabled={!canSave}
+          onPress={async () => {
+            setSaveFlash("saving");
+            try {
+              await onSaveSpend();
+              setSaveFlash("saved");
+              window.setTimeout(() => setSaveFlash("idle"), 900);
+            } catch {
+              setSaveFlash("idle");
+            }
+          }}
+        >
+          {saveLabel}
+        </AppButton>
       </div>
 
       <div className="mt-4">

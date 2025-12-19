@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Input } from "@heroui/react";
 import { AppButton } from "@/components/ds/AppButton";
+import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { Surface } from "@/components/ds/Surface";
 import type { Profile, UserRole } from "@/lib/dashboardDb";
@@ -95,15 +95,10 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
           <div className="mt-1 text-sm text-white/55">Assign roles for existing users, or create new users by email (magic-link login).</div>
         </div>
         <div className="w-full max-w-[280px]">
-          <Input
+          <AppInput
             value={search}
             onValueChange={setSearch}
             placeholder="Search by email, name, or ID…"
-            variant="bordered"
-            classNames={{
-              inputWrapper: "glass-inset rounded-2xl border-white/10 bg-white/[0.02]",
-              input: "text-white/90 placeholder:text-white/25"
-            }}
           />
         </div>
       </div>
@@ -150,26 +145,16 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
             <div className="mt-1 text-xs text-white/55">Creates an Auth user (no password). They will sign in via magic link like everyone else.</div>
 
             <div className="mt-4 space-y-3">
-              <Input
+              <AppInput
                 value={createEmail}
                 onValueChange={setCreateEmail}
                 placeholder="email@company.com"
-                variant="bordered"
-                classNames={{
-                  inputWrapper: "glass-inset rounded-2xl border-white/10 bg-white/[0.02]",
-                  input: "text-white/90 placeholder:text-white/25"
-                }}
               />
 
-              <Input
+              <AppInput
                 value={createName}
                 onValueChange={setCreateName}
                 placeholder="Full name (optional)"
-                variant="bordered"
-                classNames={{
-                  inputWrapper: "glass-inset rounded-2xl border-white/10 bg-white/[0.02]",
-                  input: "text-white/90 placeholder:text-white/25"
-                }}
               />
 
               <PillSelect value={createRole} onChange={(v) => setCreateRole(v as UserRole)} ariaLabel="New user role">

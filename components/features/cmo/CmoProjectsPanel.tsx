@@ -1,6 +1,8 @@
 "use client";
 
-import { Button, Input } from "@heroui/react";
+import { Button } from "@heroui/react";
+import { AppButton } from "@/components/ds/AppButton";
+import { AppInput } from "@/components/ds/AppInput";
 import { Surface } from "@/components/ds/Surface";
 import type { Project } from "@/lib/dashboardDb";
 
@@ -21,19 +23,14 @@ export function CmoProjectsPanel(props: {
       <div className="mt-1 text-sm text-white/55">Only active projects should be used for planning/reporting.</div>
 
       <div className="mt-4 flex gap-2">
-        <Input
+        <AppInput
           value={newProjectName}
           onValueChange={setNewProjectName}
           placeholder="New project name"
-          variant="bordered"
-          classNames={{
-            inputWrapper: "glass-inset rounded-2xl border-white/10 bg-white/[0.02]",
-            input: "text-white/90 placeholder:text-white/25"
-          }}
         />
-        <Button color="primary" onPress={onCreateProject} isDisabled={!newProjectName.trim()}>
+        <AppButton intent="primary" onPress={onCreateProject} isDisabled={!newProjectName.trim()}>
           Create
-        </Button>
+        </AppButton>
       </div>
 
       <div className="mt-4 space-y-2">

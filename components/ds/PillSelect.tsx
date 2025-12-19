@@ -18,7 +18,11 @@ export function PillSelect(props: {
       <select
         aria-label={ariaLabel}
         className={cn(
-          "glass-inset h-10 w-full appearance-none rounded-2xl border border-white/10 bg-white/[0.02] px-4 pr-10 text-sm text-white/85 hover:bg-white/[0.04]",
+          [
+            "glass-inset h-10 w-full appearance-none rounded-2xl border border-white/10 bg-white/[0.02] px-4 pr-10 text-sm text-white/85 hover:bg-white/[0.04]",
+            // premium focus (avoid default outline rectangle)
+            "focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus:border-white/20 focus:shadow-[0_0_0_1px_rgba(255,255,255,0.10)]"
+          ].join(" "),
           disabled ? "opacity-60" : ""
         )}
         value={value}

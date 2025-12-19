@@ -31,6 +31,8 @@ export default function BrandDataEntryClient() {
     setChannelInputs,
     planInputsDirty,
     planInputsSavedAt,
+    spendDirty,
+    spendSavedAt,
     actuals,
     actualsForm,
     setActualsForm,
@@ -129,6 +131,8 @@ export default function BrandDataEntryClient() {
           <BrandSpendCard
             isCmo={isCmo}
             actuals={actuals}
+            spendDirty={spendDirty}
+            spendSavedAt={spendSavedAt}
             actualsForm={{
               spend_digital: actualsForm.spend_digital,
               spend_inbound: actualsForm.spend_inbound,

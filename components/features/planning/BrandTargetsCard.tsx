@@ -1,7 +1,8 @@
 "use client";
 
-import { Button } from "@heroui/react";
 import { Surface } from "@/components/ds/Surface";
+import { AppButton } from "@/components/ds/AppButton";
+import { PillSelect } from "@/components/ds/PillSelect";
 import type { PlanVersion, ProjectTargets } from "@/lib/dashboardDb";
 
 export function BrandTargetsCard(props: {
@@ -49,17 +50,18 @@ export function BrandTargetsCard(props: {
       </div>
 
       <div className="mt-4 grid gap-2">
-        <Button color="primary" onPress={onCreateDraft}>
+        <AppButton intent="primary" onPress={onCreateDraft}>
           Create new draft
-        </Button>
+        </AppButton>
 
         {isCmo || !!profileId ? (
           <div className="glass-inset rounded-xl p-3">
             <div className="text-xs uppercase tracking-widest text-white/45">{isCmo ? "Plan version" : "Your plan versions"}</div>
-            <select
-              className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/85"
+            <PillSelect
+              className="mt-2"
               value={activePlanVersionId ?? ""}
-              onChange={(e) => setActivePlanVersionId(e.target.value || null)}
+              onChange={(next) => setActivePlanVersionId(next || null)}
+              ariaLabel="Plan version"
             >
               <option value="" className="bg-zinc-900">
                 — Select —
@@ -69,7 +71,7 @@ export function BrandTargetsCard(props: {
                   {planDisplayName(monthLabel, v.status, v.active)} · {new Date(v.created_at).toLocaleString()}
                 </option>
               ))}
-            </select>
+            </PillSelect>
             {selected ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className={`rounded-full border px-2 py-0.5 text-[12px] ${statusTone}`}>{selected.status.toUpperCase()}</span>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Input } from "@heroui/react";
 import { PageHeader } from "@/components/ds/PageHeader";
+import { AppButton } from "@/components/ds/AppButton";
+import { AppInput } from "@/components/ds/AppInput";
 import { Surface } from "@/components/ds/Surface";
 import { getCurrentProfile, updateMyFullName } from "@/lib/dashboardDb";
 
@@ -49,22 +50,17 @@ export default function AccountPage() {
             <div className="text-sm text-white/60">{status || " "}</div>
             <div>
               <div className="text-xs uppercase tracking-widest text-white/45">Full name</div>
-              <Input
+              <AppInput
                 value={name}
                 onValueChange={setName}
                 placeholder="e.g. Mohammad Adnan"
-                variant="bordered"
-                classNames={{
-                  inputWrapper: "glass-inset rounded-2xl border-white/10 bg-white/[0.02]",
-                  input: "text-white/90 placeholder:text-white/25"
-                }}
               />
               <div className="mt-2 text-xs text-white/45">Tip: keep it short; it will be truncated in the nav bar.</div>
             </div>
             <div className="flex justify-end">
-              <Button color="primary" onPress={onSave}>
+              <AppButton intent="primary" onPress={onSave}>
                 Save
-              </Button>
+              </AppButton>
             </div>
           </div>
         </Surface>

@@ -110,6 +110,9 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     spend_activations: "0"
   });
 
+  const [spendSavedJson, setSpendSavedJson] = useState<string>("");
+  const [spendSavedAt, setSpendSavedAt] = useState<number | null>(null);
+
   const [status, setStatus] = useState<string>("");
 
   const envMissing =
@@ -167,6 +170,15 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       spend_inbound: String(a?.spend_inbound ?? 0),
       spend_activations: String(a?.spend_activations ?? 0)
     });
+
+    setSpendSavedJson(
+      JSON.stringify({
+        spend_digital: String(a?.spend_digital ?? 0),
+        spend_inbound: String(a?.spend_inbound ?? 0),
+        spend_activations: String(a?.spend_activations ?? 0)
+      })
+    );
+    setSpendSavedAt(Date.now());
   }
 
   useEffect(() => {
@@ -211,6 +223,15 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
           spend_inbound: String(a?.spend_inbound ?? 0),
           spend_activations: String(a?.spend_activations ?? 0)
         });
+
+        setSpendSavedJson(
+          JSON.stringify({
+            spend_digital: String(a?.spend_digital ?? 0),
+            spend_inbound: String(a?.spend_inbound ?? 0),
+            spend_activations: String(a?.spend_activations ?? 0)
+          })
+        );
+        setSpendSavedAt(Date.now());
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load data");
@@ -292,6 +313,19 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       inbound: emptyChannelForm()
     });
   }, [activeVersion, channelInputs, planInputsSavedJson]);
+
+  const spendDirty = useMemo(() => {
+    const current = JSON.stringify({
+      spend_digital: actualsForm.spend_digital,
+      spend_inbound: actualsForm.spend_inbound,
+      spend_activations: actualsForm.spend_activations
+    });
+    return spendSavedJson ? current !== spendSavedJson : current !== JSON.stringify({
+      spend_digital: "0",
+      spend_inbound: "0",
+      spend_activations: "0"
+    });
+  }, [actualsForm.spend_activations, actualsForm.spend_digital, actualsForm.spend_inbound, spendSavedJson]);
 
   const allocatedTotal = useMemo(() => {
     return PLANNING_CHANNELS.reduce((sum, ch) => {
@@ -478,6 +512,15 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       spend_activations
     });
     setStatus("Spend saved.");
+
+    setSpendSavedJson(
+      JSON.stringify({
+        spend_digital: String(spend_digital),
+        spend_inbound: String(spend_inbound),
+        spend_activations: String(spend_activations)
+      })
+    );
+    setSpendSavedAt(Date.now());
     await refresh();
   }
 
@@ -506,6 +549,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     setChannelInputs,
     planInputsDirty,
     planInputsSavedAt,
+    spendDirty,
+    spendSavedAt,
     actuals,
     actualsForm,
     setActualsForm,
