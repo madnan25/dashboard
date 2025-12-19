@@ -18,6 +18,15 @@ export function BrandTargetsCard(props: {
   const { isCmo, profileId, targets, planVersions, monthLabel, activePlanVersionId, setActivePlanVersionId, onCreateDraft, planDisplayName } = props;
 
   const visibleVersions = isCmo ? planVersions : planVersions.filter((v) => (profileId ? v.created_by === profileId : false));
+  const selected = activePlanVersionId ? visibleVersions.find((v) => v.id === activePlanVersionId) ?? null : null;
+  const statusTone =
+    selected?.status === "approved"
+      ? "border-emerald-300/20 bg-emerald-500/10 text-emerald-100/90"
+      : selected?.status === "rejected"
+        ? "border-rose-300/20 bg-rose-500/10 text-rose-100/90"
+        : selected?.status === "submitted"
+          ? "border-blue-300/20 bg-blue-500/10 text-blue-100/90"
+          : "border-white/10 bg-white/[0.03] text-white/75";
 
   return (
     <Surface className="md:col-span-5">
@@ -61,6 +70,14 @@ export function BrandTargetsCard(props: {
                 </option>
               ))}
             </select>
+            {selected ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className={`rounded-full border px-2 py-0.5 text-[12px] ${statusTone}`}>{selected.status.toUpperCase()}</span>
+                {selected.active ? (
+                  <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/75">ACTIVE</span>
+                ) : null}
+              </div>
+            ) : null}
             <div className="mt-2 text-xs text-white/45">
               {isCmo ? "CMO can edit any version (including approved). Changes apply immediately." : "Select which draft to edit/submit for this month."}
             </div>

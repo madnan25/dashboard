@@ -111,12 +111,37 @@ export function PlanInputsCard(props: {
 
   const canSave = canEditPlan && planInputsDirty && !isOverTotalTarget && saveFlash !== "saving";
 
+  const statusTone =
+    activeVersion?.status === "approved"
+      ? "border-emerald-300/20 bg-emerald-500/10 text-emerald-100/90"
+      : activeVersion?.status === "rejected"
+        ? "border-rose-300/20 bg-rose-500/10 text-rose-100/90"
+        : activeVersion?.status === "submitted"
+          ? "border-blue-300/20 bg-blue-500/10 text-blue-100/90"
+          : "border-white/10 bg-white/[0.03] text-white/75";
+
   return (
     <Surface className="md:col-span-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-lg font-semibold text-white/90">Plan inputs</div>
-          <div className="mt-1 text-sm text-white/55">Version: {activeVersion ? `${activeVersion.status}${activeVersion.active ? " (active)" : ""}` : "—"}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-white/55">Version</span>
+            {activeVersion ? (
+              <>
+                <span className={`rounded-full border px-2 py-0.5 text-[12px] ${statusTone}`}>
+                  {activeVersion.status.toUpperCase()}
+                </span>
+                {activeVersion.active ? (
+                  <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/75">
+                    ACTIVE
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-white/55">—</span>
+            )}
+          </div>
         </div>
 
         <div className="text-sm text-white/60">
