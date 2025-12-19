@@ -237,6 +237,7 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
 
   const leadToQualifiedPct = clampPercent((snapshot.qualifiedLeads / Math.max(snapshot.leadsGenerated, 1)) * 100);
   const qualifiedToMeetingPct = clampPercent((snapshot.meetingsCompleted / Math.max(snapshot.qualifiedLeads, 1)) * 100);
+  const meetingToClosePct = clampPercent((snapshot.dealsWon / Math.max(snapshot.meetingsCompleted, 1)) * 100);
 
   const projectName = projects.find((p) => p.id === projectId)?.name ?? "—";
   const title = `${channelTitle(channel)} – Monthly Snapshot`;
@@ -292,6 +293,7 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
             contributionRows={contributionRows}
             leadToQualifiedPct={leadToQualifiedPct}
             qualifiedToMeetingPct={qualifiedToMeetingPct}
+            meetingToClosePct={meetingToClosePct}
             rows={rows}
           />
         </PageShell>

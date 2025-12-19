@@ -12,10 +12,11 @@ export function SnapshotChartsAndDetails(props: {
   contributionRows: { stage: string; target: number; actual: number; variance: number }[];
   leadToQualifiedPct: number;
   qualifiedToMeetingPct: number;
+  meetingToClosePct: number;
   rows: { metric: string; value: string }[];
   channel: PlanChannel;
 }) {
-  const { contributionRows, leadToQualifiedPct, qualifiedToMeetingPct, rows } = props;
+  const { contributionRows, leadToQualifiedPct, qualifiedToMeetingPct, meetingToClosePct, rows } = props;
 
   return (
     <>
@@ -47,14 +48,15 @@ export function SnapshotChartsAndDetails(props: {
             <div className="text-lg font-semibold text-white/90">Funnel</div>
             <div className="text-sm text-white/55">This month</div>
           </div>
-          <div className="mb-2 text-sm font-semibold text-white/80">Leads → Qualified → Meetings</div>
+          <div className="mb-2 text-sm font-semibold text-white/80">Leads → Qualified → Meetings → Close</div>
           <div className="text-sm text-white/55">Conversion rates from actuals.</div>
 
           <div className="mt-5">
             <ConversionFlow
               steps={[
                 { from: "Leads", to: "Qualified", percent: leadToQualifiedPct, colorClassName: "bg-emerald-400" },
-                { from: "Qualified", to: "Meeting", percent: qualifiedToMeetingPct, colorClassName: "bg-fuchsia-400" }
+                { from: "Qualified", to: "Meeting", percent: qualifiedToMeetingPct, colorClassName: "bg-fuchsia-400" },
+                { from: "Meeting", to: "Close", percent: meetingToClosePct, colorClassName: "bg-blue-400" }
               ]}
             />
           </div>
