@@ -232,8 +232,7 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
     { stage: "Leads", target: snapshot.targets.leadsGenerated, actual: snapshot.leadsGenerated, variance: snapshot.leadsGenerated - snapshot.targets.leadsGenerated },
     { stage: "Qualified Leads", target: snapshot.targets.qualifiedLeads, actual: snapshot.qualifiedLeads, variance: snapshot.qualifiedLeads - snapshot.targets.qualifiedLeads },
     { stage: "Meetings Done", target: snapshot.targets.meetingsCompleted, actual: snapshot.meetingsCompleted, variance: snapshot.meetingsCompleted - snapshot.targets.meetingsCompleted },
-    { stage: "Deals won", target: snapshot.targets.dealsWon, actual: snapshot.dealsWon, variance: snapshot.dealsWon - snapshot.targets.dealsWon },
-    { stage: "Sqft won", target: snapshot.targets.sqftWon, actual: snapshot.sqftWon, variance: snapshot.sqftWon - snapshot.targets.sqftWon }
+    { stage: "Deals won", target: snapshot.targets.dealsWon, actual: snapshot.dealsWon, variance: snapshot.dealsWon - snapshot.targets.dealsWon }
   ];
 
   const leadToQualifiedPct = clampPercent((snapshot.qualifiedLeads / Math.max(snapshot.leadsGenerated, 1)) * 100);
