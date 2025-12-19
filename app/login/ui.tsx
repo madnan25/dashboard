@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, Input } from "@heroui/react";
 import { PageShell, Surface } from "@/components/ds/Surface";
+import { AppButton } from "@/components/ds/AppButton";
+import { AppInput } from "@/components/ds/AppInput";
 import { createClient } from "@/lib/supabase/browser";
 
 function canonicalOrigin() {
@@ -128,26 +129,13 @@ export default function LoginForm() {
                 <form onSubmit={onSubmit} className="space-y-4">
                   <div className="space-y-1">
                     <div className="text-xs uppercase tracking-widest text-white/45">Email</div>
-                    <Input
+                    <AppInput
                       type="email"
                       value={email}
                       onValueChange={setEmail}
                       isRequired
                       autoComplete="email"
                       placeholder="name@company.com"
-                      variant="bordered"
-                      classNames={{
-                        base: "w-full",
-                        inputWrapper:
-                          [
-                            "glass-inset rounded-2xl border-white/10 bg-white/[0.02] hover:bg-white/[0.03]",
-                            // premium focus (no harsh blue rectangle)
-                            "group-data-[focus=true]:border-white/20 group-data-[focus=true]:shadow-[0_0_0_1px_rgba(255,255,255,0.10)]"
-                          ].join(" "),
-                        input:
-                          "text-white/90 placeholder:text-white/25 !outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0",
-                        label: "hidden"
-                      }}
                     />
                   </div>
 
@@ -163,14 +151,15 @@ export default function LoginForm() {
                     </div>
                   ) : null}
 
-                  <Button
+                  <AppButton
                     type="submit"
-                    color="primary"
+                    intent="primary"
+                    effect="wow"
                     isDisabled={envMissing || status === "loading"}
                     className="w-full rounded-2xl shadow-[0_10px_40px_rgba(59,130,246,0.15)] h-11"
                   >
                     {status === "loading" ? "Sending..." : "Send magic link"}
-                  </Button>
+                  </AppButton>
 
                   <div className="flex items-center justify-between pt-1 text-xs text-white/45">
                     <div>Session protected by RLS</div>

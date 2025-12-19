@@ -59,6 +59,9 @@ export default function DesignSystemPage() {
               <AppButton intent="primary" size="sm">
                 Primary
               </AppButton>
+              <AppButton intent="primary" effect="wow" size="sm">
+                Primary (wow)
+              </AppButton>
               <AppButton intent="danger" size="sm">
                 Danger
               </AppButton>
