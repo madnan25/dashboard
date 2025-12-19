@@ -1,37 +1,28 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { NavCard } from "@/components/ds/NavCard";
 import { Surface } from "@/components/ds/Surface";
-import { Project, listProjects } from "@/lib/dashboardDb";
+import { createServerDbClient } from "@/lib/db/client/server";
+import { createDashboardRepo } from "@/lib/db/repo";
+import type { Project } from "@/lib/db/types";
 
-export default function ProjectsIndexPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [status, setStatus] = useState<string>("");
+export const dynamic = "force-dynamic";
 
+export default async function ProjectsIndexPage() {
   const envMissing =
-    typeof window !== "undefined" &&
-    (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  useEffect(() => {
-    let cancelled = false;
-    async function boot() {
-      if (envMissing) return;
-      try {
-        if (cancelled) return;
-        const projs = await listProjects();
-        setProjects(projs.filter((x) => x.is_active));
-      } catch (e) {
-        if (cancelled) return;
-        setStatus(e instanceof Error ? e.message : "Failed to load projects");
-      }
+  let projects: Project[] = [];
+  let status = "";
+
+  if (!envMissing) {
+    try {
+      const supabase = await createServerDbClient();
+      const repo = createDashboardRepo(supabase);
+      projects = (await repo.listProjects()).filter((x) => x.is_active);
+    } catch (e) {
+      status = e instanceof Error ? e.message : "Failed to load projects";
     }
-    boot();
-    return () => {
-      cancelled = true;
-    };
-  }, [envMissing]);
+  }
 
   return (
     <main className="min-h-screen px-6 pb-10">

@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@heroui/react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Surface } from "@/components/ds/Surface";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -24,6 +23,7 @@ function roleLabel(role: Profile["role"] | null) {
 
 export function TopNav() {
   const pathname = usePathname();
+  const router = useRouter();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -88,60 +88,55 @@ export function TopNav() {
             <span className="mx-2 hidden h-5 w-px bg-white/10 md:block" aria-hidden="true" />
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                as={Link}
+              <Link
                 href="/projects"
-                size="sm"
-                variant="flat"
-                className={`${navPill} ${isActive("/projects") ? navPillActive : ""}`}
+                prefetch
+                onMouseEnter={() => router.prefetch("/projects")}
+                className={`px-3 py-2 text-sm ${navPill} ${isActive("/projects") ? navPillActive : ""}`}
               >
                 Projects
-              </Button>
-              <Button
-                as={Link}
+              </Link>
+              <Link
                 href="/brand/data-entry"
-                size="sm"
-                variant="flat"
-                className={`${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}
+                prefetch
+                onMouseEnter={() => router.prefetch("/brand/data-entry")}
+                className={`px-3 py-2 text-sm ${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}
               >
                 Planning
-              </Button>
+              </Link>
               {isCmo ? (
-                <Button
-                  as={Link}
+                <Link
                   href="/cmo/projects"
-                  size="sm"
-                  variant="flat"
-                  className={`${navPill} ${isActive("/cmo/projects") ? navPillActive : ""}`}
+                  prefetch
+                  onMouseEnter={() => router.prefetch("/cmo/projects")}
+                  className={`px-3 py-2 text-sm ${navPill} ${isActive("/cmo/projects") ? navPillActive : ""}`}
                 >
                   CMO Console
-                </Button>
+                </Link>
               ) : null}
-              <Button
-                as={Link}
+              <Link
                 href="/design"
-                size="sm"
-                variant="flat"
-                className={`${navPill} ${isActive("/design") ? navPillActive : ""}`}
+                prefetch
+                onMouseEnter={() => router.prefetch("/design")}
+                className={`px-3 py-2 text-sm ${navPill} ${isActive("/design") ? navPillActive : ""}`}
               >
                 Design System
-              </Button>
+              </Link>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              as={Link}
+            <Link
               href="/account"
-              size="sm"
-              variant="flat"
-              className={`${navPill} ${isActive("/account") ? navPillActive : ""}`}
+              prefetch
+              onMouseEnter={() => router.prefetch("/account")}
+              className={`inline-flex items-center gap-2 px-3 py-2 text-sm ${navPill} ${isActive("/account") ? navPillActive : ""}`}
             >
               <span className="max-w-[180px] truncate">{displayName}</span>
               <span className="ml-2 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-white/60">
                 {roleLabel(profile?.role ?? null)}
               </span>
-            </Button>
+            </Link>
             <LogoutButton size="sm" variant="flat" className={navPill} />
           </div>
         </div>

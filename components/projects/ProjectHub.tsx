@@ -10,13 +10,11 @@ import { ProjectPlanAllocations } from "@/components/projects/sections/ProjectPl
 import { ProjectReportNav } from "@/components/projects/sections/ProjectReportNav";
 import { ProjectTargetsKpis } from "@/components/projects/sections/ProjectTargetsKpis";
 import { MONTHS } from "@/lib/digitalSnapshot";
-import { formatPKRCompact } from "@/lib/format";
 import { computeOverallFunnelTargets } from "@/lib/reports/projectHubTargets";
 import {
   PlanChannel,
   PlanChannelInputs,
   PlanVersion,
-  Project,
   ProjectActuals,
   ProjectTargets,
   getCurrentProfile,
@@ -33,25 +31,34 @@ function monthNumber(monthIndex: number) {
 
 const CHANNELS: PlanChannel[] = ["digital", "inbound", "activations"];
 
-export function ProjectHub(props: { projectId: string }) {
-  const projectId = props.projectId;
+export type ProjectHubInitial = {
+  year: number;
+  monthIndex: number;
+  projectName: string;
+  role: string | null;
+  targets: ProjectTargets | null;
+  activePlanVersion: PlanVersion | null;
+  inputsByChannel: Record<PlanChannel, PlanChannelInputs | null>;
+  actuals: ProjectActuals | null;
+};
 
-  const [selectedYear, setSelectedYear] = useState(2025);
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(11);
+export function ProjectHub(props: { projectId: string; initial?: ProjectHubInitial }) {
+  const projectId = props.projectId;
+  const initial = props.initial;
+
+  const [selectedYear, setSelectedYear] = useState(initial?.year ?? 2025);
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(initial?.monthIndex ?? 11);
   const month = useMemo(() => monthNumber(selectedMonthIndex), [selectedMonthIndex]);
   const monthLabel = useMemo(() => `${MONTHS[selectedMonthIndex]} ${selectedYear}`, [selectedMonthIndex, selectedYear]);
 
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectName, setProjectName] = useState("—");
-  const [targets, setTargets] = useState<ProjectTargets | null>(null);
-  const [activePlanVersion, setActivePlanVersion] = useState<PlanVersion | null>(null);
-  const [inputsByChannel, setInputsByChannel] = useState<Record<PlanChannel, PlanChannelInputs | null>>({
-    digital: null,
-    inbound: null,
-    activations: null
-  });
-  const [actuals, setActuals] = useState<ProjectActuals | null>(null);
-  const [role, setRole] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState(initial?.projectName ?? "—");
+  const [targets, setTargets] = useState<ProjectTargets | null>(initial?.targets ?? null);
+  const [activePlanVersion, setActivePlanVersion] = useState<PlanVersion | null>(initial?.activePlanVersion ?? null);
+  const [inputsByChannel, setInputsByChannel] = useState<Record<PlanChannel, PlanChannelInputs | null>>(
+    initial?.inputsByChannel ?? { digital: null, inbound: null, activations: null }
+  );
+  const [actuals, setActuals] = useState<ProjectActuals | null>(initial?.actuals ?? null);
+  const [role, setRole] = useState<string | null>(initial?.role ?? null);
   const [status, setStatus] = useState<string>("");
 
   const envMissing =
@@ -59,6 +66,7 @@ export function ProjectHub(props: { projectId: string }) {
     (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
   useEffect(() => {
+    if (initial) return;
     let cancelled = false;
     async function boot() {
       if (envMissing) return;
@@ -66,7 +74,6 @@ export function ProjectHub(props: { projectId: string }) {
         const [p, projs] = await Promise.all([getCurrentProfile(), listProjects()]);
         if (cancelled) return;
         setRole(p?.role ?? null);
-        setProjects(projs);
         setProjectName(projs.find((x) => x.id === projectId)?.name ?? "—");
       } catch (e) {
         if (cancelled) return;
@@ -77,9 +84,11 @@ export function ProjectHub(props: { projectId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [envMissing, projectId]);
+  }, [envMissing, projectId, initial]);
 
   useEffect(() => {
+    // If we already rendered this month/year from the server, skip the first client refetch.
+    if (initial && selectedYear === initial.year && selectedMonthIndex === initial.monthIndex) return;
     let cancelled = false;
     async function load() {
       if (envMissing) return;
@@ -112,7 +121,7 @@ export function ProjectHub(props: { projectId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [envMissing, month, projectId, selectedMonthIndex, selectedYear]);
+  }, [envMissing, month, projectId, selectedMonthIndex, selectedYear, initial]);
 
   const totalBudgetCap = targets?.total_budget ?? 0;
   const budgetSpentTotal = (actuals?.spend_digital ?? 0) + (actuals?.spend_inbound ?? 0) + (actuals?.spend_activations ?? 0);

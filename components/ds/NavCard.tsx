@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Surface } from "@/components/ds/Surface";
 
@@ -19,13 +20,19 @@ export function NavCard({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
+  const router = useRouter();
   const sizeClass =
     size === "sm" ? "h-[140px]" : size === "lg" ? "h-[200px]" : "h-[170px]";
 
   return (
     <Link
       href={href}
+      prefetch
       className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0"
+      onMouseEnter={() => {
+        // Make navigation feel instant: prefetch on intent (hover).
+        router.prefetch(href);
+      }}
     >
       <Surface
         className={[
