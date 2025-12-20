@@ -13,11 +13,22 @@ export function SnapshotChartsAndDetails(props: {
   leadToQualifiedPct: number;
   leadToQualifiedTargetPct?: number | null;
   qualifiedToMeetingPct: number;
+  qualifiedToMeetingTargetPct?: number | null;
   meetingToClosePct: number;
+  meetingToCloseTargetPct?: number | null;
   rows: { metric: string; value: string }[];
   channel: PlanChannel;
 }) {
-  const { contributionRows, leadToQualifiedPct, leadToQualifiedTargetPct, qualifiedToMeetingPct, meetingToClosePct, rows } = props;
+  const {
+    contributionRows,
+    leadToQualifiedPct,
+    leadToQualifiedTargetPct,
+    qualifiedToMeetingPct,
+    qualifiedToMeetingTargetPct,
+    meetingToClosePct,
+    meetingToCloseTargetPct,
+    rows
+  } = props;
 
   return (
     <>
@@ -62,8 +73,20 @@ export function SnapshotChartsAndDetails(props: {
                   targetPercent: leadToQualifiedTargetPct ?? null,
                   colorClassName: "bg-emerald-400"
                 },
-                { from: "Qualified", to: "Meeting", percent: qualifiedToMeetingPct, colorClassName: "bg-fuchsia-400" },
-                { from: "Meeting", to: "Close", percent: meetingToClosePct, colorClassName: "bg-blue-400" }
+                {
+                  from: "Qualified",
+                  to: "Meeting",
+                  percent: qualifiedToMeetingPct,
+                  targetPercent: qualifiedToMeetingTargetPct ?? null,
+                  colorClassName: "bg-fuchsia-400"
+                },
+                {
+                  from: "Meeting",
+                  to: "Close",
+                  percent: meetingToClosePct,
+                  targetPercent: meetingToCloseTargetPct ?? null,
+                  colorClassName: "bg-blue-400"
+                }
               ]}
             />
           </div>

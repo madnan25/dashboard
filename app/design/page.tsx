@@ -164,7 +164,16 @@ export default function DesignSystemPage() {
                   from: "Qualified",
                   to: "Meeting",
                   percent: (snapshot.meetingsCompleted / Math.max(1, snapshot.qualifiedLeads)) * 100,
+                  targetPercent: 10,
                   colorClassName: "bg-fuchsia-400"
+                },
+                {
+                  from: "Meeting",
+                  to: "Close",
+                  // Design-system demo only (our dummy Snapshot doesn't include dealsWon).
+                  percent: 40,
+                  targetPercent: 40,
+                  colorClassName: "bg-blue-400"
                 }
               ]}
             />
