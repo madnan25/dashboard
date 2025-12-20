@@ -14,3 +14,4 @@ using (
   or (public.current_user_role() = 'brand_manager' and public.is_assigned_to_project(project_id))
 );
 
+

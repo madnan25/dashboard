@@ -209,6 +209,11 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     }
     setSalesOpsByChannel(nextCh);
 
+    const lastChannelUpdatedAt = channelRows.reduce((max, r) => {
+      const ms = r.updated_at ? Date.parse(r.updated_at) : 0;
+      return Number.isFinite(ms) ? Math.max(max, ms) : max;
+    }, 0);
+
     // Derived totals for display only
     const totalLeads = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].leads) ?? 0), 0);
     const totalQualified = PLANNING_CHANNELS.reduce((sum, ch) => sum + (toNumber(nextCh[ch].qualified_leads) ?? 0), 0);
@@ -236,7 +241,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     setSpendSavedAt(Date.now());
 
     setMetricsSavedJson(JSON.stringify({ channels: nextCh }));
-    setMetricsSavedAt(Date.now());
+    setMetricsSavedAt(lastChannelUpdatedAt ? lastChannelUpdatedAt : null);
   }
 
   useEffect(() => {
@@ -329,7 +334,11 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         }));
 
         setMetricsSavedJson(JSON.stringify({ channels: nextCh }));
-        setMetricsSavedAt(Date.now());
+        const lastChannelUpdatedAt = channelRows.reduce((max, r) => {
+          const ms = r.updated_at ? Date.parse(r.updated_at) : 0;
+          return Number.isFinite(ms) ? Math.max(max, ms) : max;
+        }, 0);
+        setMetricsSavedAt(lastChannelUpdatedAt ? lastChannelUpdatedAt : null);
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load data");
