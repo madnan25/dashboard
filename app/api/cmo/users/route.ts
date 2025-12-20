@@ -71,13 +71,16 @@ export async function POST(req: Request) {
   }
 
   // Ensure profile role matches requested role
-  const patch: { role: UserRole; email?: string; full_name?: string | null } = { role };
-  // Keep email in sync; full_name only if provided
-  patch.email = email;
-  if (full_name) patch.full_name = full_name;
+  const patch: { id: string; role: UserRole; email: string; full_name?: string | null } = {
+    id: data.user.id,
+    role,
+    email,
+    full_name: full_name || null
+  };
 
-  const { error: upErr } = await admin.from("profiles").update(patch).eq("id", data.user.id);
-  if (upErr) return json(500, { error: "User created but failed to set role" });
+  // Use upsert so we handle any timing issues where the profile row isn't created yet.
+  const { error: upErr } = await admin.from("profiles").upsert(patch, { onConflict: "id" });
+  if (upErr) return json(500, { error: `User created but failed to set role: ${upErr.message}` });
 
   return json(200, { userId: data.user.id });
 }
