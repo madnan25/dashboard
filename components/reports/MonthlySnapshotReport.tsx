@@ -221,6 +221,18 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
   const rows: MetricRow[] = [
     { metric: `${channelTitle(channel)} Budget Allocated`, value: formatPKR(snapshot.budgetAllocated) },
     { metric: `${channelTitle(channel)} Budget Spent`, value: `${formatPKR(snapshot.budgetSpent)} (${budgetUtilizedDisplay})` },
+    {
+      metric: "Cost per qualified lead",
+      value:
+        snapshot.qualifiedLeads > 0 && snapshot.budgetSpent > 0
+          ? formatPKR(Math.round(snapshot.budgetSpent / snapshot.qualifiedLeads))
+          : "—"
+    },
+    {
+      metric: "Cost per deal won",
+      value:
+        snapshot.dealsWon > 0 && snapshot.budgetSpent > 0 ? formatPKR(Math.round(snapshot.budgetSpent / snapshot.dealsWon)) : "—"
+    },
     { metric: "Leads (actual)", value: formatNumber(snapshot.leadsGenerated) },
     { metric: "Qualified Leads (actual)", value: formatNumber(snapshot.qualifiedLeads) },
     { metric: "Meetings Done (actual)", value: formatNumber(snapshot.meetingsCompleted) },
