@@ -236,6 +236,7 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
   ];
 
   const leadToQualifiedPct = clampPercent((snapshot.qualifiedLeads / Math.max(snapshot.leadsGenerated, 1)) * 100);
+  const leadToQualifiedTargetPct = channelInputs?.qualification_percent ?? null;
   const qualifiedToMeetingPct = clampPercent((snapshot.meetingsCompleted / Math.max(snapshot.qualifiedLeads, 1)) * 100);
   const meetingToClosePct = clampPercent((snapshot.dealsWon / Math.max(snapshot.meetingsCompleted, 1)) * 100);
 
@@ -292,6 +293,7 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
             channel={channel}
             contributionRows={contributionRows}
             leadToQualifiedPct={leadToQualifiedPct}
+            leadToQualifiedTargetPct={leadToQualifiedTargetPct}
             qualifiedToMeetingPct={qualifiedToMeetingPct}
             meetingToClosePct={meetingToClosePct}
             rows={rows}

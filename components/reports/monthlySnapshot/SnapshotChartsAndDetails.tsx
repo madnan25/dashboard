@@ -11,12 +11,13 @@ import { formatNumber } from "@/lib/format";
 export function SnapshotChartsAndDetails(props: {
   contributionRows: { stage: string; target: number; actual: number; variance: number }[];
   leadToQualifiedPct: number;
+  leadToQualifiedTargetPct?: number | null;
   qualifiedToMeetingPct: number;
   meetingToClosePct: number;
   rows: { metric: string; value: string }[];
   channel: PlanChannel;
 }) {
-  const { contributionRows, leadToQualifiedPct, qualifiedToMeetingPct, meetingToClosePct, rows } = props;
+  const { contributionRows, leadToQualifiedPct, leadToQualifiedTargetPct, qualifiedToMeetingPct, meetingToClosePct, rows } = props;
 
   return (
     <>
@@ -54,7 +55,13 @@ export function SnapshotChartsAndDetails(props: {
           <div className="mt-5">
             <ConversionFlow
               steps={[
-                { from: "Leads", to: "Qualified", percent: leadToQualifiedPct, colorClassName: "bg-emerald-400" },
+                {
+                  from: "Leads",
+                  to: "Qualified",
+                  percent: leadToQualifiedPct,
+                  targetPercent: leadToQualifiedTargetPct ?? null,
+                  colorClassName: "bg-emerald-400"
+                },
                 { from: "Qualified", to: "Meeting", percent: qualifiedToMeetingPct, colorClassName: "bg-fuchsia-400" },
                 { from: "Meeting", to: "Close", percent: meetingToClosePct, colorClassName: "bg-blue-400" }
               ]}

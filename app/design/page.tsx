@@ -157,6 +157,7 @@ export default function DesignSystemPage() {
                   from: "Leads",
                   to: "Qualified",
                   percent: (snapshot.qualifiedLeads / Math.max(1, snapshot.leadsGenerated)) * 100,
+                  targetPercent: 20,
                   colorClassName: "bg-emerald-400"
                 },
                 {
