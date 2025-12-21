@@ -94,10 +94,12 @@ export function PlanInputsCard(props: {
 
   const totalTargetSqft = Number(targets?.sales_target_sqft ?? 0);
 
-  const totalContributionPct = CHANNELS.reduce((sum, ch) => {
-    const v = toNumber(channelInputs[ch].target_contribution_percent);
-    return sum + (v ?? 0);
-  }, 0);
+  const totalContributionPct = activeVersion
+    ? CHANNELS.reduce((sum, ch) => {
+        const v = toNumber(channelInputs[ch].target_contribution_percent);
+        return sum + (v ?? 0);
+      }, 0)
+    : 0;
 
   const isOverTotalTarget = totalContributionPct > 100.0001;
   const isUnderTotalTarget = totalContributionPct < 99.99;

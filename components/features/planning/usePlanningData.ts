@@ -449,11 +449,26 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   ]);
 
   const allocatedTotal = useMemo(() => {
+    // If no version is selected for this month, don't show stale allocations.
+    if (!activeVersion) return 0;
     return PLANNING_CHANNELS.reduce((sum, ch) => {
       const v = toNumber(channelInputs[ch].allocated_budget);
       return sum + (v ?? 0);
     }, 0);
-  }, [channelInputs]);
+  }, [activeVersion, channelInputs]);
+
+  // When switching project/month/year to a state with no plan version selected, clear any stale plan inputs.
+  useEffect(() => {
+    if (envMissing) return;
+    if (activePlanVersionId) return;
+    setChannelInputs({
+      digital: emptyChannelForm(),
+      activations: emptyChannelForm(),
+      inbound: emptyChannelForm()
+    });
+    setPlanInputsSavedJson("");
+    setPlanInputsSavedAt(null);
+  }, [activePlanVersionId, envMissing, month, projectId, year]);
 
   async function onSaveTargets() {
     if (!projectId) return;
