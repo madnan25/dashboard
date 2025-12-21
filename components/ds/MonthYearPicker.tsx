@@ -136,7 +136,8 @@ export function MonthYearPicker({
               </div>
             </div>
 
-            <div>
+            <div className="relative pl-3">
+              <div className="absolute -left-1 top-0 bottom-0 w-px bg-white/10" aria-hidden="true" />
               <div className="mb-2 text-xs font-medium text-white/50">Year</div>
               <div className="grid grid-cols-2 gap-1">
                 {years.map((y) => (
@@ -171,7 +172,7 @@ export function MonthYearPicker({
                 ) : (
                   <span />
                 )}
-                <AppButton size="sm" intent="secondary" className="h-9 px-4 text-xs" onPress={() => setOpen(false)}>
+                <AppButton size="sm" intent="primary" className="h-9 px-4 text-xs" onPress={() => setOpen(false)}>
                   Done
                 </AppButton>
               </div>
