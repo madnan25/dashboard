@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { Surface } from "@/components/ds/Surface";
@@ -60,6 +60,7 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
   const [actuals, setActuals] = useState<ProjectActuals | null>(initial?.actuals ?? null);
   const [role, setRole] = useState<string | null>(initial?.role ?? null);
   const [status, setStatus] = useState<string>("");
+  const didSkipInitialRefetch = useRef(false);
 
   const envMissing =
     typeof window !== "undefined" &&
@@ -87,8 +88,12 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
   }, [envMissing, projectId, initial]);
 
   useEffect(() => {
-    // If we already rendered this month/year from the server, skip the first client refetch.
-    if (initial && selectedYear === initial.year && selectedMonthIndex === initial.monthIndex) return;
+    // If we already rendered this month/year from the server, skip ONLY the first client refetch.
+    // Otherwise, switching back to the initial month would incorrectly skip reloading and leave stale state.
+    if (!didSkipInitialRefetch.current && initial && selectedYear === initial.year && selectedMonthIndex === initial.monthIndex) {
+      didSkipInitialRefetch.current = true;
+      return;
+    }
     let cancelled = false;
     async function load() {
       if (envMissing) return;
