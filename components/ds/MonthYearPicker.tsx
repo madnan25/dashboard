@@ -16,7 +16,7 @@ export function MonthYearPicker({
   onChange,
   label,
   buttonClassName,
-  showJumpToCurrent
+  showJumpToCurrent = true
 }: {
   monthIndex: number;
   year: number;
