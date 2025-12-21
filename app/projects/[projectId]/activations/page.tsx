@@ -1,7 +1,36 @@
 import { MonthlySnapshotReport } from "@/components/reports/MonthlySnapshotReport";
 
-export default async function ProjectActivationsReportPage({ params }: { params?: Promise<{ projectId: string }> }) {
+function defaultYearMonth() {
+  const d = new Date();
+  return { year: d.getFullYear(), monthIndex: d.getMonth() };
+}
+
+export default async function ProjectActivationsReportPage({
+  params,
+  searchParams
+}: {
+  params?: Promise<{ projectId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const resolved = (await params) ?? { projectId: "" };
-  return <MonthlySnapshotReport channel="activations" fixedProjectId={resolved.projectId} backHref={`/projects/${resolved.projectId}`} />;
+  const sp = (await searchParams) ?? {};
+  const defaults = defaultYearMonth();
+  const year = Number(sp.year ?? defaults.year);
+  const monthIndex = Number(sp.monthIndex ?? defaults.monthIndex);
+  const safeYear = Number.isFinite(year) ? year : defaults.year;
+  const safeMonthIndex = Number.isFinite(monthIndex) ? monthIndex : defaults.monthIndex;
+  const backHref = `/projects/${resolved.projectId}?year=${encodeURIComponent(String(safeYear))}&monthIndex=${encodeURIComponent(
+    String(safeMonthIndex)
+  )}`;
+
+  return (
+    <MonthlySnapshotReport
+      channel="activations"
+      fixedProjectId={resolved.projectId}
+      initialYear={safeYear}
+      initialMonthIndex={safeMonthIndex}
+      backHref={backHref}
+    />
+  );
 }
 

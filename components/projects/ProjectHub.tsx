@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { Surface } from "@/components/ds/Surface";
@@ -45,6 +46,8 @@ export type ProjectHubInitial = {
 export function ProjectHub(props: { projectId: string; initial?: ProjectHubInitial }) {
   const projectId = props.projectId;
   const initial = props.initial;
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [selectedYear, setSelectedYear] = useState(initial?.year ?? new Date().getFullYear());
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(initial?.monthIndex ?? new Date().getMonth());
@@ -146,9 +149,14 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
               monthIndex={selectedMonthIndex}
               year={selectedYear}
               label={monthLabel}
+              showJumpToCurrent
               onChange={(next) => {
                 setSelectedMonthIndex(next.monthIndex);
                 setSelectedYear(next.year);
+                const qs = new URLSearchParams();
+                qs.set("year", String(next.year));
+                qs.set("monthIndex", String(next.monthIndex));
+                router.replace(`${pathname}?${qs.toString()}`);
               }}
             />
           }
@@ -162,7 +170,7 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
 
         <ProjectTargetsKpis targets={targets} budgetSpentTotal={budgetSpentTotal} budgetRemaining={budgetRemaining} />
 
-        <ProjectReportNav projectId={projectId} />
+        <ProjectReportNav projectId={projectId} year={selectedYear} monthIndex={selectedMonthIndex} />
 
         <div className="grid gap-4 md:grid-cols-12">
           <ProjectPlanAllocations activePlanVersion={activePlanVersion} inputsByChannel={inputsByChannel} targets={targets} />

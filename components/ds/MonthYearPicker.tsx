@@ -14,13 +14,15 @@ export function MonthYearPicker({
   year,
   onChange,
   label,
-  buttonClassName
+  buttonClassName,
+  showJumpToCurrent
 }: {
   monthIndex: number;
   year: number;
   label: string;
   onChange: (next: { monthIndex: number; year: number }) => void;
   buttonClassName?: string;
+  showJumpToCurrent?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -73,6 +75,12 @@ export function MonthYearPicker({
     return Array.from({ length: 7 }, (_, i) => current - 3 + i);
   }, []);
 
+  const now = useMemo(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), monthIndex: d.getMonth() };
+  }, []);
+  const isCurrent = now.year === year && now.monthIndex === monthIndex;
+
   return (
     <div className="relative z-[1000] isolate" ref={ref}>
       <Button
@@ -88,7 +96,10 @@ export function MonthYearPicker({
         onPress={() => setOpen((v) => !v)}
       >
         <span className="flex items-center gap-2">
-          <span>{label}</span>
+          <span className="flex items-baseline gap-2">
+            <span className="font-semibold text-white/90">{MONTHS[monthIndex] ?? label}</span>
+            <span className="text-white/55">{year}</span>
+          </span>
           <span className={cn("text-white/45 transition-transform", open ? "rotate-180" : "")} aria-hidden="true">
             ▾
           </span>
@@ -141,7 +152,26 @@ export function MonthYearPicker({
                 ))}
               </div>
 
-              <div className="mt-3 flex items-center justify-end gap-2">
+              <div className="mt-3 flex items-center justify-between gap-2">
+                {showJumpToCurrent ? (
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    className={cn(
+                      "glass-inset text-white/80",
+                      isCurrent ? "opacity-55 cursor-not-allowed" : "hover:bg-white/[0.04]"
+                    )}
+                    isDisabled={isCurrent}
+                    onPress={() => {
+                      onChange({ monthIndex: now.monthIndex, year: now.year });
+                      setOpen(false);
+                    }}
+                  >
+                    Jump to current
+                  </Button>
+                ) : (
+                  <span />
+                )}
                 <Button size="sm" variant="flat" className="glass-inset text-white/80" onPress={() => setOpen(false)}>
                   Done
                 </Button>

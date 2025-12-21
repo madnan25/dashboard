@@ -2,8 +2,9 @@
 
 import { NavCard } from "@/components/ds/NavCard";
 
-export function ProjectReportNav(props: { projectId: string }) {
-  const { projectId } = props;
+export function ProjectReportNav(props: { projectId: string; year: number; monthIndex: number }) {
+  const { projectId, year, monthIndex } = props;
+  const qs = `?year=${encodeURIComponent(String(year))}&monthIndex=${encodeURIComponent(String(monthIndex))}`;
 
   return (
     <>
@@ -13,10 +14,22 @@ export function ProjectReportNav(props: { projectId: string }) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <NavCard href={`/projects/${projectId}/digital`} title="Digital" description="Monthly snapshot + funnel performance." meta="Open report" size="sm" />
-        <NavCard href={`/projects/${projectId}/inbound`} title="Inbound" description="Monthly snapshot + funnel performance." meta="Open report" size="sm" />
         <NavCard
-          href={`/projects/${projectId}/activations`}
+          href={`/projects/${projectId}/digital${qs}`}
+          title="Digital"
+          description="Monthly snapshot + funnel performance."
+          meta="Open report"
+          size="sm"
+        />
+        <NavCard
+          href={`/projects/${projectId}/inbound${qs}`}
+          title="Inbound"
+          description="Monthly snapshot + funnel performance."
+          meta="Open report"
+          size="sm"
+        />
+        <NavCard
+          href={`/projects/${projectId}/activations${qs}`}
           title="Activations"
           description="Monthly snapshot + funnel performance."
           meta="Open report"

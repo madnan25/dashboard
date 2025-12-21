@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@heroui/react";
+import { usePathname, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { PillSelect } from "@/components/ds/PillSelect";
@@ -37,6 +38,14 @@ type ContributionRow = {
   variance: number;
 };
 
+export type MonthlySnapshotReportProps = {
+  channel: PlanChannel;
+  fixedProjectId?: string;
+  backHref?: string;
+  initialYear?: number;
+  initialMonthIndex?: number;
+};
+
 function monthNumber(monthIndex: number) {
   return monthIndex + 1;
 }
@@ -54,11 +63,14 @@ function channelTitle(channel: PlanChannel) {
 
 // computeTargetsFrom moved to lib/reports/snapshotMath.ts
 
-export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjectId?: string; backHref?: string }) {
-  const { channel, fixedProjectId, backHref } = props;
+export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
+  const { channel, fixedProjectId, backHref, initialYear, initialMonthIndex } = props;
 
-  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(() => new Date().getMonth());
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const [selectedYear, setSelectedYear] = useState(() => initialYear ?? new Date().getFullYear());
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(() => initialMonthIndex ?? new Date().getMonth());
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<string>(fixedProjectId ?? "");
@@ -271,9 +283,14 @@ export function MonthlySnapshotReport(props: { channel: PlanChannel; fixedProjec
                 monthIndex={selectedMonthIndex}
                 year={selectedYear}
                 label={snapshot.monthLabel}
+                showJumpToCurrent
                 onChange={(next) => {
                   setSelectedMonthIndex(next.monthIndex);
                   setSelectedYear(next.year);
+                  const qs = new URLSearchParams();
+                  qs.set("year", String(next.year));
+                  qs.set("monthIndex", String(next.monthIndex));
+                  router.replace(`${pathname}?${qs.toString()}`);
                 }}
               />
               {!fixedProjectId ? (
