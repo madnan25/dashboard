@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@heroui/react";
 import { MONTHS } from "@/lib/digitalSnapshot";
 import { cn } from "@/lib/cn";
+import { AppButton } from "@/components/ds/AppButton";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -154,27 +155,25 @@ export function MonthYearPicker({
 
               <div className="mt-3 flex items-center justify-between gap-2">
                 {showJumpToCurrent ? (
-                  <Button
+                  <AppButton
                     size="sm"
-                    variant="flat"
-                    className={cn(
-                      "glass-inset text-white/80",
-                      isCurrent ? "opacity-55 cursor-not-allowed" : "hover:bg-white/[0.04]"
-                    )}
+                    intent="ghost"
+                    className={cn("h-9 px-3 text-xs shrink-0", isCurrent ? "opacity-55 cursor-not-allowed" : "")}
                     isDisabled={isCurrent}
+                    title="Jump to current month"
                     onPress={() => {
                       onChange({ monthIndex: now.monthIndex, year: now.year });
                       setOpen(false);
                     }}
                   >
-                    Jump to current
-                  </Button>
+                    Now
+                  </AppButton>
                 ) : (
                   <span />
                 )}
-                <Button size="sm" variant="flat" className="glass-inset text-white/80" onPress={() => setOpen(false)}>
+                <AppButton size="sm" intent="secondary" className="h-9 px-4 text-xs" onPress={() => setOpen(false)}>
                   Done
-                </Button>
+                </AppButton>
               </div>
             </div>
           </div>
