@@ -11,7 +11,7 @@ export type OverallFunnelTargets = {
 
 export type ChannelDistributions = {
   budgetByChannel: Record<PlanChannel, number>;
-  leadsByChannel: Record<PlanChannel, number>;
+  qualifiedByChannel: Record<PlanChannel, number>;
   targetSqftByChannel: Record<PlanChannel, number>;
 };
 
@@ -50,17 +50,18 @@ export function computeChannelDistributions(targets: ProjectTargets | null, inpu
   const salesTargetSqft = targets?.sales_target_sqft ?? 0;
 
   const budgetByChannel: Record<PlanChannel, number> = { digital: 0, inbound: 0, activations: 0 };
-  const leadsByChannel: Record<PlanChannel, number> = { digital: 0, inbound: 0, activations: 0 };
+  const qualifiedByChannel: Record<PlanChannel, number> = { digital: 0, inbound: 0, activations: 0 };
   const targetSqftByChannel: Record<PlanChannel, number> = { digital: 0, inbound: 0, activations: 0 };
 
   for (const ch of CHANNELS) {
     budgetByChannel[ch] = Math.max(0, inputsByChannel[ch]?.allocated_budget ?? 0);
-    leadsByChannel[ch] = Math.max(0, inputsByChannel[ch]?.expected_leads ?? 0);
+    const computed = computeChannelFunnelFromInputs({ targets, inputs: inputsByChannel[ch] });
+    qualifiedByChannel[ch] = Math.max(0, Math.round(computed.qualifiedRequired ?? 0));
     const pct = inputsByChannel[ch]?.target_contribution_percent ?? 0;
     targetSqftByChannel[ch] = Math.max(0, Math.round(salesTargetSqft * (pct / 100)));
   }
 
-  const out: ChannelDistributions = { budgetByChannel, leadsByChannel, targetSqftByChannel };
+  const out: ChannelDistributions = { budgetByChannel, qualifiedByChannel, targetSqftByChannel };
   return out;
 }
 

@@ -33,6 +33,24 @@ export function ProjectPlanAllocations(props: {
     activations: "rgba(124,58,237,0.75)"
   };
 
+  const budgetData = [...CHANNELS]
+    .map((ch) => ({
+      key: ch,
+      label: channelLabel(ch),
+      value: dist.budgetByChannel[ch] ?? 0,
+      color: channelColors[ch]
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  const qualifiedData = [...CHANNELS]
+    .map((ch) => ({
+      key: ch,
+      label: `${channelLabel(ch)} (${formatNumber(dist.targetSqftByChannel[ch] ?? 0)} sqft)`,
+      value: dist.qualifiedByChannel[ch] ?? 0,
+      color: channelColors[ch]
+    }))
+    .sort((a, b) => b.value - a.value);
+
   return (
     <Surface className="md:col-span-7">
       <div className="text-lg font-semibold text-white/90">Plan allocations (approved)</div>
@@ -42,26 +60,14 @@ export function ProjectPlanAllocations(props: {
         <DonutChart
           title="Budget distribution"
           centerLabel="Total"
-          centerValue={formatPKRCompact(
-            CHANNELS.reduce((s, ch) => s + (dist.budgetByChannel[ch] ?? 0), 0)
-          )}
-          data={CHANNELS.map((ch) => ({
-            key: ch,
-            label: channelLabel(ch),
-            value: dist.budgetByChannel[ch] ?? 0,
-            color: channelColors[ch]
-          }))}
+          centerValue={formatPKRCompact(budgetData.reduce((s, d) => s + (d.value ?? 0), 0))}
+          data={budgetData}
         />
         <DonutChart
-          title="Leads distribution"
+          title="Qualified leads distribution"
           centerLabel="Total"
-          centerValue={formatNumber(CHANNELS.reduce((s, ch) => s + (dist.leadsByChannel[ch] ?? 0), 0))}
-          data={CHANNELS.map((ch) => ({
-            key: ch,
-            label: `${channelLabel(ch)} (${formatNumber(dist.targetSqftByChannel[ch] ?? 0)} sqft)`,
-            value: dist.leadsByChannel[ch] ?? 0,
-            color: channelColors[ch]
-          }))}
+          centerValue={formatNumber(qualifiedData.reduce((s, d) => s + (d.value ?? 0), 0))}
+          data={qualifiedData}
         />
       </div>
 
