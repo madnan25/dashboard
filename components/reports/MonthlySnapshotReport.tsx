@@ -224,11 +224,13 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
 
   const budgetUtilizedPctRaw =
     snapshot.budgetAllocated > 0 ? (snapshot.budgetSpent / snapshot.budgetAllocated) * 100 : NaN;
+  const budgetOverBy = Math.max(0, snapshot.budgetSpent - snapshot.budgetAllocated);
   const budgetUtilizedDisplay = Number.isFinite(budgetUtilizedPctRaw)
-    ? `${clampPercent(budgetUtilizedPctRaw).toFixed(1)}%`
+    ? `${budgetUtilizedPctRaw.toFixed(1)}%`
     : snapshot.budgetSpent > 0
-      ? "Over budget"
+      ? "—"
       : "0.0%";
+  const budgetTone: "good" | "bad" | "neutral" = budgetOverBy > 0 ? "bad" : "good";
 
   const rows: MetricRow[] = [
     { metric: `${channelTitle(channel)} Budget Allocated`, value: formatPKR(snapshot.budgetAllocated) },
@@ -316,6 +318,8 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
           <SnapshotKpiSummary
             snapshot={snapshot}
             budgetUtilizedDisplay={budgetUtilizedDisplay}
+            budgetOverBy={budgetOverBy}
+            budgetTone={budgetTone}
             leadToQualifiedPct={leadToQualifiedPct}
             qualifiedToMeetingPct={qualifiedToMeetingPct}
           />

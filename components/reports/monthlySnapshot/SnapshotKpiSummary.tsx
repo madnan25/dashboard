@@ -22,17 +22,37 @@ export function SnapshotKpiSummary(props: {
     };
   };
   budgetUtilizedDisplay: string;
+  budgetOverBy?: number;
+  budgetTone?: "good" | "bad" | "neutral";
   leadToQualifiedPct: number;
   qualifiedToMeetingPct: number;
 }) {
-  const { snapshot, budgetUtilizedDisplay } = props;
+  const { snapshot, budgetUtilizedDisplay, budgetOverBy, budgetTone } = props;
   const pctOf = (actual: number, target: number) => (target > 0 ? (actual / target) * 100 : 0);
 
   return (
     <>
       <div className="mt-6 grid gap-4 md:grid-cols-4">
         <KpiCard label="Budget Allocated" value={formatPKRCompact(snapshot.budgetAllocated)} helper="Monthly cap" />
-        <KpiCard label="Budget Spent" value={formatPKRCompact(snapshot.budgetSpent)} helper={`${budgetUtilizedDisplay} of allocated`} />
+        <KpiCard
+          label="Budget Spent"
+          value={formatPKRCompact(snapshot.budgetSpent)}
+          helper={
+            budgetOverBy && budgetOverBy > 0
+              ? `${budgetUtilizedDisplay} of allocated · Over by ${formatPKRCompact(budgetOverBy)}`
+              : `${budgetUtilizedDisplay} of allocated`
+          }
+          delta={
+            budgetTone
+              ? {
+                  value: budgetTone === "bad" ? "Over budget" : budgetTone === "good" ? "On budget" : "—",
+                  direction: budgetTone === "bad" ? "up" : "flat",
+                  tone: budgetTone
+                }
+              : undefined
+          }
+          deltaShowArrow={false}
+        />
         <KpiCard
           label="Qualified Leads"
           value={formatNumber(snapshot.qualifiedLeads)}
