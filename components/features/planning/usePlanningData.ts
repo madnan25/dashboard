@@ -60,7 +60,8 @@ export type SalesOpsChannelForm = {
   sqft_won: string;
 };
 
-export type SalesOpsDigitalSourcesForm = Record<"meta" | "web", SalesOpsChannelForm>;
+export type SalesOpsDigitalSourceForm = SalesOpsChannelForm & { not_contacted: string };
+export type SalesOpsDigitalSourcesForm = Record<"meta" | "web", SalesOpsDigitalSourceForm>;
 
 function emptyChannelForm(): ChannelForm {
   return {
@@ -132,8 +133,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   });
 
   const [digitalSources, setDigitalSources] = useState<SalesOpsDigitalSourcesForm>({
-    meta: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
-    web: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
+    meta: { leads: "0", not_contacted: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+    web: { leads: "0", not_contacted: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
   });
 
   const [spendSavedJson, setSpendSavedJson] = useState<string>("");
@@ -230,13 +231,14 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     setSalesOpsByChannel(nextCh);
 
     const nextSources: SalesOpsDigitalSourcesForm = {
-      meta: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
-      web: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
+      meta: { leads: "0", not_contacted: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+      web: { leads: "0", not_contacted: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
     };
     for (const r of digitalRows ?? []) {
       const key = r.source === "meta" ? "meta" : "web";
       nextSources[key] = {
         leads: String(r.leads ?? 0),
+        not_contacted: String(r.not_contacted ?? 0),
         qualified_leads: String(r.qualified_leads ?? 0),
         meetings_scheduled: String(r.meetings_scheduled ?? 0),
         meetings_done: String(r.meetings_done ?? 0),
@@ -367,13 +369,14 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         setSalesOpsByChannel(nextCh);
 
         const nextSources: SalesOpsDigitalSourcesForm = {
-          meta: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
-          web: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
+          meta: { leads: "0", not_contacted: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+          web: { leads: "0", not_contacted: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
         };
         for (const r of digitalRows ?? []) {
           const key = r.source === "meta" ? "meta" : "web";
           nextSources[key] = {
             leads: String(r.leads ?? 0),
+            not_contacted: String(r.not_contacted ?? 0),
             qualified_leads: String(r.qualified_leads ?? 0),
             meetings_scheduled: String(r.meetings_scheduled ?? 0),
             meetings_done: String(r.meetings_done ?? 0),
@@ -515,8 +518,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   const metricsDirty = useMemo(() => {
     return metricsSavedJson ? metricsSnapshot !== metricsSavedJson : metricsSnapshot !== JSON.stringify({
       digitalSources: {
-        meta: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
-        web: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
+        meta: { leads: "0", not_contacted: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
+        web: { leads: "0", not_contacted: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" }
       },
       channels: {
         inbound: { leads: "0", qualified_leads: "0", meetings_scheduled: "0", meetings_done: "0", deals_won: "0", sqft_won: "0" },
@@ -724,6 +727,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       .map((source) => {
         const row = digitalSources[source];
         const leads = toNumber(row.leads);
+        const not_contacted = toNumber(row.not_contacted);
         const qualified_leads = toNumber(row.qualified_leads);
         const meetings_scheduled = toNumber(row.meetings_scheduled);
         const meetings_done = toNumber(row.meetings_done);
@@ -731,6 +735,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
         const sqft_won = toNumber(row.sqft_won);
         if (
           leads == null ||
+          not_contacted == null ||
           qualified_leads == null ||
           meetings_scheduled == null ||
           meetings_done == null ||
@@ -738,7 +743,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
           sqft_won == null
         )
           return null;
-        return { project_id: projectId, year, month, source, leads, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won };
+        return { project_id: projectId, year, month, source, leads, not_contacted, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won };
       })
       .filter(Boolean) as Array<{
       project_id: string;
@@ -746,6 +751,7 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
       month: number;
       source: "meta" | "web";
       leads: number;
+      not_contacted: number;
       qualified_leads: number;
       meetings_scheduled: number;
       meetings_done: number;

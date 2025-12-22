@@ -15,6 +15,8 @@ type FormRow = {
   sqft_won: string;
 };
 
+type DigitalSourceRow = FormRow & { not_contacted: string };
+
 export function SalesOpsActualsCard(props: {
   isCmo: boolean;
   actuals: ProjectActuals | null;
@@ -24,8 +26,8 @@ export function SalesOpsActualsCard(props: {
     PlanChannel,
     FormRow
   >;
-  digitalSources: Record<"meta" | "web", FormRow>;
-  setDigitalSources: (updater: (prev: Record<"meta" | "web", FormRow>) => Record<"meta" | "web", FormRow>) => void;
+  digitalSources: Record<"meta" | "web", DigitalSourceRow>;
+  setDigitalSources: (updater: (prev: Record<"meta" | "web", DigitalSourceRow>) => Record<"meta" | "web", DigitalSourceRow>) => void;
   setSalesOpsByChannel: (
     updater: (
       prev: Record<
@@ -101,9 +103,10 @@ export function SalesOpsActualsCard(props: {
   }
 
   const digitalTotals = useMemo(() => {
-    const sum = (k: keyof FormRow) => toNumber(digitalSources.meta[k]) + toNumber(digitalSources.web[k]);
+    const sum = (k: keyof DigitalSourceRow) => toNumber(digitalSources.meta[k]) + toNumber(digitalSources.web[k]);
     return {
       leads: sum("leads"),
+      notContacted: sum("not_contacted"),
       qualified: sum("qualified_leads"),
       meetingsScheduled: sum("meetings_scheduled"),
       meetingsDone: sum("meetings_done"),
@@ -185,6 +188,15 @@ export function SalesOpsActualsCard(props: {
                             integerOnly
                           />
                           <NumberInput
+                            label="Not contacted"
+                            unit="leads"
+                            value={digitalSources[src].not_contacted}
+                            onValueChange={(v) =>
+                              setDigitalSources((s) => ({ ...s, [src]: { ...s[src], not_contacted: v } }))
+                            }
+                            integerOnly
+                          />
+                          <NumberInput
                             label="Qualified"
                             unit="leads"
                             value={digitalSources[src].qualified_leads}
@@ -230,6 +242,10 @@ export function SalesOpsActualsCard(props: {
                         <div className="flex items-center justify-between">
                           <span>Leads</span>
                           <span className="font-semibold text-white/85">{digitalTotals.leads}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Not contacted</span>
+                          <span className="font-semibold text-white/85">{digitalTotals.notContacted}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>Qualified</span>

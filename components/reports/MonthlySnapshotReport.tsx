@@ -239,6 +239,32 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
       : "0.0%";
   const budgetTone: "good" | "bad" | "neutral" = budgetOverBy > 0 ? "bad" : "good";
 
+  const digitalBreakdown = useMemo(() => {
+    if (channel !== "digital") return null;
+    const labelOf = (s: ProjectActualsDigitalSource["source"]) => (s === "meta" ? "Meta" : "Website / WhatsApp / Google");
+    const ordered = [...(digitalSourceActuals ?? [])].sort((a, b) => (b.qualified_leads ?? 0) - (a.qualified_leads ?? 0));
+    const total = ordered.reduce(
+      (acc, r) => {
+        acc.leads += r.leads ?? 0;
+        acc.notContacted += r.not_contacted ?? 0;
+        acc.qualified += r.qualified_leads ?? 0;
+        acc.meetings += r.meetings_done ?? 0;
+        acc.deals += r.deals_won ?? 0;
+        acc.sqft += r.sqft_won ?? 0;
+        return acc;
+      },
+      { leads: 0, notContacted: 0, qualified: 0, meetings: 0, deals: 0, sqft: 0 }
+    );
+    return { ordered, total, labelOf };
+  }, [channel, digitalSourceActuals]);
+
+  const addressedLeads = useMemo(() => {
+    if (channel !== "digital") return null;
+    const totalLeads = channelActuals?.leads ?? 0;
+    const notContacted = digitalBreakdown?.total.notContacted ?? 0;
+    return Math.max(0, totalLeads - notContacted);
+  }, [channel, channelActuals?.leads, digitalBreakdown?.total.notContacted]);
+
   const rows: MetricRow[] = [
     { metric: `${channelTitle(channel)} Budget Allocated`, value: formatPKR(snapshot.budgetAllocated) },
     { metric: `${channelTitle(channel)} Budget Spent`, value: `${formatPKR(snapshot.budgetSpent)} (${budgetUtilizedDisplay})` },
@@ -261,6 +287,16 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
     { metric: "Sqft won (actual)", value: formatNumber(snapshot.sqftWon) }
   ];
 
+  if (channel === "digital") {
+    const notContacted = digitalBreakdown?.total.notContacted ?? 0;
+    rows.splice(
+      5,
+      0,
+      { metric: "Not contacted (Digital)", value: formatNumber(notContacted) },
+      { metric: "Addressed leads (Digital)", value: formatNumber(Math.max(0, snapshot.leadsGenerated - notContacted)) }
+    );
+  }
+
   const contributionRows: ContributionRow[] = [
     { stage: "Leads", target: snapshot.targets.leadsGenerated, actual: snapshot.leadsGenerated, variance: snapshot.leadsGenerated - snapshot.targets.leadsGenerated },
     { stage: "Qualified Leads", target: snapshot.targets.qualifiedLeads, actual: snapshot.qualifiedLeads, variance: snapshot.qualifiedLeads - snapshot.targets.qualifiedLeads },
@@ -269,6 +305,11 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
   ];
 
   const leadToQualifiedPct = clampPercent((snapshot.qualifiedLeads / Math.max(snapshot.leadsGenerated, 1)) * 100);
+  const leadToQualifiedAddressedPct = useMemo(() => {
+    if (channel !== "digital") return null;
+    const denom = Math.max(addressedLeads ?? 0, 1);
+    return clampPercent((snapshot.qualifiedLeads / denom) * 100);
+  }, [addressedLeads, channel, snapshot.qualifiedLeads]);
   const leadToQualifiedTargetPct = channelInputs?.qualification_percent ?? null;
   const qualifiedToMeetingPct = clampPercent((snapshot.meetingsCompleted / Math.max(snapshot.qualifiedLeads, 1)) * 100);
   const qualifiedToMeetingTargetPct = targets?.qualified_to_meeting_done_percent ?? null;
@@ -277,24 +318,6 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
 
   const projectName = projects.find((p) => p.id === projectId)?.name ?? "—";
   const title = `${channelTitle(channel)} – Monthly Snapshot`;
-
-  const digitalBreakdown = useMemo(() => {
-    if (channel !== "digital") return null;
-    const labelOf = (s: ProjectActualsDigitalSource["source"]) => (s === "meta" ? "Meta" : "Website / WhatsApp / Google");
-    const ordered = [...(digitalSourceActuals ?? [])].sort((a, b) => (b.qualified_leads ?? 0) - (a.qualified_leads ?? 0));
-    const total = ordered.reduce(
-      (acc, r) => {
-        acc.leads += r.leads ?? 0;
-        acc.qualified += r.qualified_leads ?? 0;
-        acc.meetings += r.meetings_done ?? 0;
-        acc.deals += r.deals_won ?? 0;
-        acc.sqft += r.sqft_won ?? 0;
-        return acc;
-      },
-      { leads: 0, qualified: 0, meetings: 0, deals: 0, sqft: 0 }
-    );
-    return { ordered, total, labelOf };
-  }, [channel, digitalSourceActuals]);
 
   return (
     <main className="min-h-screen px-6 pb-10">
@@ -353,6 +376,9 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
             channel={channel}
             contributionRows={contributionRows}
             leadToQualifiedPct={leadToQualifiedPct}
+            leadToQualifiedAddressedPct={leadToQualifiedAddressedPct}
+            addressedLeads={addressedLeads}
+            notContacted={digitalBreakdown?.total.notContacted ?? null}
             leadToQualifiedTargetPct={leadToQualifiedTargetPct}
             qualifiedToMeetingPct={qualifiedToMeetingPct}
             qualifiedToMeetingTargetPct={qualifiedToMeetingTargetPct}
@@ -378,6 +404,7 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
                   <div className="grid grid-cols-6 gap-2 px-4 py-3 text-xs text-white/50">
                     <div className="col-span-2">Source</div>
                     <div>Leads</div>
+                    <div>Not contacted</div>
                     <div>Qualified</div>
                     <div>Deals</div>
                     <div>Sqft</div>
@@ -386,6 +413,7 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
                     <div key={r.source} className="grid grid-cols-6 gap-2 border-t border-white/5 px-4 py-3 text-sm text-white/75">
                       <div className="col-span-2 font-semibold text-white/85">{digitalBreakdown.labelOf(r.source)}</div>
                       <div>{formatNumber(r.leads ?? 0)}</div>
+                      <div>{formatNumber(r.not_contacted ?? 0)}</div>
                       <div>{formatNumber(r.qualified_leads ?? 0)}</div>
                       <div>{formatNumber(r.deals_won ?? 0)}</div>
                       <div>{formatNumber(r.sqft_won ?? 0)}</div>

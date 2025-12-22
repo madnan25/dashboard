@@ -88,6 +88,7 @@ export type ProjectActualsDigitalSource = {
   month: number; // 1-12
   source: DigitalSource;
   leads: number;
+  not_contacted: number;
   qualified_leads: number;
   meetings_scheduled: number;
   meetings_done: number;

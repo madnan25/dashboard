@@ -16,7 +16,17 @@ export type ProjectActualsChannelInput = Pick<
 
 export type ProjectActualsDigitalSourceInput = Pick<
   ProjectActualsDigitalSource,
-  "project_id" | "year" | "month" | "source" | "leads" | "qualified_leads" | "meetings_scheduled" | "meetings_done" | "deals_won" | "sqft_won"
+  "project_id" |
+    "year" |
+    "month" |
+    "source" |
+    "leads" |
+    "not_contacted" |
+    "qualified_leads" |
+    "meetings_scheduled" |
+    "meetings_done" |
+    "deals_won" |
+    "sqft_won"
 >;
 
 export async function getProjectActuals(
@@ -84,7 +94,9 @@ export async function listProjectActualsDigitalSources(
 ): Promise<ProjectActualsDigitalSource[]> {
   const { data, error } = await supabase
     .from("project_actuals_digital_sources")
-    .select("project_id, year, month, source, leads, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won, updated_at")
+    .select(
+      "project_id, year, month, source, leads, not_contacted, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won, updated_at"
+    )
     .eq("project_id", projectId)
     .eq("year", year)
     .eq("month", month);

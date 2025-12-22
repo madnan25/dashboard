@@ -1,16 +1,21 @@
 "use client";
 
 import { Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from "@heroui/react";
+import { useState } from "react";
 import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
 import { ConversionFlow } from "@/components/charts/ConversionFlow";
 import { Surface } from "@/components/ds/Surface";
+import { AppButton } from "@/components/ds/AppButton";
 import type { PlanChannel } from "@/lib/dashboardDb";
 import { formatNumber } from "@/lib/format";
 
 export function SnapshotChartsAndDetails(props: {
   contributionRows: { stage: string; target: number; actual: number; variance: number }[];
   leadToQualifiedPct: number;
+  leadToQualifiedAddressedPct?: number | null;
+  addressedLeads?: number | null;
+  notContacted?: number | null;
   leadToQualifiedTargetPct?: number | null;
   qualifiedToMeetingPct: number;
   qualifiedToMeetingTargetPct?: number | null;
@@ -22,6 +27,9 @@ export function SnapshotChartsAndDetails(props: {
   const {
     contributionRows,
     leadToQualifiedPct,
+    leadToQualifiedAddressedPct,
+    addressedLeads,
+    notContacted,
     leadToQualifiedTargetPct,
     qualifiedToMeetingPct,
     qualifiedToMeetingTargetPct,
@@ -29,6 +37,11 @@ export function SnapshotChartsAndDetails(props: {
     meetingToCloseTargetPct,
     rows
   } = props;
+
+  const [useAddressed, setUseAddressed] = useState(false);
+
+  const effectiveLeadToQualifiedPct =
+    useAddressed && typeof leadToQualifiedAddressedPct === "number" ? leadToQualifiedAddressedPct : leadToQualifiedPct;
 
   return (
     <>
@@ -63,13 +76,37 @@ export function SnapshotChartsAndDetails(props: {
           <div className="mb-2 text-sm font-semibold text-white/80">Leads → Qualified → Meetings → Close</div>
           <div className="text-sm text-white/55">Conversion rates from actuals.</div>
 
+          {typeof addressedLeads === "number" && typeof notContacted === "number" && addressedLeads >= 0 ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <AppButton
+                intent="primary"
+                className="h-9 px-4"
+                isDisabled={useAddressed || notContacted <= 0}
+                onPress={() => setUseAddressed(true)}
+              >
+                Compute for addressed leads
+              </AppButton>
+              {useAddressed ? (
+                <div className="text-xs text-white/55">
+                  Addressed leads: <span className="font-semibold text-white/80">{formatNumber(addressedLeads)}</span>{" "}
+                  <span className="text-white/40">({formatNumber(notContacted)} not contacted)</span>
+                </div>
+              ) : notContacted > 0 ? (
+                <div className="text-xs text-white/55">
+                  Will use Leads − Not contacted (
+                  <span className="font-semibold text-white/80">{formatNumber(addressedLeads)}</span>)
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="mt-5">
             <ConversionFlow
               steps={[
                 {
                   from: "Leads",
                   to: "Qualified",
-                  percent: leadToQualifiedPct,
+                  percent: effectiveLeadToQualifiedPct,
                   targetPercent: leadToQualifiedTargetPct ?? null,
                   colorClassName: "bg-emerald-400"
                 },
