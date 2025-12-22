@@ -14,6 +14,7 @@ import { MONTHS, clampPercent, monthLabel } from "@/lib/digitalSnapshot";
 import { formatNumber, formatPKR } from "@/lib/format";
 import { computeTargetsFrom } from "@/lib/reports/snapshotMath";
 import {
+  ProjectActualsDigitalSource,
   PlanChannel,
   PlanChannelInputs,
   PlanVersion,
@@ -24,6 +25,7 @@ import {
   getPlanChannelInputs,
   getProjectActuals,
   getProjectTargets,
+  listProjectActualsDigitalSources,
   listProjectActualsChannels,
   listPlanVersions,
   listProjects
@@ -80,6 +82,7 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
   const [channelInputs, setChannelInputs] = useState<PlanChannelInputs | null>(null);
   const [actuals, setActuals] = useState<ProjectActuals | null>(null);
   const [channelActuals, setChannelActuals] = useState<ProjectActualsChannel | null>(null);
+  const [digitalSourceActuals, setDigitalSourceActuals] = useState<ProjectActualsDigitalSource[]>([]);
   const [status, setStatus] = useState<string>("");
 
   const envMissing =
@@ -144,7 +147,10 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
         const active = versions.find((v) => v.active && v.status === "approved") ?? null;
         const inputs = active ? await getPlanChannelInputs(active.id) : [];
         const row = (inputs ?? []).find((r) => r.channel === channel) ?? null;
-        const channelRows = await listProjectActualsChannels(projectId, selectedYear, month);
+        const [channelRows, dsRows] = await Promise.all([
+          listProjectActualsChannels(projectId, selectedYear, month),
+          channel === "digital" ? listProjectActualsDigitalSources(projectId, selectedYear, month) : Promise.resolve([])
+        ]);
         const aCh = (channelRows ?? []).find((r) => r.channel === channel) ?? null;
 
         if (cancelled) return;
@@ -154,6 +160,7 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
         setChannelInputs(row);
         setActuals(a);
         setChannelActuals(aCh);
+        setDigitalSourceActuals(dsRows as ProjectActualsDigitalSource[]);
 
         // Trend (last 6 months) from actuals only. Budget spend not tracked yet.
         const monthsBack = 6;
@@ -271,6 +278,24 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
   const projectName = projects.find((p) => p.id === projectId)?.name ?? "—";
   const title = `${channelTitle(channel)} – Monthly Snapshot`;
 
+  const digitalBreakdown = useMemo(() => {
+    if (channel !== "digital") return null;
+    const labelOf = (s: ProjectActualsDigitalSource["source"]) => (s === "meta" ? "Meta" : "Website / WhatsApp / Google");
+    const ordered = [...(digitalSourceActuals ?? [])].sort((a, b) => (b.qualified_leads ?? 0) - (a.qualified_leads ?? 0));
+    const total = ordered.reduce(
+      (acc, r) => {
+        acc.leads += r.leads ?? 0;
+        acc.qualified += r.qualified_leads ?? 0;
+        acc.meetings += r.meetings_done ?? 0;
+        acc.deals += r.deals_won ?? 0;
+        acc.sqft += r.sqft_won ?? 0;
+        return acc;
+      },
+      { leads: 0, qualified: 0, meetings: 0, deals: 0, sqft: 0 }
+    );
+    return { ordered, total, labelOf };
+  }, [channel, digitalSourceActuals]);
+
   return (
     <main className="min-h-screen px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -335,6 +360,41 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
             meetingToCloseTargetPct={meetingToCloseTargetPct}
             rows={rows}
           />
+
+          {digitalBreakdown ? (
+            <div className="mt-6 grid gap-4 md:grid-cols-12">
+              <Surface className="md:col-span-12">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-lg font-semibold text-white/90">Source breakdown (Digital)</div>
+                    <div className="mt-1 text-sm text-white/55">Meta vs Website/WhatsApp/Google (Sales Ops inputs).</div>
+                  </div>
+                  <div className="text-xs text-white/50">
+                    Total qualified: <span className="font-semibold text-white/80">{formatNumber(digitalBreakdown.total.qualified)}</span>
+                  </div>
+                </div>
+
+                <div className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02]">
+                  <div className="grid grid-cols-6 gap-2 px-4 py-3 text-xs text-white/50">
+                    <div className="col-span-2">Source</div>
+                    <div>Leads</div>
+                    <div>Qualified</div>
+                    <div>Deals</div>
+                    <div>Sqft</div>
+                  </div>
+                  {digitalBreakdown.ordered.map((r) => (
+                    <div key={r.source} className="grid grid-cols-6 gap-2 border-t border-white/5 px-4 py-3 text-sm text-white/75">
+                      <div className="col-span-2 font-semibold text-white/85">{digitalBreakdown.labelOf(r.source)}</div>
+                      <div>{formatNumber(r.leads ?? 0)}</div>
+                      <div>{formatNumber(r.qualified_leads ?? 0)}</div>
+                      <div>{formatNumber(r.deals_won ?? 0)}</div>
+                      <div>{formatNumber(r.sqft_won ?? 0)}</div>
+                    </div>
+                  ))}
+                </div>
+              </Surface>
+            </div>
+          ) : null}
         </PageShell>
       </div>
     </main>

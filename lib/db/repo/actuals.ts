@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PlanChannel, ProjectActuals, ProjectActualsChannel } from "@/lib/db/types";
+import type { DigitalSource, PlanChannel, ProjectActuals, ProjectActualsChannel, ProjectActualsDigitalSource } from "@/lib/db/types";
 
 export type ProjectActualsMetricsInput = Pick<
   ProjectActuals,
@@ -12,6 +12,11 @@ export type ProjectActualsSpendInput = Pick<ProjectActuals, "project_id" | "year
 export type ProjectActualsChannelInput = Pick<
   ProjectActualsChannel,
   "project_id" | "year" | "month" | "channel" | "leads" | "qualified_leads" | "meetings_scheduled" | "meetings_done" | "deals_won" | "sqft_won"
+>;
+
+export type ProjectActualsDigitalSourceInput = Pick<
+  ProjectActualsDigitalSource,
+  "project_id" | "year" | "month" | "source" | "leads" | "qualified_leads" | "meetings_scheduled" | "meetings_done" | "deals_won" | "sqft_won"
 >;
 
 export async function getProjectActuals(
@@ -68,6 +73,30 @@ export async function listProjectActualsChannels(
 export async function upsertProjectActualsChannels(supabase: SupabaseClient, inputs: ProjectActualsChannelInput[]): Promise<void> {
   if (inputs.length === 0) return;
   const { error } = await supabase.from("project_actuals_channels").upsert(inputs, { onConflict: "project_id,year,month,channel" });
+  if (error) throw error;
+}
+
+export async function listProjectActualsDigitalSources(
+  supabase: SupabaseClient,
+  projectId: string,
+  year: number,
+  month: number
+): Promise<ProjectActualsDigitalSource[]> {
+  const { data, error } = await supabase
+    .from("project_actuals_digital_sources")
+    .select("project_id, year, month, source, leads, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won, updated_at")
+    .eq("project_id", projectId)
+    .eq("year", year)
+    .eq("month", month);
+  if (error) throw error;
+  return (data as ProjectActualsDigitalSource[]) ?? [];
+}
+
+export async function upsertProjectActualsDigitalSources(supabase: SupabaseClient, inputs: ProjectActualsDigitalSourceInput[]): Promise<void> {
+  if (inputs.length === 0) return;
+  const { error } = await supabase
+    .from("project_actuals_digital_sources")
+    .upsert(inputs, { onConflict: "project_id,year,month,source" });
   if (error) throw error;
 }
 

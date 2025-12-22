@@ -51,6 +51,8 @@ export type PlanChannelInputs = {
   allocated_budget: number;
 };
 
+export type DigitalSource = "meta" | "web";
+
 export type ProjectActuals = {
   project_id: string;
   year: number;
@@ -71,6 +73,20 @@ export type ProjectActualsChannel = {
   year: number;
   month: number; // 1-12
   channel: PlanChannel;
+  leads: number;
+  qualified_leads: number;
+  meetings_scheduled: number;
+  meetings_done: number;
+  deals_won: number;
+  sqft_won: number;
+  updated_at?: string;
+};
+
+export type ProjectActualsDigitalSource = {
+  project_id: string;
+  year: number;
+  month: number; // 1-12
+  source: DigitalSource;
   leads: number;
   qualified_leads: number;
   meetings_scheduled: number;

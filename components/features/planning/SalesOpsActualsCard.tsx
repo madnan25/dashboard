@@ -6,6 +6,15 @@ import { AppButton } from "@/components/ds/AppButton";
 import { Surface } from "@/components/ds/Surface";
 import type { PlanChannel, ProjectActuals } from "@/lib/dashboardDb";
 
+type FormRow = {
+  leads: string;
+  qualified_leads: string;
+  meetings_scheduled: string;
+  meetings_done: string;
+  deals_won: string;
+  sqft_won: string;
+};
+
 export function SalesOpsActualsCard(props: {
   isCmo: boolean;
   actuals: ProjectActuals | null;
@@ -13,39 +22,17 @@ export function SalesOpsActualsCard(props: {
   metricsSavedAt: number | null;
   salesOpsByChannel: Record<
     PlanChannel,
-    {
-      leads: string;
-      qualified_leads: string;
-      meetings_scheduled: string;
-      meetings_done: string;
-      deals_won: string;
-      sqft_won: string;
-    }
+    FormRow
   >;
+  digitalSources: Record<"meta" | "web", FormRow>;
+  setDigitalSources: (updater: (prev: Record<"meta" | "web", FormRow>) => Record<"meta" | "web", FormRow>) => void;
   setSalesOpsByChannel: (
     updater: (
       prev: Record<
         PlanChannel,
-        {
-          leads: string;
-          qualified_leads: string;
-          meetings_scheduled: string;
-          meetings_done: string;
-          deals_won: string;
-          sqft_won: string;
-        }
+        FormRow
       >
-    ) => Record<
-      PlanChannel,
-      {
-        leads: string;
-        qualified_leads: string;
-        meetings_scheduled: string;
-        meetings_done: string;
-        deals_won: string;
-        sqft_won: string;
-      }
-    >
+    ) => Record<PlanChannel, FormRow>
   ) => void;
   actualsForm: {
     leads: string;
@@ -81,7 +68,19 @@ export function SalesOpsActualsCard(props: {
   }) => void;
   onSaveActuals: () => Promise<void> | void;
 }) {
-  const { isCmo, actuals, metricsDirty, metricsSavedAt, salesOpsByChannel, setSalesOpsByChannel, actualsForm, setActualsForm, onSaveActuals } = props;
+  const {
+    isCmo,
+    actuals,
+    metricsDirty,
+    metricsSavedAt,
+    salesOpsByChannel,
+    digitalSources,
+    setDigitalSources,
+    setSalesOpsByChannel,
+    actualsForm,
+    setActualsForm,
+    onSaveActuals
+  } = props;
 
   const [saveFlash, setSaveFlash] = useState<"idle" | "saving" | "saved">("idle");
   const saveLabel = useMemo(() => {
@@ -94,26 +93,38 @@ export function SalesOpsActualsCard(props: {
 
   const channels = useMemo<PlanChannel[]>(() => ["digital", "inbound", "activations"], []);
   const label = (ch: PlanChannel) => (ch === "digital" ? "Digital" : ch === "inbound" ? "Inbound" : "Activations");
+  const sourceLabel = (s: "meta" | "web") => (s === "meta" ? "Meta" : "Website / WhatsApp / Google");
 
   function toNumber(v: string) {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
   }
 
+  const digitalTotals = useMemo(() => {
+    const sum = (k: keyof FormRow) => toNumber(digitalSources.meta[k]) + toNumber(digitalSources.web[k]);
+    return {
+      leads: sum("leads"),
+      qualified: sum("qualified_leads"),
+      meetingsScheduled: sum("meetings_scheduled"),
+      meetingsDone: sum("meetings_done"),
+      dealsWon: sum("deals_won"),
+      sqftWon: sum("sqft_won")
+    };
+  }, [digitalSources]);
+
   const totals = useMemo(() => {
-    return channels.reduce(
-      (acc, ch) => {
-        acc.leads += toNumber(salesOpsByChannel[ch].leads);
-        acc.qualified += toNumber(salesOpsByChannel[ch].qualified_leads);
-        acc.meetingsScheduled += toNumber(salesOpsByChannel[ch].meetings_scheduled);
-        acc.meetingsDone += toNumber(salesOpsByChannel[ch].meetings_done);
-        acc.dealsWon += toNumber(salesOpsByChannel[ch].deals_won);
-        acc.sqftWon += toNumber(salesOpsByChannel[ch].sqft_won);
-        return acc;
-      },
-      { leads: 0, qualified: 0, meetingsScheduled: 0, meetingsDone: 0, dealsWon: 0, sqftWon: 0 }
-    );
-  }, [channels, salesOpsByChannel]);
+    const inbound = salesOpsByChannel.inbound;
+    const activations = salesOpsByChannel.activations;
+    return {
+      leads: digitalTotals.leads + toNumber(inbound.leads) + toNumber(activations.leads),
+      qualified: digitalTotals.qualified + toNumber(inbound.qualified_leads) + toNumber(activations.qualified_leads),
+      meetingsScheduled:
+        digitalTotals.meetingsScheduled + toNumber(inbound.meetings_scheduled) + toNumber(activations.meetings_scheduled),
+      meetingsDone: digitalTotals.meetingsDone + toNumber(inbound.meetings_done) + toNumber(activations.meetings_done),
+      dealsWon: digitalTotals.dealsWon + toNumber(inbound.deals_won) + toNumber(activations.deals_won),
+      sqftWon: digitalTotals.sqftWon + toNumber(inbound.sqft_won) + toNumber(activations.sqft_won)
+    };
+  }, [digitalTotals, salesOpsByChannel.activations, salesOpsByChannel.inbound]);
 
   return (
     <Surface>
@@ -160,48 +171,131 @@ export function SalesOpsActualsCard(props: {
             <div key={ch} className="glass-inset rounded-2xl p-4">
               <div className="text-sm font-semibold text-white/85">{label(ch)}</div>
               <div className="mt-3 grid gap-3">
-                <NumberInput
-                  label="Leads"
-                  unit="leads"
-                  value={salesOpsByChannel[ch].leads}
-                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], leads: v } }))}
-                  integerOnly
-                />
-                <NumberInput
-                  label="Qualified"
-                  unit="leads"
-                  value={salesOpsByChannel[ch].qualified_leads}
-                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], qualified_leads: v } }))}
-                  integerOnly
-                />
-                <NumberInput
-                  label="Meetings scheduled"
-                  unit="meetings"
-                  value={salesOpsByChannel[ch].meetings_scheduled}
-                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], meetings_scheduled: v } }))}
-                  integerOnly
-                />
-                <NumberInput
-                  label="Meetings done"
-                  unit="meetings"
-                  value={salesOpsByChannel[ch].meetings_done}
-                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], meetings_done: v } }))}
-                  integerOnly
-                />
-                <NumberInput
-                  label="Deals won"
-                  unit="deals"
-                  value={salesOpsByChannel[ch].deals_won}
-                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], deals_won: v } }))}
-                  integerOnly
-                />
-                <NumberInput
-                  label="Sqft won"
-                  unit="sqft"
-                  value={salesOpsByChannel[ch].sqft_won}
-                  onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], sqft_won: v } }))}
-                  integerOnly
-                />
+                {ch === "digital" ? (
+                  <>
+                    {(["meta", "web"] as const).map((src) => (
+                      <div key={src} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                        <div className="text-xs font-semibold text-white/70">{sourceLabel(src)}</div>
+                        <div className="mt-3 grid gap-3">
+                          <NumberInput
+                            label="Leads"
+                            unit="leads"
+                            value={digitalSources[src].leads}
+                            onValueChange={(v) => setDigitalSources((s) => ({ ...s, [src]: { ...s[src], leads: v } }))}
+                            integerOnly
+                          />
+                          <NumberInput
+                            label="Qualified"
+                            unit="leads"
+                            value={digitalSources[src].qualified_leads}
+                            onValueChange={(v) => setDigitalSources((s) => ({ ...s, [src]: { ...s[src], qualified_leads: v } }))}
+                            integerOnly
+                          />
+                          <NumberInput
+                            label="Meetings scheduled"
+                            unit="meetings"
+                            value={digitalSources[src].meetings_scheduled}
+                            onValueChange={(v) =>
+                              setDigitalSources((s) => ({ ...s, [src]: { ...s[src], meetings_scheduled: v } }))
+                            }
+                            integerOnly
+                          />
+                          <NumberInput
+                            label="Meetings done"
+                            unit="meetings"
+                            value={digitalSources[src].meetings_done}
+                            onValueChange={(v) => setDigitalSources((s) => ({ ...s, [src]: { ...s[src], meetings_done: v } }))}
+                            integerOnly
+                          />
+                          <NumberInput
+                            label="Deals won"
+                            unit="deals"
+                            value={digitalSources[src].deals_won}
+                            onValueChange={(v) => setDigitalSources((s) => ({ ...s, [src]: { ...s[src], deals_won: v } }))}
+                            integerOnly
+                          />
+                          <NumberInput
+                            label="Sqft won"
+                            unit="sqft"
+                            value={digitalSources[src].sqft_won}
+                            onValueChange={(v) => setDigitalSources((s) => ({ ...s, [src]: { ...s[src], sqft_won: v } }))}
+                            integerOnly
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="text-xs font-semibold text-white/60">Digital totals (computed)</div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-white/70">
+                        <div className="flex items-center justify-between">
+                          <span>Leads</span>
+                          <span className="font-semibold text-white/85">{digitalTotals.leads}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Qualified</span>
+                          <span className="font-semibold text-white/85">{digitalTotals.qualified}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Meetings done</span>
+                          <span className="font-semibold text-white/85">{digitalTotals.meetingsDone}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Deals won</span>
+                          <span className="font-semibold text-white/85">{digitalTotals.dealsWon}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <NumberInput
+                      label="Leads"
+                      unit="leads"
+                      value={salesOpsByChannel[ch].leads}
+                      onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], leads: v } }))}
+                      integerOnly
+                    />
+                    <NumberInput
+                      label="Qualified"
+                      unit="leads"
+                      value={salesOpsByChannel[ch].qualified_leads}
+                      onValueChange={(v) =>
+                        setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], qualified_leads: v } }))
+                      }
+                      integerOnly
+                    />
+                    <NumberInput
+                      label="Meetings scheduled"
+                      unit="meetings"
+                      value={salesOpsByChannel[ch].meetings_scheduled}
+                      onValueChange={(v) =>
+                        setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], meetings_scheduled: v } }))
+                      }
+                      integerOnly
+                    />
+                    <NumberInput
+                      label="Meetings done"
+                      unit="meetings"
+                      value={salesOpsByChannel[ch].meetings_done}
+                      onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], meetings_done: v } }))}
+                      integerOnly
+                    />
+                    <NumberInput
+                      label="Deals won"
+                      unit="deals"
+                      value={salesOpsByChannel[ch].deals_won}
+                      onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], deals_won: v } }))}
+                      integerOnly
+                    />
+                    <NumberInput
+                      label="Sqft won"
+                      unit="sqft"
+                      value={salesOpsByChannel[ch].sqft_won}
+                      onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], sqft_won: v } }))}
+                      integerOnly
+                    />
+                  </>
+                )}
               </div>
             </div>
           ))}

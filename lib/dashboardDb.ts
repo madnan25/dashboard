@@ -1,7 +1,13 @@
 import { createBrowserDbClient } from "@/lib/db/client/browser";
 import { createDashboardRepo } from "@/lib/db/repo";
-import type { ProjectActualsChannelInput, ProjectActualsMetricsInput, ProjectActualsSpendInput } from "@/lib/db/repo/actuals";
+import type {
+  ProjectActualsChannelInput,
+  ProjectActualsDigitalSourceInput,
+  ProjectActualsMetricsInput,
+  ProjectActualsSpendInput
+} from "@/lib/db/repo/actuals";
 export type {
+  DigitalSource,
   PlanChannel,
   PlanChannelInputs,
   PlanStatus,
@@ -10,10 +16,12 @@ export type {
   Project,
   ProjectActuals,
   ProjectActualsChannel,
+  ProjectActualsDigitalSource,
   ProjectTargets,
   UserRole
 } from "@/lib/db/types";
 import type {
+  DigitalSource,
   PlanChannelInputs,
   PlanStatus,
   PlanVersion,
@@ -21,6 +29,7 @@ import type {
   Project,
   ProjectActuals,
   ProjectActualsChannel,
+  ProjectActualsDigitalSource,
   ProjectTargets,
   UserRole
 } from "@/lib/db/types";
@@ -154,6 +163,14 @@ export async function listProjectActualsChannels(projectId: string, year: number
 
 export async function upsertProjectActualsChannels(inputs: ProjectActualsChannelInput[]): Promise<void> {
   return await repo().upsertProjectActualsChannels(inputs);
+}
+
+export async function listProjectActualsDigitalSources(projectId: string, year: number, month: number): Promise<ProjectActualsDigitalSource[]> {
+  return await repo().listProjectActualsDigitalSources(projectId, year, month);
+}
+
+export async function upsertProjectActualsDigitalSources(inputs: ProjectActualsDigitalSourceInput[]): Promise<void> {
+  return await repo().upsertProjectActualsDigitalSources(inputs);
 }
 
 export async function cmoCreateUser(input: { email: string; role: UserRole; full_name?: string | null }): Promise<{ userId: string }> {

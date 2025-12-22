@@ -40,6 +40,8 @@ export default function BrandDataEntryClient() {
     setActualsForm,
     salesOpsByChannel,
     setSalesOpsByChannel,
+    digitalSources,
+    setDigitalSources,
     allocatedTotal,
     budgetCap,
     remainingBudget,
@@ -163,6 +165,8 @@ export default function BrandDataEntryClient() {
             metricsDirty={metricsDirty}
             metricsSavedAt={metricsSavedAt}
             salesOpsByChannel={salesOpsByChannel}
+            digitalSources={digitalSources}
+            setDigitalSources={setDigitalSources}
             setSalesOpsByChannel={setSalesOpsByChannel}
             actualsForm={actualsForm}
             setActualsForm={setActualsForm}
