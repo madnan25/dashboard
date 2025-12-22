@@ -208,12 +208,16 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
           ? actuals?.spend_inbound ?? 0
           : actuals?.spend_activations ?? 0;
 
+    // Business rule: "Qualified leads" includes "Meetings scheduled"
+    // (i.e. qualified_total = qualified + meetings_scheduled)
+    const qualifiedLeadsActual = (channelActuals?.qualified_leads ?? 0) + (channelActuals?.meetings_scheduled ?? 0);
+
     return {
       monthLabel: monthLabel(selectedMonthIndex, selectedYear),
       budgetAllocated,
       budgetSpent,
       leadsGenerated: channelActuals?.leads ?? 0,
-      qualifiedLeads: channelActuals?.qualified_leads ?? 0,
+      qualifiedLeads: qualifiedLeadsActual,
       meetingsScheduled: channelActuals?.meetings_scheduled ?? 0,
       meetingsCompleted: channelActuals?.meetings_done ?? 0,
       dealsWon: channelActuals?.deals_won ?? 0,
@@ -247,7 +251,8 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
       (acc, r) => {
         acc.leads += r.leads ?? 0;
         acc.notContacted += r.not_contacted ?? 0;
-        acc.qualified += r.qualified_leads ?? 0;
+        // Keep breakdown consistent with snapshot: qualified includes meetings scheduled
+        acc.qualified += (r.qualified_leads ?? 0) + (r.meetings_scheduled ?? 0);
         acc.meetings += r.meetings_done ?? 0;
         acc.deals += r.deals_won ?? 0;
         acc.sqft += r.sqft_won ?? 0;
@@ -414,7 +419,7 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
                       <div className="col-span-2 font-semibold text-white/85">{digitalBreakdown.labelOf(r.source)}</div>
                       <div>{formatNumber(r.leads ?? 0)}</div>
                       <div>{formatNumber(r.not_contacted ?? 0)}</div>
-                      <div>{formatNumber(r.qualified_leads ?? 0)}</div>
+                      <div>{formatNumber((r.qualified_leads ?? 0) + (r.meetings_scheduled ?? 0))}</div>
                       <div>{formatNumber(r.deals_won ?? 0)}</div>
                       <div>{formatNumber(r.sqft_won ?? 0)}</div>
                     </div>
