@@ -93,8 +93,8 @@ export function SnapshotChartsAndDetails(props: {
                 </div>
               ) : notContacted > 0 ? (
                 <div className="text-xs text-white/55">
-                  Will use Leads − Not contacted (
-                  <span className="font-semibold text-white/80">{formatNumber(addressedLeads)}</span>)
+                  Ratios based on all leads (
+                  <span className="font-semibold text-white/80">{formatNumber(addressedLeads + notContacted)}</span>)
                 </div>
               ) : null}
             </div>
