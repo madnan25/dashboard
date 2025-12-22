@@ -81,10 +81,10 @@ export function SnapshotChartsAndDetails(props: {
               <AppButton
                 intent="primary"
                 className="h-9 px-4"
-                isDisabled={useAddressed || notContacted <= 0}
-                onPress={() => setUseAddressed(true)}
+                isDisabled={notContacted <= 0}
+                onPress={() => setUseAddressed((v) => !v)}
               >
-                Compute for addressed leads
+                {useAddressed ? "Compute for total leads" : "Compute for addressed leads"}
               </AppButton>
               {useAddressed ? (
                 <div className="text-xs text-white/55">
