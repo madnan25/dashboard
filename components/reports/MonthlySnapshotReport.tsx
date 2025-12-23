@@ -333,7 +333,7 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
           showBack
           backHref={backHref ?? "/projects"}
           right={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="hidden md:flex flex-wrap items-center gap-2">
               <MonthYearPicker
                 monthIndex={selectedMonthIndex}
                 year={selectedYear}
@@ -360,6 +360,39 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
             </div>
           }
         />
+
+        {/* Mobile: keep controls on their own row to avoid header breakage */}
+        <div className="md:hidden">
+          <Surface>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <MonthYearPicker
+                  monthIndex={selectedMonthIndex}
+                  year={selectedYear}
+                  label={snapshot.monthLabel}
+                  showJumpToCurrent
+                  onChange={(next) => {
+                    setSelectedMonthIndex(next.monthIndex);
+                    setSelectedYear(next.year);
+                    const qs = new URLSearchParams();
+                    qs.set("year", String(next.year));
+                    qs.set("monthIndex", String(next.monthIndex));
+                    router.replace(`${pathname}?${qs.toString()}`);
+                  }}
+                />
+                {!fixedProjectId ? (
+                  <PillSelect value={projectId} onChange={setProjectId} disabled={envMissing} ariaLabel="Project">
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-zinc-900">
+                        {p.name}
+                      </option>
+                    ))}
+                  </PillSelect>
+                ) : null}
+              </div>
+            </div>
+          </Surface>
+        </div>
 
         {status ? (
           <Surface>
@@ -405,7 +438,27 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
                   </div>
                 </div>
 
-                <div className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02]">
+                {/* Mobile: card/list view (native-feeling, no broken headers) */}
+                <div className="md:hidden space-y-3">
+                  {digitalBreakdown.ordered.map((r) => {
+                    const qualified = (r.qualified_leads ?? 0) + (r.meetings_scheduled ?? 0);
+                    return (
+                      <div key={r.source} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                        <div className="text-sm font-semibold text-white/85">{digitalBreakdown.labelOf(r.source)}</div>
+                        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-white/75">
+                          <div className="flex items-center justify-between"><span className="text-white/55">Leads</span><span className="font-medium tabular-nums text-white/85">{formatNumber(r.leads ?? 0)}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-white/55">Not contacted</span><span className="font-medium tabular-nums text-white/85">{formatNumber(r.not_contacted ?? 0)}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-white/55">Qualified</span><span className="font-medium tabular-nums text-white/85">{formatNumber(qualified)}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-white/55">Deals</span><span className="font-medium tabular-nums text-white/85">{formatNumber(r.deals_won ?? 0)}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-white/55">Sqft</span><span className="font-medium tabular-nums text-white/85">{formatNumber(r.sqft_won ?? 0)}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop: table view */}
+                <div className="hidden md:block glass-inset rounded-2xl border border-white/10 bg-white/[0.02]">
                   <div className="grid grid-cols-6 gap-2 px-4 py-3 text-xs text-white/50">
                     <div className="col-span-2">Source</div>
                     <div>Leads</div>
@@ -417,11 +470,11 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
                   {digitalBreakdown.ordered.map((r) => (
                     <div key={r.source} className="grid grid-cols-6 gap-2 border-t border-white/5 px-4 py-3 text-sm text-white/75">
                       <div className="col-span-2 font-semibold text-white/85">{digitalBreakdown.labelOf(r.source)}</div>
-                      <div>{formatNumber(r.leads ?? 0)}</div>
-                      <div>{formatNumber(r.not_contacted ?? 0)}</div>
-                      <div>{formatNumber((r.qualified_leads ?? 0) + (r.meetings_scheduled ?? 0))}</div>
-                      <div>{formatNumber(r.deals_won ?? 0)}</div>
-                      <div>{formatNumber(r.sqft_won ?? 0)}</div>
+                      <div className="tabular-nums">{formatNumber(r.leads ?? 0)}</div>
+                      <div className="tabular-nums">{formatNumber(r.not_contacted ?? 0)}</div>
+                      <div className="tabular-nums">{formatNumber((r.qualified_leads ?? 0) + (r.meetings_scheduled ?? 0))}</div>
+                      <div className="tabular-nums">{formatNumber(r.deals_won ?? 0)}</div>
+                      <div className="tabular-nums">{formatNumber(r.sqft_won ?? 0)}</div>
                     </div>
                   ))}
                 </div>

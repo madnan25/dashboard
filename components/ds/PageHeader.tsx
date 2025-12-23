@@ -17,8 +17,8 @@ export function PageHeader({
   showBack?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3 min-w-0">
         {showBack ? (
           <BackButton
             fallbackHref={backHref}
@@ -28,7 +28,9 @@ export function PageHeader({
         ) : null}
 
         <div className="min-w-0">
-          <div className="truncate text-xl font-semibold tracking-tight text-white/95">{title}</div>
+          <div className="text-lg sm:text-xl font-semibold tracking-tight text-white/95 leading-tight break-words">
+            {title}
+          </div>
           {subtitle ? <div className="mt-0.5 text-sm text-white/55">{subtitle}</div> : null}
         </div>
       </div>
