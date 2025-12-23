@@ -84,18 +84,20 @@ export function MobileTabBar() {
       | { key: string; href: string; label: string; icon: string; disabled: true; title?: string }
     > = [
       { key: "home", href: "/", label: "Home", icon: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" },
-      { key: "projects", href: "/projects", label: "Projects", icon: "M4 7h16M4 12h16M4 17h10" },
+      // Projects: grid
+      { key: "projects", href: "/projects", label: "Projects", icon: "M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" },
       canSeePlanning
-        ? { key: "planning", href: "/brand/data-entry", label: "Planning", icon: "M8 7h8M8 12h8M8 17h5" }
+        // Planning: clipboard/checklist
+        ? { key: "planning", href: "/brand/data-entry", label: "Planning", icon: "M9 4h6m-7 4h8M8 12h8M8 16h5M7 8h.01M7 12h.01M7 16h.01" }
         : {
             key: "planning",
             href: "/brand/data-entry",
             label: "Planning",
-            icon: "M8 7h8M8 12h8M8 17h5",
+            icon: "M9 4h6m-7 4h8M8 12h8M8 16h5M7 8h.01M7 12h.01M7 16h.01",
             disabled: true,
             title: "View-only access: Planning & Actuals is disabled for this role."
           },
-      { key: "account", href: "/account", label: roleLabel(profile?.role ?? null), icon: "M12 12a4 4 0 1 0-0.001-8.001A4 4 0 0 0 12 12Zm-7.5 9a7.5 7.5 0 0 1 15 0" }
+      { key: "account", href: "/account", label: "Account", icon: "M12 12a4 4 0 1 0-0.001-8.001A4 4 0 0 0 12 12Zm-7.5 9a7.5 7.5 0 0 1 15 0" }
     ];
 
     if (isCmo) {
@@ -103,7 +105,7 @@ export function MobileTabBar() {
     }
 
     return base;
-  }, [canSeePlanning, isCmo, profile?.role]);
+  }, [canSeePlanning, isCmo]);
 
   // Hide on auth-only routes
   if (hide) return null;

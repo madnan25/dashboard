@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ds/PageHeader";
 import { AppButton } from "@/components/ds/AppButton";
 import { AppInput } from "@/components/ds/AppInput";
 import { Surface } from "@/components/ds/Surface";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { getCurrentProfile, updateMyFullName } from "@/lib/dashboardDb";
 
 export default function AccountPage() {
@@ -62,6 +63,21 @@ export default function AccountPage() {
                 Save
               </AppButton>
             </div>
+          </div>
+        </Surface>
+
+        {/* Mobile: logout lives in Account (tab-based nav) */}
+        <Surface className="md:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-white/85">Session</div>
+              <div className="mt-1 text-xs text-white/55">Sign out of this device.</div>
+            </div>
+            <LogoutButton
+              size="md"
+              variant="flat"
+              className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15"
+            />
           </div>
         </Surface>
       </div>

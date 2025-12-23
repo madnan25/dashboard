@@ -23,7 +23,7 @@ export function PageHeader({
           <BackButton
             fallbackHref={backHref}
             label="← Back"
-            className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15"
+            className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] text-white/85 hover:bg-white/[0.04] hover:border-white/15 whitespace-nowrap"
           />
         ) : null}
 
