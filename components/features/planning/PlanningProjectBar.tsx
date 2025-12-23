@@ -20,23 +20,27 @@ export function PlanningProjectBar(props: {
 
   return (
     <Surface>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="text-sm text-white/60">{status || " "}</div>
-        <div className="flex items-center gap-2">
-          <div className="text-sm text-white/60">Project</div>
-          <PillSelect value={projectId} onChange={setProjectId} disabled={isDisabled} ariaLabel="Project">
-            {projects.map((p) => (
-              <option key={p.id} value={p.id} className="bg-zinc-900">
-                {p.name}
-              </option>
-            ))}
-          </PillSelect>
-          {right}
+
+        <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm text-white/60">Project</div>
+            <PillSelect value={projectId} onChange={setProjectId} disabled={isDisabled} ariaLabel="Project">
+              {projects.map((p) => (
+                <option key={p.id} value={p.id} className="bg-zinc-900">
+                  {p.name}
+                </option>
+              ))}
+            </PillSelect>
+            {right}
+          </div>
+
           <Button
             as={Link}
             href={snapshotHref ?? (projectId ? `/projects/${projectId}` : "/projects")}
             variant="flat"
-            className="glass-inset text-white/80"
+            className="glass-inset text-white/80 w-full md:w-auto justify-center whitespace-nowrap"
           >
             Open Project Snapshot
           </Button>

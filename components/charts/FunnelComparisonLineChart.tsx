@@ -76,15 +76,15 @@ export function FunnelComparisonLineChart({
 
       <div
         ref={containerRef}
-        className="relative w-full select-none"
+        className="relative w-full select-none aspect-[900/320] md:aspect-auto md:h-[320px]"
         onPointerLeave={() => setActiveIndex(null)}
         onPointerMove={(e) => setFromClientX(e.clientX)}
         onPointerDown={(e) => setFromClientX(e.clientX)}
       >
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="h-[320px] w-full"
-          preserveAspectRatio="none"
+          className="absolute inset-0 h-full w-full"
+          preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label="Target vs Actual funnel comparison chart"
         >
@@ -136,7 +136,7 @@ export function FunnelComparisonLineChart({
             x={xForIndex(i)}
             y={height - 8}
             textAnchor="middle"
-            fontSize="11"
+            fontSize="13"
             fill="rgba(255,255,255,0.45)"
           >
             {p.label}
