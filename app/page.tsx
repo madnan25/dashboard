@@ -13,6 +13,12 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
+        {/* Mobile-only "native" page header */}
+        <div className="md:hidden px-1">
+          <div className="text-2xl font-semibold tracking-tight text-white/95">Home</div>
+          <div className="mt-1 text-sm text-white/55">Choose where you want to start.</div>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2">
           <NavCard
             href="/projects"

@@ -40,7 +40,9 @@ export default function RootLayout({
         <div className="app-content">
           <Providers>
             <TopNav />
-            <div className="pb-[calc(88px+env(safe-area-inset-bottom))] md:pb-0">{children}</div>
+            <div className="pt-[calc(14px+env(safe-area-inset-top))] pb-[calc(88px+env(safe-area-inset-bottom))] md:pt-0 md:pb-0">
+              {children}
+            </div>
             <MobileTabBar />
           </Providers>
         </div>
