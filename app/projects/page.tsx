@@ -25,7 +25,7 @@ export default async function ProjectsIndexPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 pb-10">
+    <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <PageHeader title="Projects" subtitle="Open a project to view reports." showBack />
 

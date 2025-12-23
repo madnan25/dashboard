@@ -56,7 +56,7 @@ export default function BrandDataEntryClient() {
   } = usePlanningData({ year, monthIndex });
 
   return (
-    <main className="min-h-screen px-6 pb-10">
+    <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <PageHeader title="Planning & Actuals" subtitle="Role-based entry with approvals (Supabase-backed)." showBack />
 

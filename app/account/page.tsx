@@ -41,7 +41,7 @@ export default function AccountPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 pb-10">
+    <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageHeader title="Account" subtitle="Set your display name (shown in the top bar)." showBack />
 

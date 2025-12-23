@@ -11,7 +11,7 @@ export default async function HomePage() {
   const planningDisabled = profile?.role === "viewer";
 
   return (
-    <main className="min-h-screen px-6 pb-10">
+    <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <div className="grid gap-4 md:grid-cols-2">
           <NavCard

@@ -92,7 +92,7 @@ export function TopNav() {
   };
 
   return (
-    <div className="sticky top-0 z-40 p-4 md:p-6">
+    <div className="sticky top-0 z-40 p-3 pt-[calc(10px+env(safe-area-inset-top))] md:p-6">
       <Surface
         className="px-4 py-3 md:px-5 md:py-4 border border-white/10 transition-colors"
         style={{
@@ -103,7 +103,37 @@ export function TopNav() {
           boxShadow: `0 12px 40px rgba(0,0,0,${0.18 + scrollT * 0.30}), inset 0 1px 0 rgba(255,255,255,0.06)`
         }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Mobile header (native-ish) */}
+        <div className="flex items-center justify-between gap-3 md:hidden">
+          <Link href="/" className="inline-flex items-center gap-2">
+            <span
+              className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/90"
+              aria-hidden="true"
+            >
+              D
+            </span>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold tracking-tight text-white/90">Dashboard</div>
+              <div className="text-[11px] text-white/55 truncate">{displayName}</div>
+            </div>
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/account"
+              prefetch
+              className={`inline-flex items-center gap-2 px-3 py-2 text-sm ${navPill} ${isActive("/account") ? navPillActive : ""}`}
+            >
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-white/70">
+                {roleLabel(profile?.role ?? null)}
+              </span>
+            </Link>
+            <LogoutButton size="sm" variant="flat" className={navPill} />
+          </div>
+        </div>
+
+        {/* Desktop nav */}
+        <div className="hidden md:flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Link href="/" className="group inline-flex items-center gap-2">
               <span

@@ -12,7 +12,7 @@ export function Surface({
   style?: React.CSSProperties;
 }) {
   return (
-    <div style={style} className={`glass-inset rounded-3xl p-5 ${className}`}>
+    <div style={style} className={`glass-inset rounded-3xl p-4 md:p-5 ${className}`}>
       {children}
     </div>
   );
@@ -25,7 +25,7 @@ export function PageShell({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={`rounded-3xl p-6 md:p-8 border border-white/10 ${className}`}>{children}</div>;
+  return <div className={`rounded-3xl p-4 md:p-8 border border-white/10 ${className}`}>{children}</div>;
 }
 
 

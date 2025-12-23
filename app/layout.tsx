@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { TopNav } from "@/components/nav/TopNav";
+import { MobileTabBar } from "@/components/nav/MobileTabBar";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -39,7 +40,8 @@ export default function RootLayout({
         <div className="app-content">
           <Providers>
             <TopNav />
-            {children}
+            <div className="pb-[calc(88px+env(safe-area-inset-bottom))] md:pb-0">{children}</div>
+            <MobileTabBar />
           </Providers>
         </div>
       </body>

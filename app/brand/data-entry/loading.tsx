@@ -2,7 +2,7 @@ import { Surface } from "@/components/ds/Surface";
 
 export default function LoadingPlanning() {
   return (
-    <main className="min-h-screen px-6 pb-10">
+    <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="flex items-center gap-3">

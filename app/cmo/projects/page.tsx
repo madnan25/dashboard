@@ -245,7 +245,7 @@ export default function CmoProjectsPage() {
 
   if (envMissing) {
     return (
-      <main className="min-h-screen p-6">
+      <main className="min-h-screen p-4 md:p-6">
         <div className="mx-auto w-full max-w-4xl">
           <Surface>
             <div className="text-sm text-amber-200/90">
@@ -259,7 +259,7 @@ export default function CmoProjectsPage() {
 
   if (profileRole && profileRole !== "cmo") {
     return (
-      <main className="min-h-screen p-6">
+      <main className="min-h-screen p-4 md:p-6">
         <div className="mx-auto w-full max-w-4xl space-y-4">
           <Surface>
             <div className="text-lg font-semibold text-white/90">CMO only</div>
@@ -271,7 +271,7 @@ export default function CmoProjectsPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 pb-10">
+    <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <PageHeader
           title="CMO Console"
