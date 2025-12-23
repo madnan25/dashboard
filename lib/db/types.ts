@@ -74,6 +74,7 @@ export type ProjectActualsChannel = {
   month: number; // 1-12
   channel: PlanChannel;
   leads: number;
+  not_contacted: number;
   qualified_leads: number;
   meetings_scheduled: number;
   meetings_done: number;

@@ -16,26 +16,17 @@ type FormRow = {
 };
 
 type DigitalSourceRow = FormRow & { not_contacted: string };
+type ChannelRow = FormRow & { not_contacted?: string };
 
 export function SalesOpsActualsCard(props: {
   isCmo: boolean;
   actuals: ProjectActuals | null;
   metricsDirty: boolean;
   metricsSavedAt: number | null;
-  salesOpsByChannel: Record<
-    PlanChannel,
-    FormRow
-  >;
+  salesOpsByChannel: Record<PlanChannel, ChannelRow>;
   digitalSources: Record<"meta" | "web", DigitalSourceRow>;
   setDigitalSources: (updater: (prev: Record<"meta" | "web", DigitalSourceRow>) => Record<"meta" | "web", DigitalSourceRow>) => void;
-  setSalesOpsByChannel: (
-    updater: (
-      prev: Record<
-        PlanChannel,
-        FormRow
-      >
-    ) => Record<PlanChannel, FormRow>
-  ) => void;
+  setSalesOpsByChannel: (updater: (prev: Record<PlanChannel, ChannelRow>) => Record<PlanChannel, ChannelRow>) => void;
   actualsForm: {
     leads: string;
     qualified_leads: string;
@@ -269,6 +260,15 @@ export function SalesOpsActualsCard(props: {
                       unit="leads"
                       value={salesOpsByChannel[ch].leads}
                       onValueChange={(v) => setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], leads: v } }))}
+                      integerOnly
+                    />
+                    <NumberInput
+                      label="Not contacted"
+                      unit="leads"
+                      value={salesOpsByChannel[ch].not_contacted ?? "0"}
+                      onValueChange={(v) =>
+                        setSalesOpsByChannel((s) => ({ ...s, [ch]: { ...s[ch], not_contacted: v } }))
+                      }
                       integerOnly
                     />
                     <NumberInput

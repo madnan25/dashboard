@@ -11,7 +11,17 @@ export type ProjectActualsSpendInput = Pick<ProjectActuals, "project_id" | "year
 
 export type ProjectActualsChannelInput = Pick<
   ProjectActualsChannel,
-  "project_id" | "year" | "month" | "channel" | "leads" | "qualified_leads" | "meetings_scheduled" | "meetings_done" | "deals_won" | "sqft_won"
+  "project_id" |
+    "year" |
+    "month" |
+    "channel" |
+    "leads" |
+    "not_contacted" |
+    "qualified_leads" |
+    "meetings_scheduled" |
+    "meetings_done" |
+    "deals_won" |
+    "sqft_won"
 >;
 
 export type ProjectActualsDigitalSourceInput = Pick<
@@ -72,7 +82,7 @@ export async function listProjectActualsChannels(
 ): Promise<ProjectActualsChannel[]> {
   const { data, error } = await supabase
     .from("project_actuals_channels")
-    .select("project_id, year, month, channel, leads, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won, updated_at")
+    .select("project_id, year, month, channel, leads, not_contacted, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won, updated_at")
     .eq("project_id", projectId)
     .eq("year", year)
     .eq("month", month);

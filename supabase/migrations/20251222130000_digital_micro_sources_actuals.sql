@@ -121,3 +121,4 @@ CREATE TRIGGER trg_sync_digital_sources_to_channel_totals
 AFTER INSERT OR UPDATE OR DELETE ON public.project_actuals_digital_sources
 FOR EACH ROW EXECUTE FUNCTION public.sync_digital_sources_to_channel_totals();
 
+
