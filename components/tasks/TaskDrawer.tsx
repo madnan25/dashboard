@@ -153,12 +153,17 @@ export function TaskDrawer({
     <div className="fixed inset-0 z-50">
       <button
         type="button"
-        className="absolute inset-0 bg-black/80 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/50 md:bg-black/40 backdrop-blur-[1px]"
         onClick={onClose}
         aria-label="Close"
       />
       <div className="absolute inset-x-0 bottom-0 md:inset-y-0 md:right-0 md:left-auto md:w-[520px] p-3 md:p-4">
-        <Surface className="max-h-[86vh] md:max-h-[calc(100vh-32px)] overflow-auto">
+        <Surface
+          className="max-h-[86vh] md:max-h-[calc(100vh-32px)] overflow-auto border border-white/15 bg-white/[0.03]"
+          style={{
+            boxShadow: "0 30px 90px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06)"
+          }}
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-lg font-semibold text-white/90">{isCreate ? "New task" : "Task"}</div>
