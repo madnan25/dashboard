@@ -72,8 +72,8 @@ export async function updateUserIsMarketingTeam(userId: string, isMarketing: boo
   return await repo().updateUserIsMarketingTeam(userId, isMarketing);
 }
 
-export async function updateUserMarketingTeamRole(userId: string, role: "member" | "manager"): Promise<void> {
-  return await repo().updateUserMarketingTeamRole(userId, role);
+export async function updateUserIsMarketingManager(userId: string, isManager: boolean): Promise<void> {
+  return await repo().updateUserIsMarketingManager(userId, isManager);
 }
 
 export async function listProjects(): Promise<Project[]> {

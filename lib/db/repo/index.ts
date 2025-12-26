@@ -17,8 +17,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     updateUserRole: (userId: string, role: Parameters<typeof profiles.updateUserRole>[2]) =>
       profiles.updateUserRole(supabase, userId, role),
     updateUserIsMarketingTeam: (userId: string, isMarketing: boolean) => profiles.updateUserIsMarketingTeam(supabase, userId, isMarketing),
-    updateUserMarketingTeamRole: (userId: string, role: "member" | "manager") =>
-      profiles.updateUserMarketingTeamRole(supabase, userId, role),
+    updateUserIsMarketingManager: (userId: string, isManager: boolean) => profiles.updateUserIsMarketingManager(supabase, userId, isManager),
 
     // projects
     listProjects: () => projects.listProjects(supabase),

@@ -6,7 +6,7 @@ import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { Surface } from "@/components/ds/Surface";
 import type { Profile, UserRole } from "@/lib/dashboardDb";
-import { cmoCreateUser, listProfiles, updateUserIsMarketingTeam, updateUserMarketingTeamRole, updateUserRole } from "@/lib/dashboardDb";
+import { cmoCreateUser, listProfiles, updateUserIsMarketingManager, updateUserIsMarketingTeam, updateUserRole } from "@/lib/dashboardDb";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "brand_manager", label: "Brand" },
@@ -83,15 +83,15 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
     }
   }
 
-  async function onChangeMarketingRole(userId: string, next: "member" | "manager") {
+  async function onToggleManager(userId: string, next: boolean) {
     onStatus("");
     try {
-      onStatus("Saving marketing role…");
-      await updateUserMarketingTeamRole(userId, next);
+      onStatus("Saving manager access…");
+      await updateUserIsMarketingManager(userId, next);
       await refresh();
-      onStatus("Marketing role updated.");
+      onStatus("Manager access updated.");
     } catch (e) {
-      onStatus(e instanceof Error ? e.message : "Failed to update marketing role");
+      onStatus(e instanceof Error ? e.message : "Failed to update manager access");
     }
   }
 
@@ -100,8 +100,8 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
     try {
       onStatus("Adding to marketing…");
       await updateUserIsMarketingTeam(userId, true);
-      // default: member
-      await updateUserMarketingTeamRole(userId, "member");
+      // default: manager access off (brand_manager/CMO are handled by role defaults)
+      await updateUserIsMarketingManager(userId, false);
       await refresh();
       onStatus("Added to marketing team.");
     } catch (e) {
@@ -189,6 +189,7 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                       const tasksBlocked = r.role === "sales_ops";
                       const planningBlocked = r.role === "viewer";
                       const readOnlyTasks = r.role === "viewer";
+                      const canToggleManager = !isCmo && !readOnlyTasks && r.role !== "sales_ops";
                       return (
                         <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -224,13 +225,13 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
 
                               <div className="w-[180px]">
                                 <PillSelect
-                                  value={isCmo ? "manager" : (r.marketing_team_role ?? "member")}
-                                  onChange={(next) => onChangeMarketingRole(r.id, next as "member" | "manager")}
-                                  ariaLabel="Marketing team role"
-                                  disabled={isCmo || readOnlyTasks}
+                                  value={(isCmo || r.role === "brand_manager") ? "yes" : (r.is_marketing_manager ? "yes" : "no")}
+                                  onChange={(next) => onToggleManager(r.id, next === "yes")}
+                                  ariaLabel="Manager capabilities"
+                                  disabled={!canToggleManager}
                                 >
-                                  <option value="member">Marketing: Member</option>
-                                  <option value="manager">Marketing: Manager</option>
+                                  <option value="no">Manager: Off</option>
+                                  <option value="yes">Manager: On</option>
                                 </PillSelect>
                               </div>
 

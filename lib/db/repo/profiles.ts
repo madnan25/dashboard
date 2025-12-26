@@ -13,7 +13,7 @@ export async function getCurrentProfile(supabase: SupabaseClient): Promise<Profi
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, full_name, email, is_marketing_team, marketing_team_role")
+    .select("id, role, full_name, email, is_marketing_team, is_marketing_manager")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;
@@ -29,7 +29,7 @@ export async function updateMyFullName(supabase: SupabaseClient, full_name: stri
 export async function listProfiles(supabase: SupabaseClient): Promise<Profile[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, full_name, email, is_marketing_team, marketing_team_role")
+    .select("id, role, full_name, email, is_marketing_team, is_marketing_manager")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data as Profile[]) ?? [];
@@ -45,7 +45,7 @@ export async function listProfilesByIds(supabase: SupabaseClient, ids: string[])
   if (unique.length === 0) return [];
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, full_name, email, is_marketing_team, marketing_team_role")
+    .select("id, role, full_name, email, is_marketing_team, is_marketing_manager")
     .in("id", unique);
   if (error) throw error;
   return (data as Profile[]) ?? [];
@@ -56,12 +56,12 @@ export async function updateUserIsMarketingTeam(supabase: SupabaseClient, userId
   if (error) throw error;
 }
 
-export async function updateUserMarketingTeamRole(
+export async function updateUserIsMarketingManager(
   supabase: SupabaseClient,
   userId: string,
-  role: "member" | "manager"
+  isManager: boolean
 ): Promise<void> {
-  const { error } = await supabase.from("profiles").update({ marketing_team_role: role }).eq("id", userId);
+  const { error } = await supabase.from("profiles").update({ is_marketing_manager: isManager }).eq("id", userId);
   if (error) throw error;
 }
 

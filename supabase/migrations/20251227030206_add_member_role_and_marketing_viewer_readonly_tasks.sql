@@ -60,29 +60,5 @@ FOR UPDATE TO authenticated
 USING (public.current_user_role() IN ('cmo','brand_manager','member') AND public.is_marketing_team())
 WITH CHECK (public.current_user_role() IN ('cmo','brand_manager','member') AND public.is_marketing_team());
 
--- Delete: only CMO or marketing managers who are active roles
-CREATE OR REPLACE FUNCTION public.is_marketing_manager()
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT (
-    public.current_user_role() = 'cmo'
-    OR (
-      public.current_user_role() IN ('brand_manager','member')
-      AND public.is_marketing_team()
-      AND EXISTS (
-        SELECT 1
-        FROM public.profiles p
-        WHERE p.id = auth.uid() AND p.is_marketing_team = true AND p.marketing_team_role = 'manager'
-      )
-    )
-  );
-$$;
-
-DROP POLICY IF EXISTS tasks_delete ON public.tasks;
-CREATE POLICY tasks_delete ON public.tasks
-FOR DELETE TO authenticated
-USING (public.is_marketing_manager());
+-- Delete policy is defined in later migrations.
 

@@ -8,7 +8,7 @@ export type Profile = {
   full_name: string | null;
   email: string | null;
   is_marketing_team?: boolean;
-  marketing_team_role?: "member" | "manager";
+  is_marketing_manager?: boolean;
 };
 
 export type Project = {
