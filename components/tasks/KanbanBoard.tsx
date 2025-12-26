@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import type { Profile, Project, Task, TaskStatus } from "@/lib/dashboardDb";
 import { PRIMARY_FLOW, SIDE_LANE, statusLabel } from "@/components/tasks/taskModel";
 import { TaskCard } from "@/components/tasks/TaskCard";
@@ -16,6 +17,7 @@ export function KanbanBoard({
   projects: Project[];
   onOpenTask: (t: Task) => void;
 }) {
+  const router = useRouter();
   const byStatus = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
     for (const s of [...PRIMARY_FLOW, ...SIDE_LANE]) map.set(s, []);
@@ -56,6 +58,7 @@ export function KanbanBoard({
                       assignee={assigneeFor(t)}
                       project={projectFor(t)}
                       onOpen={() => onOpenTask(t)}
+                      onHover={() => router.prefetch(`/tasks/${t.id}`)}
                     />
                   ))
                 )}

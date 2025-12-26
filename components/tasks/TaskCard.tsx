@@ -30,17 +30,20 @@ export function TaskCard({
   task,
   assignee,
   project,
-  onOpen
+  onOpen,
+  onHover
 }: {
   task: Task;
   assignee: Profile | null;
   project: Project | null;
   onOpen: () => void;
+  onHover?: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onOpen}
+      onMouseEnter={onHover}
       className="w-full text-left glass-inset rounded-2xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.03] hover:border-white/15 transition-colors px-4 py-3"
     >
       <div className="flex items-start justify-between gap-3">

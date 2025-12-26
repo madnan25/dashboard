@@ -64,7 +64,6 @@ export function TasksPage() {
     try {
       const created = await createTask({ title: t });
       setNewTitle("");
-      await refresh();
       router.push(`/tasks/${created.id}`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to create task");
@@ -158,16 +157,6 @@ export function TasksPage() {
                   </option>
                 ))}
               </PillSelect>
-              {canEdit ? (
-                <AppButton
-                  intent="primary"
-                  className="h-10 px-4"
-                  onPress={onQuickCreate}
-                  isDisabled={!newTitle.trim() || creating}
-                >
-                  {creating ? "Creating…" : "Create"}
-                </AppButton>
-              ) : null}
             </div>
           }
         />
@@ -183,16 +172,6 @@ export function TasksPage() {
                   </option>
                 ))}
               </PillSelect>
-              {canEdit ? (
-                <AppButton
-                  intent="primary"
-                  className="h-10 px-4"
-                  onPress={onQuickCreate}
-                  isDisabled={!newTitle.trim() || creating}
-                >
-                  {creating ? "Creating…" : "Create"}
-                </AppButton>
-              ) : null}
             </div>
           </Surface>
         </div>

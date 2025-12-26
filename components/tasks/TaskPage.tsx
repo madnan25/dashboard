@@ -25,6 +25,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   const [task, setTaskState] = useState<Task | null>(null);
   const [events, setEvents] = useState<TaskEvent[]>([]);
+  const [loadingTask, setLoadingTask] = useState(true);
 
   const isCmo = profile?.role === "cmo";
   const canEdit = profile?.role != null && profile.role !== "viewer";
@@ -43,6 +44,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
 
   async function refresh() {
+    setLoadingTask(true);
     try {
       setStatus("");
       const [t, ev] = await Promise.all([getTask(taskId), listTaskEvents(taskId)]);
@@ -60,6 +62,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
       }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to load task");
+    } finally {
+      setLoadingTask(false);
     }
   }
 
@@ -154,7 +158,40 @@ export function TaskPage({ taskId }: { taskId: string }) {
           </Surface>
         ) : null}
 
-        {!task ? (
+        {loadingTask ? (
+          <div className="grid gap-4 md:grid-cols-12">
+            <Surface className="md:col-span-7">
+              <div className="h-5 w-32 rounded bg-white/10 animate-pulse" />
+              <div className="mt-3 h-10 w-full rounded-2xl bg-white/5 animate-pulse" />
+              <div className="mt-3 h-24 w-full rounded-2xl bg-white/5 animate-pulse" />
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="h-10 w-full rounded-2xl bg-white/5 animate-pulse" />
+                <div className="h-10 w-full rounded-2xl bg-white/5 animate-pulse" />
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="h-10 w-full rounded-2xl bg-white/5 animate-pulse" />
+                <div className="h-10 w-full rounded-2xl bg-white/5 animate-pulse" />
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="h-10 w-full rounded-2xl bg-white/5 animate-pulse" />
+                <div className="h-10 w-full rounded-2xl bg-white/5 animate-pulse" />
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <div className="h-11 w-28 rounded-2xl bg-white/5 animate-pulse" />
+                <div className="h-11 w-36 rounded-2xl bg-white/10 animate-pulse" />
+              </div>
+            </Surface>
+            <Surface className="md:col-span-5">
+              <div className="h-5 w-24 rounded bg-white/10 animate-pulse" />
+              <div className="mt-3 h-4 w-44 rounded bg-white/5 animate-pulse" />
+              <div className="mt-4 space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-16 rounded-2xl bg-white/[0.03] border border-white/10 animate-pulse" />
+                ))}
+              </div>
+            </Surface>
+          </div>
+        ) : !task ? (
           <Surface>
             <div className="text-sm text-white/60">Task not found.</div>
             <div className="mt-3">
