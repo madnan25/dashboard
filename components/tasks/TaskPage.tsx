@@ -8,6 +8,7 @@ import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
 import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
+import { DayDatePicker } from "@/components/ds/DayDatePicker";
 import type { Profile, Project, Task, TaskApprovalState, TaskEvent, TaskPriority, TaskStatus } from "@/lib/dashboardDb";
 import { deleteTask, getCurrentProfile, getTask, listProfiles, listProjects, listTaskEvents, updateTask } from "@/lib/dashboardDb";
 import { PRIMARY_FLOW, SIDE_LANE, approvalLabel, priorityLabel, statusLabel } from "@/components/tasks/taskModel";
@@ -298,7 +299,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Due date (optional)</div>
-                    <AppInput type="date" value={dueAt} onValueChange={setDueAt} isDisabled={!canEdit} className="mt-2" />
+                    <div className="mt-2">
+                      <DayDatePicker
+                        value={dueAt}
+                        onChange={setDueAt}
+                        placeholder="Select due date"
+                        isDisabled={!canEdit}
+                        showClear
+                      />
+                    </div>
                   </div>
                 </div>
 

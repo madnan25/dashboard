@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/ds/KpiCard";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { AppButton } from "@/components/ds/AppButton";
 import { PillSelect } from "@/components/ds/PillSelect";
+import { DayDatePicker } from "@/components/ds/DayDatePicker";
 import { BackButton } from "@/components/nav/BackButton";
 import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
@@ -18,6 +19,7 @@ import { buildSnapshot } from "@/lib/digitalSnapshot";
 export default function DesignSystemPage() {
   const [year, setYear] = useState(2025);
   const [monthIndex, setMonthIndex] = useState(11);
+  const [exampleDue, setExampleDue] = useState("2025-12-28");
 
   const snapshot = useMemo(() => buildSnapshot(monthIndex, year), [monthIndex, year]);
 
@@ -94,6 +96,18 @@ export default function DesignSystemPage() {
                 setYear(next.year);
               }}
             />
+          </div>
+        </PageShell>
+
+        <PageShell>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-semibold text-white/90">DayDatePicker</div>
+              <div className="text-sm text-white/55">Native day-level date selection, styled for our dark glass UI.</div>
+            </div>
+            <div className="w-full max-w-[340px]">
+              <DayDatePicker value={exampleDue} onChange={setExampleDue} showClear />
+            </div>
           </div>
         </PageShell>
 
