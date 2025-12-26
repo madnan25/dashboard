@@ -8,9 +8,12 @@ export default async function HomePage() {
   const supabase = await createServerDbClient();
   const repo = createDashboardRepo(supabase);
   const profile = await repo.getCurrentProfile();
-  const planningDisabled = profile?.role === "viewer";
+  const planningDisabled = profile?.role === "viewer" || profile?.role === "member";
   const canSeeTasks =
-    profile?.role === "cmo" || (profile?.role != null && profile.role !== "sales_ops" && profile.is_marketing_team === true);
+    profile?.role === "cmo" ||
+    (profile?.role != null &&
+      profile.role !== "sales_ops" &&
+      (profile.role === "brand_manager" || profile.role === "member" || profile.is_marketing_team === true));
 
   return (
     <main className="min-h-screen px-4 md:px-6 pb-10">
@@ -28,14 +31,13 @@ export default async function HomePage() {
             description="Open a project to view Master + channel reports."
             meta="Browse active projects"
           />
-          {canSeeTasks ? (
-            <NavCard
-              href="/tasks"
-              title="Tasks"
-              description="A conveyor belt for execution. One card, one owner, one state."
-              meta="Kanban control surface"
-            />
-          ) : null}
+          <NavCard
+            href="/tasks"
+            title="Tasks"
+            description="A conveyor belt for execution. One card, one owner, one state."
+            meta={canSeeTasks ? "Kanban control surface" : "Marketing team only"}
+            isDisabled={!canSeeTasks}
+          />
           <NavCard
             href="/brand/data-entry"
             title="Planning & Actuals"

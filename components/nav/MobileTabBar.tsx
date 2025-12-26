@@ -13,6 +13,8 @@ function roleLabel(role: Profile["role"] | null) {
       return "CMO";
     case "brand_manager":
       return "Brand";
+    case "member":
+      return "Member";
     case "sales_ops":
       return "Sales";
     case "viewer":
@@ -76,10 +78,11 @@ export function MobileTabBar() {
   }, []);
 
   const isCmo = profile?.role === "cmo";
-  const canSeePlanning = profile?.role != null && profile.role !== "viewer";
-  const canSeeTasks =
+  const canSeePlanning = profile?.role != null && profile.role !== "viewer" && profile.role !== "member";
+  const canAccessTasks =
     profile?.role != null &&
-    (profile.role === "cmo" || (profile.role !== "sales_ops" && profile.is_marketing_team === true));
+    (profile.role === "cmo" ||
+      (profile.role !== "sales_ops" && (profile.role === "member" || profile.role === "brand_manager" || profile.is_marketing_team === true)));
 
   const tabs = useMemo(() => {
     const base: Array<
@@ -89,16 +92,27 @@ export function MobileTabBar() {
       { key: "home", href: "/", label: "Home", icon: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" },
       // Projects: grid
       { key: "projects", href: "/projects", label: "Projects", icon: "M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" },
-      ...(canSeeTasks
-        ? [
-            {
-              key: "tasks",
-              href: "/tasks",
-              label: "Tasks",
-              icon: "M8 7h12M8 12h12M8 17h12M4.5 7h.01M4.5 12h.01M4.5 17h.01"
-            }
-          ]
-        : []),
+      ...(profile?.role == null
+        ? []
+        : canAccessTasks
+          ? [
+              {
+                key: "tasks",
+                href: "/tasks",
+                label: "Tasks",
+                icon: "M8 7h12M8 12h12M8 17h12M4.5 7h.01M4.5 12h.01M4.5 17h.01"
+              }
+            ]
+          : [
+              {
+                key: "tasks",
+                href: "/tasks",
+                label: "Tasks",
+                icon: "M8 7h12M8 12h12M8 17h12M4.5 7h.01M4.5 12h.01M4.5 17h.01",
+                disabled: true,
+                title: profile.role === "sales_ops" ? "Tasks are not available for Sales Ops." : "Marketing team only."
+              }
+            ]),
       canSeePlanning
         // Planning: clipboard/checklist
         ? { key: "planning", href: "/brand/data-entry", label: "Planning", icon: "M9 4h6m-7 4h8M8 12h8M8 16h5M7 8h.01M7 12h.01M7 16h.01" }
@@ -114,12 +128,12 @@ export function MobileTabBar() {
     ];
 
     if (isCmo) {
-      const insertAt = canSeeTasks ? 4 : 3;
+      const insertAt = 4;
       base.splice(insertAt, 0, { key: "cmo", href: "/cmo/projects", label: "CMO", icon: "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" });
     }
 
     return base;
-  }, [canSeePlanning, canSeeTasks, isCmo]);
+  }, [canAccessTasks, canSeePlanning, isCmo, profile?.role]);
 
   // Hide on auth-only routes
   if (hide) return null;

@@ -14,6 +14,8 @@ function roleLabel(role: Profile["role"] | null) {
       return "CMO";
     case "brand_manager":
       return "Brand";
+    case "member":
+      return "Member";
     case "sales_ops":
       return "Sales Ops";
     case "viewer":
@@ -76,10 +78,11 @@ export function TopNav() {
 
   const isCmo = profile?.role === "cmo";
   // Avoid a "clickable for 1 second" flicker: until we know the role, don't render the link.
-  const canSeePlanning = profile?.role != null && profile.role !== "viewer";
-  const canSeeTasks =
+  const canSeePlanning = profile?.role != null && profile.role !== "viewer" && profile.role !== "member";
+  const canAccessTasks =
     profile?.role != null &&
-    (profile.role === "cmo" || (profile.role !== "sales_ops" && profile.is_marketing_team === true));
+    (profile.role === "cmo" ||
+      (profile.role !== "sales_ops" && (profile.role === "member" || profile.role === "brand_manager" || profile.is_marketing_team === true)));
 
   // Hide on auth-only routes
   if (pathname === "/login" || pathname.startsWith("/auth/")) return null;
@@ -132,7 +135,7 @@ export function TopNav() {
               >
                 Projects
               </Link>
-              {canSeeTasks ? (
+              {profile?.role == null ? null : canAccessTasks ? (
                 <Link
                   href="/tasks"
                   prefetch
@@ -141,7 +144,15 @@ export function TopNav() {
                 >
                   Tasks
                 </Link>
-              ) : null}
+              ) : (
+                <span
+                  className={`px-3 py-2 text-sm ${navPill} opacity-55 cursor-not-allowed`}
+                  aria-disabled="true"
+                  title={profile.role === "sales_ops" ? "Tasks are not available for Sales Ops." : "Marketing team only."}
+                >
+                  Tasks
+                </span>
+              )}
               {canSeePlanning ? (
                 <Link
                   href="/brand/data-entry"

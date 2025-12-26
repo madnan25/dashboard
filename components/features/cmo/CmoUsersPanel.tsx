@@ -10,6 +10,7 @@ import { cmoCreateUser, listProfiles, updateUserIsMarketingTeam, updateUserMarke
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "brand_manager", label: "Brand" },
+  { value: "member", label: "Member" },
   { value: "sales_ops", label: "Sales Ops" },
   { value: "viewer", label: "Viewer" },
   { value: "cmo", label: "CMO" }
@@ -164,8 +165,8 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
       <div className="mt-5 grid gap-3 md:grid-cols-12">
         <div className="md:col-span-7">
           {(() => {
-            const marketing = filtered.filter((r) => r.role === "cmo" || r.is_marketing_team);
-            const nonMarketing = filtered.filter((r) => !(r.role === "cmo" || r.is_marketing_team));
+            const marketing = filtered.filter((r) => r.role === "cmo" || r.role === "brand_manager" || r.role === "member" || r.is_marketing_team);
+            const nonMarketing = filtered.filter((r) => !(r.role === "cmo" || r.role === "brand_manager" || r.role === "member" || r.is_marketing_team));
 
             return (
               <div className="space-y-4">
@@ -187,6 +188,7 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                       const isCmo = r.role === "cmo";
                       const tasksBlocked = r.role === "sales_ops";
                       const planningBlocked = r.role === "viewer";
+                      const readOnlyTasks = r.role === "viewer";
                       return (
                         <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -201,6 +203,11 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                               ) : null}
                               {planningBlocked ? (
                                 <div className="mt-1 text-[11px] text-white/45">Planning & Actuals is disabled for Viewer (this is expected).</div>
+                              ) : null}
+                              {readOnlyTasks ? (
+                                <div className="mt-1 text-[11px] text-white/45">
+                                  Viewer + Marketing can view Tasks only. Set role to Member to work on Tasks.
+                                </div>
                               ) : null}
                             </div>
 
@@ -220,7 +227,7 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                                   value={isCmo ? "manager" : (r.marketing_team_role ?? "member")}
                                   onChange={(next) => onChangeMarketingRole(r.id, next as "member" | "manager")}
                                   ariaLabel="Marketing team role"
-                                  disabled={isCmo}
+                                  disabled={isCmo || readOnlyTasks}
                                 >
                                   <option value="member">Marketing: Member</option>
                                   <option value="manager">Marketing: Manager</option>
