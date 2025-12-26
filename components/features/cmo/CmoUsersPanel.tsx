@@ -23,6 +23,7 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
   const [rows, setRows] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [showNonMarketing, setShowNonMarketing] = useState(false);
 
   const [createEmail, setCreateEmail] = useState("");
   const [createName, setCreateName] = useState("");
@@ -93,6 +94,32 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
     }
   }
 
+  async function onAddToMarketing(userId: string) {
+    onStatus("");
+    try {
+      onStatus("Adding to marketing…");
+      await updateUserIsMarketingTeam(userId, true);
+      // default: member
+      await updateUserMarketingTeamRole(userId, "member");
+      await refresh();
+      onStatus("Added to marketing team.");
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : "Failed to add to marketing");
+    }
+  }
+
+  async function onRemoveFromMarketing(userId: string) {
+    onStatus("");
+    try {
+      onStatus("Removing from marketing…");
+      await updateUserIsMarketingTeam(userId, false);
+      await refresh();
+      onStatus("Removed from marketing team.");
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : "Failed to remove from marketing");
+    }
+  }
+
   async function onCreate() {
     const email = createEmail.trim();
     if (!email) return;
@@ -136,61 +163,150 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
 
       <div className="mt-5 grid gap-3 md:grid-cols-12">
         <div className="md:col-span-7">
-          <div className="text-sm text-white/65">{loading ? "Loading users…" : `${filtered.length} user(s)`}</div>
-          <div className="mt-3 space-y-2">
-            {filtered.map((r) => (
-              <div key={r.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-[220px]">
-                    <div className="text-sm font-semibold text-white/90">{r.full_name?.trim() || "—"}</div>
-                    <div className="mt-1 text-xs text-white/55">{r.email ?? "No email yet (backfill needed)"}</div>
-                    <div className="mt-1 text-[11px] text-white/35">ID: {r.id.slice(0, 8)}…</div>
+          {(() => {
+            const marketing = filtered.filter((r) => r.role === "cmo" || r.is_marketing_team);
+            const nonMarketing = filtered.filter((r) => !(r.role === "cmo" || r.is_marketing_team));
+
+            return (
+              <div className="space-y-4">
+                <div className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white/85">Marketing team</div>
+                      <div className="mt-1 text-xs text-white/55">
+                        Members who can access Tasks. Managers can delete tasks.
+                      </div>
+                    </div>
+                    <div className="text-xs text-white/55 tabular-nums">
+                      {loading ? "Loading…" : `${marketing.length} member(s)`}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="w-[160px]">
-                      <PillSelect
-                        value={r.role}
-                        onChange={(next) => onChangeRole(r.id, next as UserRole)}
-                        ariaLabel="User role"
-                      >
-                        {ROLE_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </PillSelect>
-                    </div>
-                    <div className="w-[180px]">
-                      <PillSelect
-                        value={(r.is_marketing_team ?? false) ? "yes" : "no"}
-                        onChange={(next) => onToggleMarketingTeam(r.id, next === "yes")}
-                        ariaLabel="Marketing team membership"
-                      >
-                        <option value="no">Marketing: Off</option>
-                        <option value="yes">Marketing: On</option>
-                      </PillSelect>
-                    </div>
-                    {r.is_marketing_team ? (
-                      <div className="w-[180px]">
-                        <PillSelect
-                          value={r.role === "cmo" ? "manager" : (r.marketing_team_role ?? "member")}
-                          onChange={(next) => onChangeMarketingRole(r.id, next as "member" | "manager")}
-                          ariaLabel="Marketing team role"
-                          disabled={r.role === "cmo"}
-                        >
-                          <option value="member">Marketing: Member</option>
-                          <option value="manager">Marketing: Manager</option>
-                        </PillSelect>
-                      </div>
+                  <div className="mt-3 space-y-2">
+                    {marketing.map((r) => {
+                      const isCmo = r.role === "cmo";
+                      const lockedOut = r.role === "viewer" || r.role === "sales_ops";
+                      return (
+                        <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="min-w-[220px]">
+                              <div className="text-sm font-semibold text-white/90">{r.full_name?.trim() || "—"}</div>
+                              <div className="mt-1 text-xs text-white/55">{r.email ?? "No email yet (backfill needed)"}</div>
+                              <div className="mt-1 text-[11px] text-white/35">ID: {r.id.slice(0, 8)}…</div>
+                              {lockedOut ? (
+                                <div className="mt-2 text-[11px] text-amber-200/80">
+                                  Note: this app role can’t access Tasks even if Marketing is on. Change role from Viewer/Sales Ops.
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="w-[160px]">
+                                <PillSelect value={r.role} onChange={(next) => onChangeRole(r.id, next as UserRole)} ariaLabel="User role">
+                                  {ROLE_OPTIONS.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </PillSelect>
+                              </div>
+
+                              <div className="w-[180px]">
+                                <PillSelect
+                                  value={isCmo ? "manager" : (r.marketing_team_role ?? "member")}
+                                  onChange={(next) => onChangeMarketingRole(r.id, next as "member" | "manager")}
+                                  ariaLabel="Marketing team role"
+                                  disabled={isCmo}
+                                >
+                                  <option value="member">Marketing: Member</option>
+                                  <option value="manager">Marketing: Manager</option>
+                                </PillSelect>
+                              </div>
+
+                              <AppButton
+                                intent={isCmo ? "secondary" : "danger"}
+                                size="sm"
+                                className="h-10 px-4 whitespace-nowrap"
+                                onPress={() => onRemoveFromMarketing(r.id)}
+                                isDisabled={isCmo}
+                              >
+                                Remove
+                              </AppButton>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {!loading && marketing.length === 0 ? (
+                      <div className="text-sm text-white/60">No marketing members found.</div>
                     ) : null}
                   </div>
                 </div>
-              </div>
-            ))}
 
-            {!loading && filtered.length === 0 ? <div className="text-sm text-white/60">No users found.</div> : null}
-          </div>
+                <div className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white/85">Not in marketing</div>
+                      <div className="mt-1 text-xs text-white/55">Collapsed by default to keep this screen focused.</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs text-white/55 tabular-nums">{loading ? "Loading…" : `${nonMarketing.length} user(s)`}</div>
+                      <AppButton
+                        intent="secondary"
+                        size="sm"
+                        className="h-10 px-4 whitespace-nowrap"
+                        onPress={() => setShowNonMarketing((v) => !v)}
+                        isDisabled={loading}
+                      >
+                        {showNonMarketing ? "Hide" : "Show"}
+                      </AppButton>
+                    </div>
+                  </div>
+
+                  {showNonMarketing ? (
+                    <div className="mt-3 space-y-2">
+                      {nonMarketing.map((r) => (
+                        <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="min-w-[220px]">
+                              <div className="text-sm font-semibold text-white/90">{r.full_name?.trim() || "—"}</div>
+                              <div className="mt-1 text-xs text-white/55">{r.email ?? "No email yet (backfill needed)"}</div>
+                              <div className="mt-1 text-[11px] text-white/35">ID: {r.id.slice(0, 8)}…</div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="w-[160px]">
+                                <PillSelect value={r.role} onChange={(next) => onChangeRole(r.id, next as UserRole)} ariaLabel="User role">
+                                  {ROLE_OPTIONS.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </PillSelect>
+                              </div>
+                              <AppButton
+                                intent="primary"
+                                size="sm"
+                                className="h-10 px-4 whitespace-nowrap"
+                                onPress={() => onAddToMarketing(r.id)}
+                              >
+                                Add to marketing
+                              </AppButton>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {!loading && nonMarketing.length === 0 ? <div className="text-sm text-white/60">No users found.</div> : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                {!loading && filtered.length === 0 ? <div className="text-sm text-white/60">No users found.</div> : null}
+              </div>
+            );
+          })()}
         </div>
 
         <div className="md:col-span-5">
