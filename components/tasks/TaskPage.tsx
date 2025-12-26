@@ -30,7 +30,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   const isCmo = profile?.role === "cmo";
   const canEdit = profile?.role != null && profile.role !== "viewer";
-  const canDelete = profile?.role === "cmo" || profile?.can_manage_tasks === true;
+  const canDelete = profile?.role === "cmo" || (profile?.is_marketing_team === true && profile?.marketing_team_role === "manager");
   const canSeeTasks =
     profile?.role != null &&
     (profile.role === "cmo" || (profile.role !== "viewer" && profile.role !== "sales_ops" && profile.is_marketing_team === true));

@@ -45,11 +45,11 @@ FOR UPDATE TO authenticated
 USING (public.is_marketing_team() AND public.current_user_role() IS DISTINCT FROM 'viewer')
 WITH CHECK (public.is_marketing_team() AND public.current_user_role() IS DISTINCT FROM 'viewer');
 
--- Delete remains: must be marketing team + can_manage_tasks()
+-- Delete policy is further tightened in a later migration.
 DROP POLICY IF EXISTS tasks_delete ON public.tasks;
 CREATE POLICY tasks_delete ON public.tasks
 FOR DELETE TO authenticated
-USING (public.is_marketing_team() AND public.can_manage_tasks());
+USING (public.is_marketing_team());
 
 -- Tighten task events read to marketing team only
 DROP POLICY IF EXISTS task_events_select ON public.task_events;

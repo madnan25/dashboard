@@ -6,7 +6,7 @@ import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { Surface } from "@/components/ds/Surface";
 import type { Profile, UserRole } from "@/lib/dashboardDb";
-import { cmoCreateUser, listProfiles, updateUserCanManageTasks, updateUserIsMarketingTeam, updateUserRole } from "@/lib/dashboardDb";
+import { cmoCreateUser, listProfiles, updateUserIsMarketingTeam, updateUserMarketingTeamRole, updateUserRole } from "@/lib/dashboardDb";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "brand_manager", label: "Brand" },
@@ -69,18 +69,6 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
     }
   }
 
-  async function onToggleTaskAdmin(userId: string, canManage: boolean) {
-    onStatus("");
-    try {
-      onStatus("Saving permissions…");
-      await updateUserCanManageTasks(userId, canManage);
-      await refresh();
-      onStatus("Permissions updated.");
-    } catch (e) {
-      onStatus(e instanceof Error ? e.message : "Failed to update permissions");
-    }
-  }
-
   async function onToggleMarketingTeam(userId: string, isMarketing: boolean) {
     onStatus("");
     try {
@@ -90,6 +78,18 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
       onStatus("Marketing team updated.");
     } catch (e) {
       onStatus(e instanceof Error ? e.message : "Failed to update marketing team");
+    }
+  }
+
+  async function onChangeMarketingRole(userId: string, next: "member" | "manager") {
+    onStatus("");
+    try {
+      onStatus("Saving marketing role…");
+      await updateUserMarketingTeamRole(userId, next);
+      await refresh();
+      onStatus("Marketing role updated.");
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : "Failed to update marketing role");
     }
   }
 
@@ -171,16 +171,19 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                         <option value="yes">Marketing: On</option>
                       </PillSelect>
                     </div>
-                    <div className="w-[180px]">
-                      <PillSelect
-                        value={(r.can_manage_tasks ?? false) ? "yes" : "no"}
-                        onChange={(next) => onToggleTaskAdmin(r.id, next === "yes")}
-                        ariaLabel="Task admin permission"
-                      >
-                        <option value="no">Tasks: No delete</option>
-                        <option value="yes">Tasks: Can delete</option>
-                      </PillSelect>
-                    </div>
+                    {r.is_marketing_team ? (
+                      <div className="w-[180px]">
+                        <PillSelect
+                          value={r.role === "cmo" ? "manager" : (r.marketing_team_role ?? "member")}
+                          onChange={(next) => onChangeMarketingRole(r.id, next as "member" | "manager")}
+                          ariaLabel="Marketing team role"
+                          disabled={r.role === "cmo"}
+                        >
+                          <option value="member">Marketing: Member</option>
+                          <option value="manager">Marketing: Manager</option>
+                        </PillSelect>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -68,12 +68,12 @@ export async function updateUserRole(userId: string, role: UserRole): Promise<vo
   return await repo().updateUserRole(userId, role);
 }
 
-export async function updateUserCanManageTasks(userId: string, canManage: boolean): Promise<void> {
-  return await repo().updateUserCanManageTasks(userId, canManage);
-}
-
 export async function updateUserIsMarketingTeam(userId: string, isMarketing: boolean): Promise<void> {
   return await repo().updateUserIsMarketingTeam(userId, isMarketing);
+}
+
+export async function updateUserMarketingTeamRole(userId: string, role: "member" | "manager"): Promise<void> {
+  return await repo().updateUserMarketingTeamRole(userId, role);
 }
 
 export async function listProjects(): Promise<Project[]> {
