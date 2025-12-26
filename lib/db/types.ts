@@ -158,6 +158,31 @@ export type TaskPointsLedgerEntry = {
   created_at: string;
 };
 
+export type TaskContributionRole = "primary" | "secondary" | "coordinator";
+
+export type TaskContribution = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  role: TaskContributionRole;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskSubtaskStatus = "todo" | "in_progress" | "done" | "dropped";
+
+export type TaskSubtask = {
+  id: string;
+  task_id: string;
+  title: string;
+  status: TaskSubtaskStatus;
+  assignee_id: string | null;
+  due_at: string | null; // date
+  effort_points: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TaskEvent = {
   id: string;
   task_id: string;

@@ -1,5 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Task, TaskApprovalState, TaskPriority, TaskStatus, TaskEvent, TaskPointsLedgerEntry, TaskWeightConfig } from "@/lib/db/types";
+import type {
+  Task,
+  TaskApprovalState,
+  TaskPriority,
+  TaskStatus,
+  TaskEvent,
+  TaskPointsLedgerEntry,
+  TaskWeightConfig,
+  TaskContribution,
+  TaskContributionRole,
+  TaskSubtask,
+  TaskSubtaskStatus
+} from "@/lib/db/types";
 
 export type ListTasksFilters = {
   statuses?: TaskStatus[];
@@ -119,5 +131,84 @@ export async function listTaskEvents(supabase: SupabaseClient, taskId: string): 
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data as TaskEvent[]) ?? [];
+}
+
+export async function listTaskContributions(supabase: SupabaseClient, taskId: string): Promise<TaskContribution[]> {
+  const { data, error } = await supabase
+    .from("task_contributions")
+    .select("id, task_id, user_id, role, created_at, updated_at")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data as TaskContribution[]) ?? [];
+}
+
+export async function upsertTaskContributions(
+  supabase: SupabaseClient,
+  taskId: string,
+  entries: Array<{ role: TaskContributionRole; user_id: string }>
+): Promise<void> {
+  const payload = entries.map((e) => ({ task_id: taskId, role: e.role, user_id: e.user_id }));
+  const { error } = await supabase.from("task_contributions").upsert(payload, { onConflict: "task_id,role" });
+  if (error) throw error;
+}
+
+export async function deleteTaskContributionByRole(
+  supabase: SupabaseClient,
+  taskId: string,
+  role: TaskContributionRole
+): Promise<void> {
+  const { error } = await supabase.from("task_contributions").delete().eq("task_id", taskId).eq("role", role);
+  if (error) throw error;
+}
+
+export async function listTaskSubtasks(supabase: SupabaseClient, taskId: string): Promise<TaskSubtask[]> {
+  const { data, error } = await supabase
+    .from("task_subtasks")
+    .select("id, task_id, title, status, assignee_id, due_at, effort_points, created_at, updated_at")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data as TaskSubtask[]) ?? [];
+}
+
+export type CreateTaskSubtaskInput = {
+  task_id: string;
+  title: string;
+  status?: TaskSubtaskStatus;
+  assignee_id?: string | null;
+  due_at?: string | null;
+  effort_points?: number;
+};
+
+export async function createTaskSubtask(supabase: SupabaseClient, input: CreateTaskSubtaskInput): Promise<TaskSubtask> {
+  const { data, error } = await supabase
+    .from("task_subtasks")
+    .insert({
+      task_id: input.task_id,
+      title: input.title,
+      status: input.status ?? "todo",
+      assignee_id: input.assignee_id ?? null,
+      due_at: input.due_at ?? null,
+      effort_points: Math.max(0, Math.trunc(input.effort_points ?? 0))
+    })
+    .select("id, task_id, title, status, assignee_id, due_at, effort_points, created_at, updated_at")
+    .single();
+  if (error) throw error;
+  return data as TaskSubtask;
+}
+
+export async function updateTaskSubtask(
+  supabase: SupabaseClient,
+  id: string,
+  patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "due_at" | "effort_points">>
+): Promise<void> {
+  const { error } = await supabase.from("task_subtasks").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteTaskSubtask(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("task_subtasks").delete().eq("id", id);
+  if (error) throw error;
 }
 

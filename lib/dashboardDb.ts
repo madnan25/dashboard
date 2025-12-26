@@ -21,10 +21,14 @@ export type {
   ProjectTargets,
   Task,
   TaskApprovalState,
+  TaskContribution,
+  TaskContributionRole,
   TaskEvent,
   TaskPointsLedgerEntry,
   TaskPriority,
   TaskStatus,
+  TaskSubtask,
+  TaskSubtaskStatus,
   TaskWeightConfig,
   TaskWeightTier,
   UserRole
@@ -41,9 +45,13 @@ import type {
   ProjectActualsDigitalSource,
   ProjectTargets,
   Task,
+  TaskContribution,
+  TaskContributionRole,
   TaskEvent,
   TaskPointsLedgerEntry,
   TaskWeightConfig,
+  TaskSubtask,
+  TaskSubtaskStatus,
   UserRole
 } from "@/lib/db/types";
 
@@ -228,6 +236,47 @@ export async function updateTaskWeightConfig(patch: Partial<TaskWeightConfig>): 
 
 export async function listTaskPointsLedger(filters?: { userId?: string; weekStart?: string }): Promise<TaskPointsLedgerEntry[]> {
   return await repo().listTaskPointsLedger(filters);
+}
+
+export async function listTaskContributions(taskId: string): Promise<TaskContribution[]> {
+  return await repo().listTaskContributions(taskId);
+}
+
+export async function upsertTaskContributions(
+  taskId: string,
+  entries: Array<{ role: TaskContributionRole; user_id: string }>
+): Promise<void> {
+  return await repo().upsertTaskContributions(taskId, entries);
+}
+
+export async function deleteTaskContributionByRole(taskId: string, role: TaskContributionRole): Promise<void> {
+  return await repo().deleteTaskContributionByRole(taskId, role);
+}
+
+export async function listTaskSubtasks(taskId: string): Promise<TaskSubtask[]> {
+  return await repo().listTaskSubtasks(taskId);
+}
+
+export async function createTaskSubtask(input: {
+  task_id: string;
+  title: string;
+  status?: TaskSubtaskStatus;
+  assignee_id?: string | null;
+  due_at?: string | null;
+  effort_points?: number;
+}): Promise<TaskSubtask> {
+  return await repo().createTaskSubtask(input);
+}
+
+export async function updateTaskSubtask(
+  id: string,
+  patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "due_at" | "effort_points">>
+): Promise<void> {
+  return await repo().updateTaskSubtask(id, patch);
+}
+
+export async function deleteTaskSubtask(id: string): Promise<void> {
+  return await repo().deleteTaskSubtask(id);
 }
 
 export async function cmoCreateUser(input: { email: string; role: UserRole; full_name?: string | null }): Promise<{ userId: string }> {

@@ -65,7 +65,18 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     // tasks scoring
     getTaskWeightConfig: () => tasks.getTaskWeightConfig(supabase),
     updateTaskWeightConfig: (patch: Parameters<typeof tasks.updateTaskWeightConfig>[1]) => tasks.updateTaskWeightConfig(supabase, patch),
-    listTaskPointsLedger: (filters?: Parameters<typeof tasks.listTaskPointsLedger>[1]) => tasks.listTaskPointsLedger(supabase, filters)
+    listTaskPointsLedger: (filters?: Parameters<typeof tasks.listTaskPointsLedger>[1]) => tasks.listTaskPointsLedger(supabase, filters),
+
+    // tasks collaboration
+    listTaskContributions: (taskId: string) => tasks.listTaskContributions(supabase, taskId),
+    upsertTaskContributions: (taskId: string, entries: Parameters<typeof tasks.upsertTaskContributions>[2]) =>
+      tasks.upsertTaskContributions(supabase, taskId, entries),
+    deleteTaskContributionByRole: (taskId: string, role: Parameters<typeof tasks.deleteTaskContributionByRole>[2]) =>
+      tasks.deleteTaskContributionByRole(supabase, taskId, role),
+    listTaskSubtasks: (taskId: string) => tasks.listTaskSubtasks(supabase, taskId),
+    createTaskSubtask: (input: Parameters<typeof tasks.createTaskSubtask>[1]) => tasks.createTaskSubtask(supabase, input),
+    updateTaskSubtask: (id: string, patch: Parameters<typeof tasks.updateTaskSubtask>[2]) => tasks.updateTaskSubtask(supabase, id, patch),
+    deleteTaskSubtask: (id: string) => tasks.deleteTaskSubtask(supabase, id)
   };
 }
 
