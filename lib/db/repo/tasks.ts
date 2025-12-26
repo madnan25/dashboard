@@ -68,6 +68,23 @@ export async function updateTask(supabase: SupabaseClient, id: string, patch: Up
   if (error) throw error;
 }
 
+export async function getTask(supabase: SupabaseClient, id: string): Promise<Task | null> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, created_by, created_at, updated_at"
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Task | null) ?? null;
+}
+
+export async function deleteTask(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function listTaskEvents(supabase: SupabaseClient, taskId: string): Promise<TaskEvent[]> {
   const { data, error } = await supabase
     .from("task_events")

@@ -11,7 +11,7 @@ export async function getCurrentProfile(supabase: SupabaseClient): Promise<Profi
   const userId = await requireUserId(supabase).catch(() => null);
   if (!userId) return null;
 
-  const { data, error } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("id, role, full_name, email, can_manage_tasks").eq("id", userId).maybeSingle();
   if (error) throw error;
   return (data as Profile | null) ?? null;
 }
@@ -25,7 +25,7 @@ export async function updateMyFullName(supabase: SupabaseClient, full_name: stri
 export async function listProfiles(supabase: SupabaseClient): Promise<Profile[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, full_name, email")
+    .select("id, role, full_name, email, can_manage_tasks")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data as Profile[]) ?? [];
@@ -39,8 +39,13 @@ export async function updateUserRole(supabase: SupabaseClient, userId: string, r
 export async function listProfilesByIds(supabase: SupabaseClient, ids: string[]): Promise<Profile[]> {
   const unique = Array.from(new Set(ids.filter(Boolean)));
   if (unique.length === 0) return [];
-  const { data, error } = await supabase.from("profiles").select("id, role, full_name, email").in("id", unique);
+  const { data, error } = await supabase.from("profiles").select("id, role, full_name, email, can_manage_tasks").in("id", unique);
   if (error) throw error;
   return (data as Profile[]) ?? [];
+}
+
+export async function updateUserCanManageTasks(supabase: SupabaseClient, userId: string, canManage: boolean): Promise<void> {
+  const { error } = await supabase.from("profiles").update({ can_manage_tasks: canManage }).eq("id", userId);
+  if (error) throw error;
 }
 

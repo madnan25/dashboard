@@ -16,6 +16,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     listProfilesByIds: (ids: string[]) => profiles.listProfilesByIds(supabase, ids),
     updateUserRole: (userId: string, role: Parameters<typeof profiles.updateUserRole>[2]) =>
       profiles.updateUserRole(supabase, userId, role),
+    updateUserCanManageTasks: (userId: string, canManage: boolean) => profiles.updateUserCanManageTasks(supabase, userId, canManage),
 
     // projects
     listProjects: () => projects.listProjects(supabase),
@@ -56,6 +57,8 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     listTasks: (filters?: Parameters<typeof tasks.listTasks>[1]) => tasks.listTasks(supabase, filters),
     createTask: (input: Parameters<typeof tasks.createTask>[1]) => tasks.createTask(supabase, input),
     updateTask: (id: string, patch: Parameters<typeof tasks.updateTask>[2]) => tasks.updateTask(supabase, id, patch),
+    getTask: (id: string) => tasks.getTask(supabase, id),
+    deleteTask: (id: string) => tasks.deleteTask(supabase, id),
     listTaskEvents: (taskId: string) => tasks.listTaskEvents(supabase, taskId)
   };
 }

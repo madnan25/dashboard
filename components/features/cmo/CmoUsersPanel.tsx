@@ -6,7 +6,7 @@ import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { Surface } from "@/components/ds/Surface";
 import type { Profile, UserRole } from "@/lib/dashboardDb";
-import { cmoCreateUser, listProfiles, updateUserRole } from "@/lib/dashboardDb";
+import { cmoCreateUser, listProfiles, updateUserCanManageTasks, updateUserRole } from "@/lib/dashboardDb";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "brand_manager", label: "Brand" },
@@ -66,6 +66,18 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
       onStatus("Role updated.");
     } catch (e) {
       onStatus(e instanceof Error ? e.message : "Failed to update role");
+    }
+  }
+
+  async function onToggleTaskAdmin(userId: string, canManage: boolean) {
+    onStatus("");
+    try {
+      onStatus("Saving permissions…");
+      await updateUserCanManageTasks(userId, canManage);
+      await refresh();
+      onStatus("Permissions updated.");
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : "Failed to update permissions");
     }
   }
 
@@ -135,6 +147,16 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                             {opt.label}
                           </option>
                         ))}
+                      </PillSelect>
+                    </div>
+                    <div className="w-[180px]">
+                      <PillSelect
+                        value={(r.can_manage_tasks ?? false) ? "yes" : "no"}
+                        onChange={(next) => onToggleTaskAdmin(r.id, next === "yes")}
+                        ariaLabel="Task admin permission"
+                      >
+                        <option value="no">Tasks: No delete</option>
+                        <option value="yes">Tasks: Can delete</option>
                       </PillSelect>
                     </div>
                   </div>

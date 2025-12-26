@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
-import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 import type { Profile, Project, Task } from "@/lib/dashboardDb";
-import { getCurrentProfile, listProfiles, listProjects, listTasks } from "@/lib/dashboardDb";
+import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks } from "@/lib/dashboardDb";
 import { endOfWeek, isoDate, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 
 type View = "board" | "with_me" | "blocked" | "delivery";
@@ -27,6 +27,7 @@ function labelForView(v: View) {
 }
 
 export function TasksPage() {
+  const router = useRouter();
   const [status, setStatus] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -38,10 +39,8 @@ export function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>(""); // ""=all
   const [projectFilter, setProjectFilter] = useState<string>(""); // ""=all
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<{ kind: "create"; defaults?: Partial<Task> } | { kind: "edit"; task: Task }>({
-    kind: "create"
-  });
+  const [newTitle, setNewTitle] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const isCmo = profile?.role === "cmo";
   const canEdit = profile?.role != null && profile.role !== "viewer";
@@ -53,6 +52,24 @@ export function TasksPage() {
       setTasks(rows);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to load tasks");
+    }
+  }
+
+  async function onQuickCreate() {
+    const t = newTitle.trim();
+    if (!t) return;
+    if (!canEdit) return;
+    setCreating(true);
+    setStatus("");
+    try {
+      const created = await createTask({ title: t });
+      setNewTitle("");
+      await refresh();
+      router.push(`/tasks/${created.id}`);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to create task");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -145,12 +162,10 @@ export function TasksPage() {
                 <AppButton
                   intent="primary"
                   className="h-10 px-4"
-                  onPress={() => {
-                    setDrawerMode({ kind: "create" });
-                    setDrawerOpen(true);
-                  }}
+                  onPress={onQuickCreate}
+                  isDisabled={!newTitle.trim() || creating}
                 >
-                  New task
+                  {creating ? "Creating…" : "Create"}
                 </AppButton>
               ) : null}
             </div>
@@ -172,12 +187,10 @@ export function TasksPage() {
                 <AppButton
                   intent="primary"
                   className="h-10 px-4"
-                  onPress={() => {
-                    setDrawerMode({ kind: "create" });
-                    setDrawerOpen(true);
-                  }}
+                  onPress={onQuickCreate}
+                  isDisabled={!newTitle.trim() || creating}
                 >
-                  New task
+                  {creating ? "Creating…" : "Create"}
                 </AppButton>
               ) : null}
             </div>
@@ -185,6 +198,27 @@ export function TasksPage() {
         </div>
 
         <Surface>
+          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="text-xs uppercase tracking-widest text-white/45">New task</div>
+            <div className="text-xs text-white/45">Create then open the ticket to manage it.</div>
+          </div>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <div className="flex-1">
+              <input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                disabled={!canEdit || creating}
+                placeholder="e.g. V3 Reel – Construction Speed"
+                className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
+              />
+            </div>
+            <AppButton intent="primary" className="h-11 px-6" onPress={onQuickCreate} isDisabled={!canEdit || creating || !newTitle.trim()}>
+              {creating ? "Creating…" : "Create task"}
+            </AppButton>
+          </div>
+
+          <div className="my-5 h-px bg-white/10" />
+
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="text-sm text-white/60">{status || " "}</div>
             <div className="flex flex-wrap items-center gap-2">
@@ -245,22 +279,10 @@ export function TasksPage() {
             profiles={profiles}
             projects={projects}
             onOpenTask={(t) => {
-              setDrawerMode({ kind: "edit", task: t });
-              setDrawerOpen(true);
+              router.push(`/tasks/${t.id}`);
             }}
           />
         </Surface>
-
-        <TaskDrawer
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          mode={drawerMode}
-          profiles={profiles}
-          projects={projects}
-          isCmo={!!isCmo}
-          canEdit={!!canEdit}
-          onSaved={refresh}
-        />
       </div>
     </main>
   );

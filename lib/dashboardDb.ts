@@ -68,6 +68,10 @@ export async function updateUserRole(userId: string, role: UserRole): Promise<vo
   return await repo().updateUserRole(userId, role);
 }
 
+export async function updateUserCanManageTasks(userId: string, canManage: boolean): Promise<void> {
+  return await repo().updateUserCanManageTasks(userId, canManage);
+}
+
 export async function listProjects(): Promise<Project[]> {
   return await repo().listProjects();
 }
@@ -191,6 +195,14 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
 
 export async function updateTask(taskId: string, patch: UpdateTaskPatch): Promise<void> {
   return await repo().updateTask(taskId, patch);
+}
+
+export async function getTask(taskId: string): Promise<Task | null> {
+  return await repo().getTask(taskId);
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  return await repo().deleteTask(taskId);
 }
 
 export async function listTaskEvents(taskId: string): Promise<TaskEvent[]> {
