@@ -183,6 +183,55 @@ export type TaskSubtask = {
   updated_at: string;
 };
 
+export type TaskFlowApproverKind = "marketing_manager" | "user";
+export type TaskFlowStepStatus = "pending" | "approved";
+
+export type TaskFlowTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskFlowTemplateStep = {
+  id: string;
+  template_id: string;
+  step_order: number;
+  step_key: string;
+  label: string;
+  approver_kind: TaskFlowApproverKind;
+  approver_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskFlowInstance = {
+  id: string;
+  task_id: string;
+  template_id: string | null;
+  current_step_order: number;
+  is_overridden: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskFlowStepInstance = {
+  id: string;
+  flow_instance_id: string;
+  step_order: number;
+  step_key: string;
+  label: string;
+  approver_user_id: string | null;
+  status: TaskFlowStepStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TaskEvent = {
   id: string;
   task_id: string;

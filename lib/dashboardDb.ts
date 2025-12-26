@@ -24,6 +24,12 @@ export type {
   TaskContribution,
   TaskContributionRole,
   TaskEvent,
+  TaskFlowApproverKind,
+  TaskFlowInstance,
+  TaskFlowStepInstance,
+  TaskFlowStepStatus,
+  TaskFlowTemplate,
+  TaskFlowTemplateStep,
   TaskPointsLedgerEntry,
   TaskPriority,
   TaskStatus,
@@ -48,6 +54,10 @@ import type {
   TaskContribution,
   TaskContributionRole,
   TaskEvent,
+  TaskFlowInstance,
+  TaskFlowStepInstance,
+  TaskFlowTemplate,
+  TaskFlowTemplateStep,
   TaskPointsLedgerEntry,
   TaskWeightConfig,
   TaskSubtask,
@@ -277,6 +287,59 @@ export async function updateTaskSubtask(
 
 export async function deleteTaskSubtask(id: string): Promise<void> {
   return await repo().deleteTaskSubtask(id);
+}
+
+export async function listTaskFlowTemplates(): Promise<TaskFlowTemplate[]> {
+  return await repo().listTaskFlowTemplates();
+}
+
+export async function listTaskFlowTemplateSteps(templateId: string): Promise<TaskFlowTemplateStep[]> {
+  return await repo().listTaskFlowTemplateSteps(templateId);
+}
+
+export async function createTaskFlowTemplate(input: { name: string; description?: string | null }): Promise<TaskFlowTemplate> {
+  return await repo().createTaskFlowTemplate(input);
+}
+
+export async function updateTaskFlowTemplate(id: string, patch: { name?: string; description?: string | null }): Promise<void> {
+  return await repo().updateTaskFlowTemplate(id, patch);
+}
+
+export async function deleteTaskFlowTemplate(id: string): Promise<void> {
+  return await repo().deleteTaskFlowTemplate(id);
+}
+
+export async function replaceTaskFlowTemplateSteps(
+  templateId: string,
+  steps: Array<{
+    step_order: number;
+    step_key: string;
+    label: string;
+    approver_kind: "marketing_manager" | "user";
+    approver_user_id: string | null;
+  }>
+): Promise<void> {
+  return await repo().replaceTaskFlowTemplateSteps(templateId, steps);
+}
+
+export async function getTaskFlowInstance(taskId: string): Promise<TaskFlowInstance | null> {
+  return await repo().getTaskFlowInstance(taskId);
+}
+
+export async function listTaskFlowStepInstances(flowInstanceId: string): Promise<TaskFlowStepInstance[]> {
+  return await repo().listTaskFlowStepInstances(flowInstanceId);
+}
+
+export async function createTaskFlowInstanceFromTemplate(
+  taskId: string,
+  templateId: string,
+  resolvedSteps: Array<{ step_order: number; step_key: string; label: string; approver_user_id: string | null }>
+): Promise<TaskFlowInstance> {
+  return await repo().createTaskFlowInstanceFromTemplate(taskId, templateId, resolvedSteps);
+}
+
+export async function approveTaskFlowStep(stepInstanceId: string): Promise<void> {
+  return await repo().approveTaskFlowStep(stepInstanceId);
 }
 
 export async function cmoCreateUser(input: { email: string; role: UserRole; full_name?: string | null }): Promise<{ userId: string }> {

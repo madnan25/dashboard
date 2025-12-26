@@ -12,6 +12,7 @@ import type {
   TaskSubtask,
   TaskSubtaskStatus
 } from "@/lib/db/types";
+import type { TaskFlowInstance, TaskFlowStepInstance, TaskFlowTemplate, TaskFlowTemplateStep } from "@/lib/db/types";
 
 export type ListTasksFilters = {
   statuses?: TaskStatus[];
@@ -209,6 +210,130 @@ export async function updateTaskSubtask(
 
 export async function deleteTaskSubtask(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from("task_subtasks").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// --- Flow templates / instances ---
+
+export async function listTaskFlowTemplates(supabase: SupabaseClient): Promise<TaskFlowTemplate[]> {
+  const { data, error } = await supabase
+    .from("task_flow_templates")
+    .select("id, name, description, created_by, created_at, updated_at")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data as TaskFlowTemplate[]) ?? [];
+}
+
+export async function listTaskFlowTemplateSteps(supabase: SupabaseClient, templateId: string): Promise<TaskFlowTemplateStep[]> {
+  const { data, error } = await supabase
+    .from("task_flow_template_steps")
+    .select("id, template_id, step_order, step_key, label, approver_kind, approver_user_id, created_at, updated_at")
+    .eq("template_id", templateId)
+    .order("step_order", { ascending: true });
+  if (error) throw error;
+  return (data as TaskFlowTemplateStep[]) ?? [];
+}
+
+export async function createTaskFlowTemplate(
+  supabase: SupabaseClient,
+  input: Pick<TaskFlowTemplate, "name"> & Partial<Pick<TaskFlowTemplate, "description">>
+): Promise<TaskFlowTemplate> {
+  const { data, error } = await supabase
+    .from("task_flow_templates")
+    .insert({ name: input.name, description: input.description ?? null })
+    .select("id, name, description, created_by, created_at, updated_at")
+    .single();
+  if (error) throw error;
+  return data as TaskFlowTemplate;
+}
+
+export async function updateTaskFlowTemplate(
+  supabase: SupabaseClient,
+  id: string,
+  patch: Partial<Pick<TaskFlowTemplate, "name" | "description">>
+): Promise<void> {
+  const { error } = await supabase.from("task_flow_templates").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteTaskFlowTemplate(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("task_flow_templates").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function replaceTaskFlowTemplateSteps(
+  supabase: SupabaseClient,
+  templateId: string,
+  steps: Array<Pick<TaskFlowTemplateStep, "step_order" | "step_key" | "label" | "approver_kind" | "approver_user_id">>
+): Promise<void> {
+  // Simple replace: delete then insert
+  const { error: delErr } = await supabase.from("task_flow_template_steps").delete().eq("template_id", templateId);
+  if (delErr) throw delErr;
+
+  const payload = steps.map((s) => ({
+    template_id: templateId,
+    step_order: s.step_order,
+    step_key: s.step_key,
+    label: s.label,
+    approver_kind: s.approver_kind,
+    approver_user_id: s.approver_user_id ?? null
+  }));
+  if (payload.length === 0) return;
+  const { error } = await supabase.from("task_flow_template_steps").insert(payload);
+  if (error) throw error;
+}
+
+export async function getTaskFlowInstance(supabase: SupabaseClient, taskId: string): Promise<TaskFlowInstance | null> {
+  const { data, error } = await supabase
+    .from("task_flow_instances")
+    .select("id, task_id, template_id, current_step_order, is_overridden, created_by, created_at, updated_at")
+    .eq("task_id", taskId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as TaskFlowInstance | null) ?? null;
+}
+
+export async function listTaskFlowStepInstances(supabase: SupabaseClient, flowInstanceId: string): Promise<TaskFlowStepInstance[]> {
+  const { data, error } = await supabase
+    .from("task_flow_step_instances")
+    .select("id, flow_instance_id, step_order, step_key, label, approver_user_id, status, approved_by, approved_at, created_at, updated_at")
+    .eq("flow_instance_id", flowInstanceId)
+    .order("step_order", { ascending: true });
+  if (error) throw error;
+  return (data as TaskFlowStepInstance[]) ?? [];
+}
+
+export async function createTaskFlowInstanceFromTemplate(
+  supabase: SupabaseClient,
+  taskId: string,
+  templateId: string,
+  resolvedSteps: Array<Pick<TaskFlowStepInstance, "step_order" | "step_key" | "label" | "approver_user_id">>
+): Promise<TaskFlowInstance> {
+  // Create instance
+  const { data: inst, error: instErr } = await supabase
+    .from("task_flow_instances")
+    .insert({ task_id: taskId, template_id: templateId, is_overridden: false })
+    .select("id, task_id, template_id, current_step_order, is_overridden, created_by, created_at, updated_at")
+    .single();
+  if (instErr) throw instErr;
+
+  const payload = resolvedSteps.map((s) => ({
+    flow_instance_id: (inst as TaskFlowInstance).id,
+    step_order: s.step_order,
+    step_key: s.step_key,
+    label: s.label,
+    approver_user_id: s.approver_user_id ?? null
+  }));
+  if (payload.length > 0) {
+    const { error } = await supabase.from("task_flow_step_instances").insert(payload);
+    if (error) throw error;
+  }
+
+  return inst as TaskFlowInstance;
+}
+
+export async function approveTaskFlowStep(supabase: SupabaseClient, stepInstanceId: string): Promise<void> {
+  const { error } = await supabase.from("task_flow_step_instances").update({ status: "approved" }).eq("id", stepInstanceId);
   if (error) throw error;
 }
 

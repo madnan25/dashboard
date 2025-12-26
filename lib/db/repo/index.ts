@@ -76,7 +76,23 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     listTaskSubtasks: (taskId: string) => tasks.listTaskSubtasks(supabase, taskId),
     createTaskSubtask: (input: Parameters<typeof tasks.createTaskSubtask>[1]) => tasks.createTaskSubtask(supabase, input),
     updateTaskSubtask: (id: string, patch: Parameters<typeof tasks.updateTaskSubtask>[2]) => tasks.updateTaskSubtask(supabase, id, patch),
-    deleteTaskSubtask: (id: string) => tasks.deleteTaskSubtask(supabase, id)
+    deleteTaskSubtask: (id: string) => tasks.deleteTaskSubtask(supabase, id),
+    // tasks flow
+    listTaskFlowTemplates: () => tasks.listTaskFlowTemplates(supabase),
+    listTaskFlowTemplateSteps: (templateId: string) => tasks.listTaskFlowTemplateSteps(supabase, templateId),
+    createTaskFlowTemplate: (input: Parameters<typeof tasks.createTaskFlowTemplate>[1]) => tasks.createTaskFlowTemplate(supabase, input),
+    updateTaskFlowTemplate: (id: string, patch: Parameters<typeof tasks.updateTaskFlowTemplate>[2]) => tasks.updateTaskFlowTemplate(supabase, id, patch),
+    deleteTaskFlowTemplate: (id: string) => tasks.deleteTaskFlowTemplate(supabase, id),
+    replaceTaskFlowTemplateSteps: (templateId: string, steps: Parameters<typeof tasks.replaceTaskFlowTemplateSteps>[2]) =>
+      tasks.replaceTaskFlowTemplateSteps(supabase, templateId, steps),
+    getTaskFlowInstance: (taskId: string) => tasks.getTaskFlowInstance(supabase, taskId),
+    listTaskFlowStepInstances: (flowInstanceId: string) => tasks.listTaskFlowStepInstances(supabase, flowInstanceId),
+    createTaskFlowInstanceFromTemplate: (
+      taskId: string,
+      templateId: string,
+      resolvedSteps: Parameters<typeof tasks.createTaskFlowInstanceFromTemplate>[3]
+    ) => tasks.createTaskFlowInstanceFromTemplate(supabase, taskId, templateId, resolvedSteps),
+    approveTaskFlowStep: (stepInstanceId: string) => tasks.approveTaskFlowStep(supabase, stepInstanceId)
   };
 }
 
