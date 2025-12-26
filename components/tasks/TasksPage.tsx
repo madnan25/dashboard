@@ -46,7 +46,7 @@ export function TasksPage() {
   const canEdit = profile?.role != null && profile.role !== "viewer";
   const canSeeTasks =
     profile?.role != null &&
-    (profile.role === "cmo" || (profile.role !== "viewer" && profile.role !== "sales_ops" && profile.is_marketing_team === true));
+    (profile.role === "cmo" || (profile.role !== "sales_ops" && profile.is_marketing_team === true));
 
   async function refresh() {
     try {

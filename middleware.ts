@@ -103,7 +103,7 @@ export async function middleware(request: NextRequest) {
         const role = p?.role ?? null;
         const ok =
           role === "cmo" ||
-          (role !== "viewer" && role !== "sales_ops" && p?.is_marketing_team === true);
+          (role !== "sales_ops" && p?.is_marketing_team === true);
 
         if (!ok) {
           const nextUrl = requestUrl.clone();

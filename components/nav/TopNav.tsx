@@ -79,7 +79,7 @@ export function TopNav() {
   const canSeePlanning = profile?.role != null && profile.role !== "viewer";
   const canSeeTasks =
     profile?.role != null &&
-    (profile.role === "cmo" || (profile.role !== "viewer" && profile.role !== "sales_ops" && profile.is_marketing_team === true));
+    (profile.role === "cmo" || (profile.role !== "sales_ops" && profile.is_marketing_team === true));
 
   // Hide on auth-only routes
   if (pathname === "/login" || pathname.startsWith("/auth/")) return null;

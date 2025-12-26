@@ -10,7 +10,7 @@ export default async function HomePage() {
   const profile = await repo.getCurrentProfile();
   const planningDisabled = profile?.role === "viewer";
   const canSeeTasks =
-    profile?.role === "cmo" || (profile?.role != null && profile.role !== "viewer" && profile.role !== "sales_ops" && profile.is_marketing_team === true);
+    profile?.role === "cmo" || (profile?.role != null && profile.role !== "sales_ops" && profile.is_marketing_team === true);
 
   return (
     <main className="min-h-screen px-4 md:px-6 pb-10">

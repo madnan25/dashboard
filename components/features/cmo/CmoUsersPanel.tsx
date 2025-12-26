@@ -185,7 +185,8 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                   <div className="mt-3 space-y-2">
                     {marketing.map((r) => {
                       const isCmo = r.role === "cmo";
-                      const lockedOut = r.role === "viewer" || r.role === "sales_ops";
+                      const tasksBlocked = r.role === "sales_ops";
+                      const planningBlocked = r.role === "viewer";
                       return (
                         <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -193,10 +194,13 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                               <div className="text-sm font-semibold text-white/90">{r.full_name?.trim() || "—"}</div>
                               <div className="mt-1 text-xs text-white/55">{r.email ?? "No email yet (backfill needed)"}</div>
                               <div className="mt-1 text-[11px] text-white/35">ID: {r.id.slice(0, 8)}…</div>
-                              {lockedOut ? (
+                              {tasksBlocked ? (
                                 <div className="mt-2 text-[11px] text-amber-200/80">
-                                  Note: this app role can’t access Tasks even if Marketing is on. Change role from Viewer/Sales Ops.
+                                  Note: Sales Ops can’t access Tasks. Change role to Viewer (recommended) or Brand/CMO.
                                 </div>
+                              ) : null}
+                              {planningBlocked ? (
+                                <div className="mt-1 text-[11px] text-white/45">Planning & Actuals is disabled for Viewer (this is expected).</div>
                               ) : null}
                             </div>
 
