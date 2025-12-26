@@ -22,8 +22,11 @@ export type {
   Task,
   TaskApprovalState,
   TaskEvent,
+  TaskPointsLedgerEntry,
   TaskPriority,
   TaskStatus,
+  TaskWeightConfig,
+  TaskWeightTier,
   UserRole
 } from "@/lib/db/types";
 import type {
@@ -39,6 +42,8 @@ import type {
   ProjectTargets,
   Task,
   TaskEvent,
+  TaskPointsLedgerEntry,
+  TaskWeightConfig,
   UserRole
 } from "@/lib/db/types";
 
@@ -211,6 +216,18 @@ export async function deleteTask(taskId: string): Promise<void> {
 
 export async function listTaskEvents(taskId: string): Promise<TaskEvent[]> {
   return await repo().listTaskEvents(taskId);
+}
+
+export async function getTaskWeightConfig(): Promise<TaskWeightConfig> {
+  return await repo().getTaskWeightConfig();
+}
+
+export async function updateTaskWeightConfig(patch: Partial<TaskWeightConfig>): Promise<void> {
+  return await repo().updateTaskWeightConfig(patch);
+}
+
+export async function listTaskPointsLedger(filters?: { userId?: string; weekStart?: string }): Promise<TaskPointsLedgerEntry[]> {
+  return await repo().listTaskPointsLedger(filters);
 }
 
 export async function cmoCreateUser(input: { email: string; role: UserRole; full_name?: string | null }): Promise<{ userId: string }> {

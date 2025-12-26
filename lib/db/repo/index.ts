@@ -60,7 +60,12 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     updateTask: (id: string, patch: Parameters<typeof tasks.updateTask>[2]) => tasks.updateTask(supabase, id, patch),
     getTask: (id: string) => tasks.getTask(supabase, id),
     deleteTask: (id: string) => tasks.deleteTask(supabase, id),
-    listTaskEvents: (taskId: string) => tasks.listTaskEvents(supabase, taskId)
+    listTaskEvents: (taskId: string) => tasks.listTaskEvents(supabase, taskId),
+
+    // tasks scoring
+    getTaskWeightConfig: () => tasks.getTaskWeightConfig(supabase),
+    updateTaskWeightConfig: (patch: Parameters<typeof tasks.updateTaskWeightConfig>[1]) => tasks.updateTaskWeightConfig(supabase, patch),
+    listTaskPointsLedger: (filters?: Parameters<typeof tasks.listTaskPointsLedger>[1]) => tasks.listTaskPointsLedger(supabase, filters)
   };
 }
 

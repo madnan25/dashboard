@@ -103,6 +103,7 @@ export type ProjectActualsDigitalSource = {
 export type TaskStatus = "queued" | "in_progress" | "submitted" | "approved" | "live" | "closed" | "blocked" | "dropped";
 export type TaskPriority = "p0" | "p1" | "p2" | "p3";
 export type TaskApprovalState = "not_required" | "pending" | "approved";
+export type TaskWeightTier = "small" | "medium" | "large" | "critical";
 
 export type Task = {
   id: string;
@@ -116,9 +117,45 @@ export type Task = {
   assignee_id: string | null;
   project_id: string | null;
   due_at: string | null; // date
+  weight_tier?: TaskWeightTier;
+  base_weight?: number;
+  completed_at?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type TaskWeightConfig = {
+  id: "global";
+  small_points: number;
+  medium_points: number;
+  large_points: number;
+  critical_points: number;
+  mp_p0: string;
+  mp_p1: string;
+  mp_p2: string;
+  mp_p3: string;
+  me_3plus: string;
+  me_1to2: string;
+  me_ontime: string;
+  ml_1to2: string;
+  ml_3to5: string;
+  ml_6plus: string;
+  small_weekly_cap: number;
+  small_overcap_multiplier: string;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+export type TaskPointsLedgerEntry = {
+  id: string;
+  user_id: string;
+  task_id: string;
+  weight_tier: TaskWeightTier;
+  points_awarded: string;
+  breakdown: Record<string, unknown>;
+  week_start: string; // date
+  created_at: string;
 };
 
 export type TaskEvent = {

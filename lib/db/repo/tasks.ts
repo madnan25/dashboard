@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Task, TaskApprovalState, TaskPriority, TaskStatus, TaskEvent } from "@/lib/db/types";
+import type { Task, TaskApprovalState, TaskPriority, TaskStatus, TaskEvent, TaskPointsLedgerEntry, TaskWeightConfig } from "@/lib/db/types";
 
 export type ListTasksFilters = {
   statuses?: TaskStatus[];
@@ -15,7 +15,7 @@ export async function listTasks(supabase: SupabaseClient, filters?: ListTasksFil
   let q = supabase
     .from("tasks")
     .select(
-      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, created_by, created_at, updated_at"
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
     )
     .order("updated_at", { ascending: false });
 
@@ -52,7 +52,7 @@ export async function createTask(supabase: SupabaseClient, input: CreateTaskInpu
       due_at: input.due_at ?? null
     })
     .select(
-      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, created_by, created_at, updated_at"
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
     )
     .single();
   if (error) throw error;
@@ -72,12 +72,38 @@ export async function getTask(supabase: SupabaseClient, id: string): Promise<Tas
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, created_by, created_at, updated_at"
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
     )
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
   return (data as Task | null) ?? null;
+}
+
+export async function getTaskWeightConfig(supabase: SupabaseClient): Promise<TaskWeightConfig> {
+  const { data, error } = await supabase.from("task_weight_config").select("*").eq("id", "global").single();
+  if (error) throw error;
+  return data as TaskWeightConfig;
+}
+
+export async function updateTaskWeightConfig(supabase: SupabaseClient, patch: Partial<TaskWeightConfig>): Promise<void> {
+  const { error } = await supabase.from("task_weight_config").update(patch).eq("id", "global");
+  if (error) throw error;
+}
+
+export async function listTaskPointsLedger(
+  supabase: SupabaseClient,
+  filters?: { userId?: string; weekStart?: string }
+): Promise<TaskPointsLedgerEntry[]> {
+  let q = supabase
+    .from("task_points_ledger")
+    .select("id, user_id, task_id, weight_tier, points_awarded, breakdown, week_start, created_at")
+    .order("created_at", { ascending: false });
+  if (filters?.userId) q = q.eq("user_id", filters.userId);
+  if (filters?.weekStart) q = q.eq("week_start", filters.weekStart);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as TaskPointsLedgerEntry[]) ?? [];
 }
 
 export async function deleteTask(supabase: SupabaseClient, id: string): Promise<void> {
