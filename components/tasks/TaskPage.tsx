@@ -143,13 +143,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
           subtitle={task ? `${task.title}` : "Loading…"}
           showBack
           backHref="/tasks"
-          right={
-            <div className="hidden md:flex items-center gap-2">
-              <AppButton intent="secondary" className="h-10 px-4" onPress={() => router.push("/tasks")}>
-                Back to board
-              </AppButton>
-            </div>
-          }
         />
 
         {status ? (

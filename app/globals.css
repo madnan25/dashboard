@@ -56,4 +56,14 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* Make native date picker icon white on dark inputs (Safari/Chrome) */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.85;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 
