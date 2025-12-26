@@ -129,6 +129,14 @@ export function TopNav() {
               >
                 Projects
               </Link>
+              <Link
+                href="/tasks"
+                prefetch
+                onMouseEnter={() => router.prefetch("/tasks")}
+                className={`px-3 py-2 text-sm ${navPill} ${isActive("/tasks") ? navPillActive : ""}`}
+              >
+                Tasks
+              </Link>
               {canSeePlanning ? (
                 <Link
                   href="/brand/data-entry"

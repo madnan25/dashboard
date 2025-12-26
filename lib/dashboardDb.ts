@@ -6,6 +6,7 @@ import type {
   ProjectActualsMetricsInput,
   ProjectActualsSpendInput
 } from "@/lib/db/repo/actuals";
+import type { CreateTaskInput, ListTasksFilters, UpdateTaskPatch } from "@/lib/db/repo/tasks";
 export type {
   DigitalSource,
   PlanChannel,
@@ -18,6 +19,11 @@ export type {
   ProjectActualsChannel,
   ProjectActualsDigitalSource,
   ProjectTargets,
+  Task,
+  TaskApprovalState,
+  TaskEvent,
+  TaskPriority,
+  TaskStatus,
   UserRole
 } from "@/lib/db/types";
 import type {
@@ -31,6 +37,8 @@ import type {
   ProjectActualsChannel,
   ProjectActualsDigitalSource,
   ProjectTargets,
+  Task,
+  TaskEvent,
   UserRole
 } from "@/lib/db/types";
 
@@ -171,6 +179,22 @@ export async function listProjectActualsDigitalSources(projectId: string, year: 
 
 export async function upsertProjectActualsDigitalSources(inputs: ProjectActualsDigitalSourceInput[]): Promise<void> {
   return await repo().upsertProjectActualsDigitalSources(inputs);
+}
+
+export async function listTasks(filters?: ListTasksFilters): Promise<Task[]> {
+  return await repo().listTasks(filters);
+}
+
+export async function createTask(input: CreateTaskInput): Promise<Task> {
+  return await repo().createTask(input);
+}
+
+export async function updateTask(taskId: string, patch: UpdateTaskPatch): Promise<void> {
+  return await repo().updateTask(taskId, patch);
+}
+
+export async function listTaskEvents(taskId: string): Promise<TaskEvent[]> {
+  return await repo().listTaskEvents(taskId);
 }
 
 export async function cmoCreateUser(input: { email: string; role: UserRole; full_name?: string | null }): Promise<{ userId: string }> {

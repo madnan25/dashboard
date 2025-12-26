@@ -98,3 +98,34 @@ export type ProjectActualsDigitalSource = {
   updated_at?: string;
 };
 
+export type TaskStatus = "queued" | "in_progress" | "submitted" | "approved" | "live" | "closed" | "blocked" | "dropped";
+export type TaskPriority = "p0" | "p1" | "p2" | "p3";
+export type TaskApprovalState = "not_required" | "pending" | "approved";
+
+export type Task = {
+  id: string;
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  approval_state: TaskApprovalState;
+  approved_by: string | null;
+  approved_at: string | null;
+  assignee_id: string | null;
+  project_id: string | null;
+  due_at: string | null; // date
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskEvent = {
+  id: string;
+  task_id: string;
+  actor_id: string | null;
+  type: string;
+  from_value: string | null;
+  to_value: string | null;
+  created_at: string;
+};
+

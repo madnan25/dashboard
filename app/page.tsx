@@ -27,6 +27,12 @@ export default async function HomePage() {
             meta="Browse active projects"
           />
           <NavCard
+            href="/tasks"
+            title="Tasks"
+            description="A conveyor belt for execution. One card, one owner, one state."
+            meta="Kanban control surface"
+          />
+          <NavCard
             href="/brand/data-entry"
             title="Planning & Actuals"
             description="Brand enters plan inputs; Sales Ops enters actuals; CMO can override and approve."
