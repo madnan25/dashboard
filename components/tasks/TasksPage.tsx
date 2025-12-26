@@ -44,6 +44,9 @@ export function TasksPage() {
 
   const isCmo = profile?.role === "cmo";
   const canEdit = profile?.role != null && profile.role !== "viewer";
+  const canSeeTasks =
+    profile?.role != null &&
+    (profile.role === "cmo" || (profile.role !== "viewer" && profile.role !== "sales_ops" && profile.is_marketing_team === true));
 
   async function refresh() {
     try {
@@ -139,6 +142,20 @@ export function TasksPage() {
   }, [assigneeMode, priorityFilter, projectFilter, resolvedAssigneeId, tasks, view]);
 
   const viewOptions: View[] = isCmo ? ["board", "with_me", "blocked", "delivery"] : ["board", "blocked", "delivery"];
+
+  if (profile && !canSeeTasks) {
+    return (
+      <main className="min-h-screen px-4 md:px-6 pb-10">
+        <div className="mx-auto w-full max-w-4xl space-y-6">
+          <PageHeader title="Tasks" subtitle="Marketing team only." showBack backHref="/" />
+          <Surface>
+            <div className="text-sm text-white/75">You don’t have access to Tasks.</div>
+            <div className="mt-1 text-xs text-white/50">Ask the CMO to add you to the marketing team.</div>
+          </Surface>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen px-4 md:px-6 pb-10">

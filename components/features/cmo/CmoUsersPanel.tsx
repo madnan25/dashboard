@@ -6,7 +6,7 @@ import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { Surface } from "@/components/ds/Surface";
 import type { Profile, UserRole } from "@/lib/dashboardDb";
-import { cmoCreateUser, listProfiles, updateUserCanManageTasks, updateUserRole } from "@/lib/dashboardDb";
+import { cmoCreateUser, listProfiles, updateUserCanManageTasks, updateUserIsMarketingTeam, updateUserRole } from "@/lib/dashboardDb";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "brand_manager", label: "Brand" },
@@ -81,6 +81,18 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
     }
   }
 
+  async function onToggleMarketingTeam(userId: string, isMarketing: boolean) {
+    onStatus("");
+    try {
+      onStatus("Saving team…");
+      await updateUserIsMarketingTeam(userId, isMarketing);
+      await refresh();
+      onStatus("Marketing team updated.");
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : "Failed to update marketing team");
+    }
+  }
+
   async function onCreate() {
     const email = createEmail.trim();
     if (!email) return;
@@ -147,6 +159,16 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                             {opt.label}
                           </option>
                         ))}
+                      </PillSelect>
+                    </div>
+                    <div className="w-[180px]">
+                      <PillSelect
+                        value={(r.is_marketing_team ?? false) ? "yes" : "no"}
+                        onChange={(next) => onToggleMarketingTeam(r.id, next === "yes")}
+                        ariaLabel="Marketing team membership"
+                      >
+                        <option value="no">Marketing: Off</option>
+                        <option value="yes">Marketing: On</option>
                       </PillSelect>
                     </div>
                     <div className="w-[180px]">

@@ -77,6 +77,9 @@ export function TopNav() {
   const isCmo = profile?.role === "cmo";
   // Avoid a "clickable for 1 second" flicker: until we know the role, don't render the link.
   const canSeePlanning = profile?.role != null && profile.role !== "viewer";
+  const canSeeTasks =
+    profile?.role != null &&
+    (profile.role === "cmo" || (profile.role !== "viewer" && profile.role !== "sales_ops" && profile.is_marketing_team === true));
 
   // Hide on auth-only routes
   if (pathname === "/login" || pathname.startsWith("/auth/")) return null;
@@ -129,14 +132,16 @@ export function TopNav() {
               >
                 Projects
               </Link>
-              <Link
-                href="/tasks"
-                prefetch
-                onMouseEnter={() => router.prefetch("/tasks")}
-                className={`px-3 py-2 text-sm ${navPill} ${isActive("/tasks") ? navPillActive : ""}`}
-              >
-                Tasks
-              </Link>
+              {canSeeTasks ? (
+                <Link
+                  href="/tasks"
+                  prefetch
+                  onMouseEnter={() => router.prefetch("/tasks")}
+                  className={`px-3 py-2 text-sm ${navPill} ${isActive("/tasks") ? navPillActive : ""}`}
+                >
+                  Tasks
+                </Link>
+              ) : null}
               {canSeePlanning ? (
                 <Link
                   href="/brand/data-entry"

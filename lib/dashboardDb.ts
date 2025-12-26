@@ -72,6 +72,10 @@ export async function updateUserCanManageTasks(userId: string, canManage: boolea
   return await repo().updateUserCanManageTasks(userId, canManage);
 }
 
+export async function updateUserIsMarketingTeam(userId: string, isMarketing: boolean): Promise<void> {
+  return await repo().updateUserIsMarketingTeam(userId, isMarketing);
+}
+
 export async function listProjects(): Promise<Project[]> {
   return await repo().listProjects();
 }

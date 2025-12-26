@@ -14,6 +14,20 @@ function extractAccessTokenFromCookies(request: NextRequest): string | null {
   return extractAccessTokenFromCookieEntries(request.cookies.getAll());
 }
 
+function decodeJwtSub(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const payload = parts[1]!;
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const json = atob(b64);
+    const data = JSON.parse(json) as { sub?: string };
+    return typeof data.sub === "string" ? data.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -60,6 +74,56 @@ export async function middleware(request: NextRequest) {
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectTo", requestUrl.pathname + requestUrl.search);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Tasks is marketing-team only (CMO is always allowed).
+  if (isAuthed && (requestUrl.pathname === "/tasks" || requestUrl.pathname.startsWith("/tasks/"))) {
+    const userId = accessToken ? decodeJwtSub(accessToken) : null;
+    if (!userId) {
+      const nextUrl = requestUrl.clone();
+      nextUrl.pathname = "/";
+      nextUrl.search = "";
+      return NextResponse.redirect(nextUrl);
+    }
+
+    try {
+      const res = await fetch(
+        `${url}/rest/v1/profiles?select=role,is_marketing_team&id=eq.${encodeURIComponent(userId)}`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${accessToken}`
+          }
+        }
+      );
+
+      if (res.ok) {
+        const rows = (await res.json()) as Array<{ role?: string; is_marketing_team?: boolean }>;
+        const p = rows[0] ?? null;
+        const role = p?.role ?? null;
+        const ok =
+          role === "cmo" ||
+          (role !== "viewer" && role !== "sales_ops" && p?.is_marketing_team === true);
+
+        if (!ok) {
+          const nextUrl = requestUrl.clone();
+          nextUrl.pathname = "/";
+          nextUrl.search = "";
+          return NextResponse.redirect(nextUrl);
+        }
+      } else {
+        // If profile fetch fails, fall back to safe behavior: block tasks.
+        const nextUrl = requestUrl.clone();
+        nextUrl.pathname = "/";
+        nextUrl.search = "";
+        return NextResponse.redirect(nextUrl);
+      }
+    } catch {
+      const nextUrl = requestUrl.clone();
+      nextUrl.pathname = "/";
+      nextUrl.search = "";
+      return NextResponse.redirect(nextUrl);
+    }
   }
 
   return NextResponse.next({

@@ -31,6 +31,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const isCmo = profile?.role === "cmo";
   const canEdit = profile?.role != null && profile.role !== "viewer";
   const canDelete = profile?.role === "cmo" || profile?.can_manage_tasks === true;
+  const canSeeTasks =
+    profile?.role != null &&
+    (profile.role === "cmo" || (profile.role !== "viewer" && profile.role !== "sales_ops" && profile.is_marketing_team === true));
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -146,13 +149,20 @@ export function TaskPage({ taskId }: { taskId: string }) {
           backHref="/tasks"
         />
 
+        {profile && !canSeeTasks ? (
+          <Surface>
+            <div className="text-sm text-white/75">You don’t have access to Tasks.</div>
+            <div className="mt-1 text-xs text-white/50">Ask the CMO to add you to the marketing team.</div>
+          </Surface>
+        ) : null}
+
         {status ? (
           <Surface>
             <div className="text-sm text-amber-200/90">{status}</div>
           </Surface>
         ) : null}
 
-        {loadingTask ? (
+        {profile && !canSeeTasks ? null : loadingTask ? (
           <div className="grid gap-4 md:grid-cols-12">
             <Surface className="md:col-span-7">
               <div className="h-5 w-32 rounded bg-white/10 animate-pulse" />

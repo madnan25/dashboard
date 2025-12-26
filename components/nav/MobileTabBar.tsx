@@ -77,6 +77,9 @@ export function MobileTabBar() {
 
   const isCmo = profile?.role === "cmo";
   const canSeePlanning = profile?.role != null && profile.role !== "viewer";
+  const canSeeTasks =
+    profile?.role != null &&
+    (profile.role === "cmo" || (profile.role !== "viewer" && profile.role !== "sales_ops" && profile.is_marketing_team === true));
 
   const tabs = useMemo(() => {
     const base: Array<
@@ -86,6 +89,16 @@ export function MobileTabBar() {
       { key: "home", href: "/", label: "Home", icon: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" },
       // Projects: grid
       { key: "projects", href: "/projects", label: "Projects", icon: "M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" },
+      ...(canSeeTasks
+        ? [
+            {
+              key: "tasks",
+              href: "/tasks",
+              label: "Tasks",
+              icon: "M8 7h12M8 12h12M8 17h12M4.5 7h.01M4.5 12h.01M4.5 17h.01"
+            }
+          ]
+        : []),
       canSeePlanning
         // Planning: clipboard/checklist
         ? { key: "planning", href: "/brand/data-entry", label: "Planning", icon: "M9 4h6m-7 4h8M8 12h8M8 16h5M7 8h.01M7 12h.01M7 16h.01" }
@@ -101,11 +114,12 @@ export function MobileTabBar() {
     ];
 
     if (isCmo) {
-      base.splice(3, 0, { key: "cmo", href: "/cmo/projects", label: "CMO", icon: "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" });
+      const insertAt = canSeeTasks ? 4 : 3;
+      base.splice(insertAt, 0, { key: "cmo", href: "/cmo/projects", label: "CMO", icon: "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" });
     }
 
     return base;
-  }, [canSeePlanning, isCmo]);
+  }, [canSeePlanning, canSeeTasks, isCmo]);
 
   // Hide on auth-only routes
   if (hide) return null;
@@ -114,7 +128,12 @@ export function MobileTabBar() {
     <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
       <div className="px-3 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2">
         <Surface className="p-2 border border-white/10" style={{ backdropFilter: "blur(18px)" }}>
-          <nav className={`grid ${tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"} gap-1`} aria-label="Primary">
+          <nav
+            className={`grid ${
+              tabs.length === 6 ? "grid-cols-6" : tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"
+            } gap-1`}
+            aria-label="Primary"
+          >
             {tabs.map((t) => {
               const active = isActivePath(pathname, t.href);
               const content = (
