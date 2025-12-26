@@ -151,7 +151,12 @@ export function TaskDrawer({
 
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" className="absolute inset-0 bg-black/60" onClick={onClose} aria-label="Close" />
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/80 backdrop-blur-[2px]"
+        onClick={onClose}
+        aria-label="Close"
+      />
       <div className="absolute inset-x-0 bottom-0 md:inset-y-0 md:right-0 md:left-auto md:w-[520px] p-3 md:p-4">
         <Surface className="max-h-[86vh] md:max-h-[calc(100vh-32px)] overflow-auto">
           <div className="flex items-start justify-between gap-3">
@@ -167,7 +172,7 @@ export function TaskDrawer({
                 </div>
               ) : null}
             </div>
-            <AppButton intent="secondary" onPress={onClose} className="h-10 px-4">
+            <AppButton intent="secondary" onPress={onClose} className="h-10 px-4 whitespace-nowrap">
               Close
             </AppButton>
           </div>
