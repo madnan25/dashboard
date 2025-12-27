@@ -7,11 +7,12 @@ import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
+import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task } from "@/lib/dashboardDb";
 import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks } from "@/lib/dashboardDb";
 import { endOfWeek, isoDate, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 
-type View = "board" | "with_me" | "blocked" | "delivery";
+type View = "board" | "with_me" | "blocked" | "delivery" | "impact" | "reliability" | "project";
 
 function labelForView(v: View) {
   switch (v) {
@@ -23,6 +24,12 @@ function labelForView(v: View) {
       return "Blocked P0/P1";
     case "delivery":
       return "Delivery this week";
+    case "impact":
+      return "Scoreboard: Impact";
+    case "reliability":
+      return "Scoreboard: Reliability";
+    case "project":
+      return "Scoreboard: Projects";
   }
 }
 
@@ -137,11 +144,17 @@ export function TasksPage() {
         if (!t.due_at) return false;
         return t.due_at >= weekStartIso && t.due_at <= weekEndIso;
       }
+      if (view === "impact" || view === "reliability" || view === "project") {
+        // scoreboard views don't use task list filtering here
+        return true;
+      }
       return true;
     });
   }, [assigneeMode, priorityFilter, projectFilter, resolvedAssigneeId, tasks, view]);
 
-  const viewOptions: View[] = isCmo ? ["board", "with_me", "blocked", "delivery"] : ["board", "blocked", "delivery"];
+  const viewOptions: View[] = isCmo
+    ? ["board", "with_me", "blocked", "delivery", "impact", "reliability", "project"]
+    : ["board", "blocked", "delivery", "impact", "reliability", "project"];
 
   if (profile && !canSeeTasks) {
     return (
@@ -193,92 +206,96 @@ export function TasksPage() {
           </Surface>
         </div>
 
-        <Surface>
-          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="text-xs uppercase tracking-widest text-white/45">New task</div>
-            <div className="text-xs text-white/45">Create then open the ticket to manage it.</div>
-          </div>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="flex-1">
-              <input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                disabled={!canEdit || creating}
-                placeholder="e.g. V3 Reel – Construction Speed"
-                className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
-              />
+        {view === "impact" || view === "reliability" || view === "project" ? (
+          <TasksScoreboard profiles={profiles} projects={projects} />
+        ) : (
+          <Surface>
+            <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="text-xs uppercase tracking-widest text-white/45">New task</div>
+              <div className="text-xs text-white/45">Create then open the ticket to manage it.</div>
             </div>
-            <AppButton intent="primary" className="h-11 px-6" onPress={onQuickCreate} isDisabled={!canEdit || creating || !newTitle.trim()}>
-              {creating ? "Creating…" : "Create task"}
-            </AppButton>
-          </div>
-
-          <div className="my-5 h-px bg-white/10" />
-
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm text-white/60">{status || " "}</div>
-            <div className="flex flex-wrap items-center gap-2">
-              <PillSelect
-                value={assigneeFilter}
-                onChange={setAssigneeFilter}
-                ariaLabel="Assignee filter"
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <div className="flex-1">
+                <input
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  disabled={!canEdit || creating}
+                  placeholder="e.g. V3 Reel – Construction Speed"
+                  className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
+                />
+              </div>
+              <AppButton
+                intent="primary"
+                className="h-11 px-6"
+                onPress={onQuickCreate}
+                isDisabled={!canEdit || creating || !newTitle.trim()}
               >
-                <option value="" className="bg-zinc-900">
-                  All assignees
-                </option>
-                {profile ? (
-                  <option value="__me__" className="bg-zinc-900">
-                    Me
-                  </option>
-                ) : null}
-                <option value="__none__" className="bg-zinc-900">
-                  Unassigned
-                </option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-zinc-900">
-                    {p.full_name || p.email || p.id}
-                  </option>
-                ))}
-              </PillSelect>
-
-              <PillSelect value={priorityFilter} onChange={setPriorityFilter} ariaLabel="Priority filter">
-                <option value="" className="bg-zinc-900">
-                  All priorities
-                </option>
-                {(["p0", "p1", "p2", "p3"] as const).map((p) => (
-                  <option key={p} value={p} className="bg-zinc-900">
-                    {p.toUpperCase()}
-                  </option>
-                ))}
-              </PillSelect>
-
-              <PillSelect value={projectFilter} onChange={setProjectFilter} ariaLabel="Project filter">
-                <option value="" className="bg-zinc-900">
-                  All projects
-                </option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-zinc-900">
-                    {p.name}
-                  </option>
-                ))}
-              </PillSelect>
-
-              <AppButton intent="secondary" className="h-10 px-4" onPress={refresh}>
-                Refresh
+                {creating ? "Creating…" : "Create task"}
               </AppButton>
             </div>
-          </div>
 
-          {/* Normalize special assignee filters */}
-          <KanbanBoard
-            tasks={filtered}
-            profiles={profiles}
-            projects={projects}
-            onOpenTask={(t) => {
-              router.push(`/tasks/${t.id}`);
-            }}
-          />
-        </Surface>
+            <div className="my-5 h-px bg-white/10" />
+
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-white/60">{status || " "}</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <PillSelect value={assigneeFilter} onChange={setAssigneeFilter} ariaLabel="Assignee filter">
+                  <option value="" className="bg-zinc-900">
+                    All assignees
+                  </option>
+                  {profile ? (
+                    <option value="__me__" className="bg-zinc-900">
+                      Me
+                    </option>
+                  ) : null}
+                  <option value="__none__" className="bg-zinc-900">
+                    Unassigned
+                  </option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id} className="bg-zinc-900">
+                      {p.full_name || p.email || p.id}
+                    </option>
+                  ))}
+                </PillSelect>
+
+                <PillSelect value={priorityFilter} onChange={setPriorityFilter} ariaLabel="Priority filter">
+                  <option value="" className="bg-zinc-900">
+                    All priorities
+                  </option>
+                  {(["p0", "p1", "p2", "p3"] as const).map((p) => (
+                    <option key={p} value={p} className="bg-zinc-900">
+                      {p.toUpperCase()}
+                    </option>
+                  ))}
+                </PillSelect>
+
+                <PillSelect value={projectFilter} onChange={setProjectFilter} ariaLabel="Project filter">
+                  <option value="" className="bg-zinc-900">
+                    All projects
+                  </option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id} className="bg-zinc-900">
+                      {p.name}
+                    </option>
+                  ))}
+                </PillSelect>
+
+                <AppButton intent="secondary" className="h-10 px-4" onPress={refresh}>
+                  Refresh
+                </AppButton>
+              </div>
+            </div>
+
+            <KanbanBoard
+              tasks={filtered}
+              profiles={profiles}
+              projects={projects}
+              onOpenTask={(t) => {
+                router.push(`/tasks/${t.id}`);
+              }}
+            />
+          </Surface>
+        )}
       </div>
     </main>
   );

@@ -48,6 +48,19 @@ export async function listTasks(supabase: SupabaseClient, filters?: ListTasksFil
   return (data as Task[]) ?? [];
 }
 
+export async function listTasksByIds(supabase: SupabaseClient, ids: string[]): Promise<Task[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
+    )
+    .in("id", unique);
+  if (error) throw error;
+  return (data as Task[]) ?? [];
+}
+
 export type CreateTaskInput = Pick<Task, "title"> &
   Partial<Pick<Task, "description" | "priority" | "status" | "approval_state" | "assignee_id" | "project_id" | "due_at">>;
 
@@ -291,6 +304,17 @@ export async function getTaskFlowInstance(supabase: SupabaseClient, taskId: stri
     .maybeSingle();
   if (error) throw error;
   return (data as TaskFlowInstance | null) ?? null;
+}
+
+export async function listTaskFlowInstancesByTaskIds(supabase: SupabaseClient, taskIds: string[]): Promise<TaskFlowInstance[]> {
+  const unique = Array.from(new Set(taskIds.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase
+    .from("task_flow_instances")
+    .select("id, task_id, template_id, current_step_order, is_overridden, created_by, created_at, updated_at")
+    .in("task_id", unique);
+  if (error) throw error;
+  return (data as TaskFlowInstance[]) ?? [];
 }
 
 export async function listTaskFlowStepInstances(supabase: SupabaseClient, flowInstanceId: string): Promise<TaskFlowStepInstance[]> {

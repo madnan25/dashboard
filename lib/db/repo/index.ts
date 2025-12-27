@@ -56,6 +56,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
 
     // tasks
     listTasks: (filters?: Parameters<typeof tasks.listTasks>[1]) => tasks.listTasks(supabase, filters),
+    listTasksByIds: (ids: string[]) => tasks.listTasksByIds(supabase, ids),
     createTask: (input: Parameters<typeof tasks.createTask>[1]) => tasks.createTask(supabase, input),
     updateTask: (id: string, patch: Parameters<typeof tasks.updateTask>[2]) => tasks.updateTask(supabase, id, patch),
     getTask: (id: string) => tasks.getTask(supabase, id),
@@ -86,6 +87,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     replaceTaskFlowTemplateSteps: (templateId: string, steps: Parameters<typeof tasks.replaceTaskFlowTemplateSteps>[2]) =>
       tasks.replaceTaskFlowTemplateSteps(supabase, templateId, steps),
     getTaskFlowInstance: (taskId: string) => tasks.getTaskFlowInstance(supabase, taskId),
+    listTaskFlowInstancesByTaskIds: (taskIds: string[]) => tasks.listTaskFlowInstancesByTaskIds(supabase, taskIds),
     listTaskFlowStepInstances: (flowInstanceId: string) => tasks.listTaskFlowStepInstances(supabase, flowInstanceId),
     createTaskFlowInstanceFromTemplate: (
       taskId: string,

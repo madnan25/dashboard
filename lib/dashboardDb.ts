@@ -216,6 +216,10 @@ export async function listTasks(filters?: ListTasksFilters): Promise<Task[]> {
   return await repo().listTasks(filters);
 }
 
+export async function listTasksByIds(ids: string[]): Promise<Task[]> {
+  return await repo().listTasksByIds(ids);
+}
+
 export async function createTask(input: CreateTaskInput): Promise<Task> {
   return await repo().createTask(input);
 }
@@ -324,6 +328,10 @@ export async function replaceTaskFlowTemplateSteps(
 
 export async function getTaskFlowInstance(taskId: string): Promise<TaskFlowInstance | null> {
   return await repo().getTaskFlowInstance(taskId);
+}
+
+export async function listTaskFlowInstancesByTaskIds(taskIds: string[]): Promise<TaskFlowInstance[]> {
+  return await repo().listTaskFlowInstancesByTaskIds(taskIds);
 }
 
 export async function listTaskFlowStepInstances(flowInstanceId: string): Promise<TaskFlowStepInstance[]> {
