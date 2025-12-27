@@ -49,6 +49,7 @@ import {
   upsertTaskContributions
 } from "@/lib/dashboardDb";
 import { PRIMARY_FLOW, SIDE_LANE, approvalLabel, priorityLabel, statusLabel } from "@/components/tasks/taskModel";
+import { isAssignableTaskRole } from "@/components/tasks/taskModel";
 
 function toOptionLabel(p: Profile) {
   return p.full_name || p.email || p.id;
@@ -96,6 +97,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
+  const assignableProfiles = useMemo(() => profiles.filter((p) => isAssignableTaskRole(p.role)), [profiles]);
+
+  function getAssigneeOptionProfiles(selectedId: string | null) {
+    if (!selectedId) return assignableProfiles;
+    if (assignableProfiles.some((p) => p.id === selectedId)) return assignableProfiles;
+    const current = profiles.find((p) => p.id === selectedId) ?? null;
+    return current ? [current, ...assignableProfiles] : assignableProfiles;
+  }
 
   async function refresh() {
     setLoadingTask(true);
@@ -501,11 +510,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       <option value="" className="bg-zinc-900">
                         Unassigned
                       </option>
-                      {profiles.map((p) => (
-                        <option key={p.id} value={p.id} className="bg-zinc-900">
-                          {toOptionLabel(p)}
-                        </option>
-                      ))}
+                      {getAssigneeOptionProfiles(assigneeId || null).map((p) => {
+                        const canAssign = isAssignableTaskRole(p.role);
+                        return (
+                          <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                            {toOptionLabel(p)}
+                            {!canAssign ? " (not assignable)" : ""}
+                          </option>
+                        );
+                      })}
                     </PillSelect>
                   </div>
                   <div>
@@ -812,11 +825,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               <option value="" className="bg-zinc-900">
                                 Unassigned
                               </option>
-                              {profiles.map((p) => (
-                                <option key={p.id} value={p.id} className="bg-zinc-900">
-                                  {toOptionLabel(p)}
-                                </option>
-                              ))}
+                              {getAssigneeOptionProfiles(s.assignee_id ?? null).map((p) => {
+                                const canAssign = isAssignableTaskRole(p.role);
+                                return (
+                                  <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                                    {toOptionLabel(p)}
+                                    {!canAssign ? " (not assignable)" : ""}
+                                  </option>
+                                );
+                              })}
                             </PillSelect>
                             <AppButton intent="danger" size="sm" className="h-10 px-4" onPress={() => onRemoveSubtask(s.id)} isDisabled={!canEdit}>
                               Delete
