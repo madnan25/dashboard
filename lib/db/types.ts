@@ -100,7 +100,7 @@ export type ProjectActualsDigitalSource = {
   updated_at?: string;
 };
 
-export type TaskStatus = "queued" | "in_progress" | "submitted" | "approved" | "live" | "closed" | "blocked" | "dropped";
+export type TaskStatus = "queued" | "in_progress" | "submitted" | "approved" | "closed" | "on_hold" | "blocked" | "dropped";
 export type TaskPriority = "p0" | "p1" | "p2" | "p3";
 export type TaskApprovalState = "not_required" | "pending" | "approved";
 export type TaskWeightTier = "small" | "medium" | "large" | "critical";
@@ -169,7 +169,8 @@ export type TaskContribution = {
   updated_at: string;
 };
 
-export type TaskSubtaskStatus = "todo" | "in_progress" | "done" | "dropped";
+// Subtasks use the same status model as tasks.
+export type TaskSubtaskStatus = TaskStatus;
 
 export type TaskSubtask = {
   id: string;

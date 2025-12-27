@@ -5,14 +5,14 @@ export const TASK_STATUSES: TaskStatus[] = [
   "in_progress",
   "submitted",
   "approved",
-  "live",
   "closed",
+  "on_hold",
   "blocked",
   "dropped"
 ];
 
-export const PRIMARY_FLOW: TaskStatus[] = ["queued", "in_progress", "submitted", "approved", "live", "closed"];
-export const SIDE_LANE: TaskStatus[] = ["blocked", "dropped"];
+export const PRIMARY_FLOW: TaskStatus[] = ["queued", "in_progress", "submitted", "approved", "closed"];
+export const SIDE_LANE: TaskStatus[] = ["on_hold", "blocked", "dropped"];
 
 export function statusLabel(s: TaskStatus) {
   switch (s) {
@@ -24,10 +24,10 @@ export function statusLabel(s: TaskStatus) {
       return "Submitted";
     case "approved":
       return "Approved";
-    case "live":
-      return "Live";
     case "closed":
       return "Closed";
+    case "on_hold":
+      return "On Hold";
     case "blocked":
       return "Blocked";
     case "dropped":

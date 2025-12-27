@@ -211,7 +211,7 @@ export async function createTaskSubtask(supabase: SupabaseClient, input: CreateT
     .insert({
       task_id: input.task_id,
       title: input.title,
-      status: input.status ?? "todo",
+      status: input.status ?? "queued",
       assignee_id: input.assignee_id ?? null,
       due_at: input.due_at ?? null,
       effort_points: Math.max(0, Math.trunc(input.effort_points ?? 0))

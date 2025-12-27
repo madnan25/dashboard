@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -95,6 +95,19 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [coordinatorUserId, setCoordinatorUserId] = useState<string>("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState<string>("");
 
+  const lastSavedRef = useRef<{
+    title: string;
+    description: string | null;
+    priority: TaskPriority;
+    status: TaskStatus;
+    approval_state: TaskApprovalState;
+    assignee_id: string | null;
+    project_id: string | null;
+    due_at: string | null;
+  } | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveSeqRef = useRef(0);
+
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
   const assignableProfiles = useMemo(() => profiles.filter((p) => isAssignableTaskRole(p.role)), [profiles]);
@@ -142,6 +155,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
         setProjectId(t.project_id ?? "");
         setDueAt(t.due_at ?? "");
 
+        lastSavedRef.current = {
+          title: t.title ?? "",
+          description: t.description ?? null,
+          priority: t.priority,
+          status: t.status,
+          approval_state: t.approval_state,
+          assignee_id: t.assignee_id ?? null,
+          project_id: t.project_id ?? null,
+          due_at: t.due_at ?? null
+        };
+
         const primary = contribs.find((c) => c.role === "primary")?.user_id ?? "";
         const secondary = contribs.find((c) => c.role === "secondary")?.user_id ?? "";
         const coord = contribs.find((c) => c.role === "coordinator")?.user_id ?? "";
@@ -154,6 +178,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
     } finally {
       setLoadingTask(false);
     }
+  }
+
+  async function refreshSubtasksOnly() {
+    const subs = await listTaskSubtasks(taskId);
+    setSubtasks(subs);
   }
 
   useEffect(() => {
@@ -217,31 +246,61 @@ export function TaskPage({ taskId }: { taskId: string }) {
     };
   }, [marketingManagers, profile?.id, selectedTemplateId]);
 
-  async function onSave() {
+  useEffect(() => {
     if (!canEdit) return;
-    const trimmed = title.trim();
-    if (!trimmed) {
-      setStatus("Title is required.");
+    if (loadingTask) return;
+    if (!task) return;
+    if (!lastSavedRef.current) return;
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      // Don't persist invalid state; allow user to keep typing.
       return;
     }
-    setStatus("Saving…");
-    try {
-      await updateTask(taskId, {
-        title: trimmed,
-        description: description.trim() ? description.trim() : null,
-        priority,
-        status: taskStatus,
-        approval_state: approvalState,
-        assignee_id: assigneeId || null,
-        project_id: projectId || null,
-        due_at: dueAt || null
-      });
-      setStatus("Saved.");
-      await refresh();
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to save");
-    }
-  }
+
+    const next = {
+      title: trimmedTitle,
+      description: description.trim() ? description.trim() : null,
+      priority,
+      status: taskStatus,
+      approval_state: approvalState,
+      assignee_id: assigneeId || null,
+      project_id: projectId || null,
+      due_at: dueAt || null
+    };
+
+    const prev = lastSavedRef.current;
+    const changed =
+      next.title !== prev.title ||
+      next.description !== prev.description ||
+      next.priority !== prev.priority ||
+      next.status !== prev.status ||
+      next.approval_state !== prev.approval_state ||
+      next.assignee_id !== prev.assignee_id ||
+      next.project_id !== prev.project_id ||
+      next.due_at !== prev.due_at;
+    if (!changed) return;
+
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    const seq = ++autosaveSeqRef.current;
+    autosaveTimerRef.current = setTimeout(async () => {
+      try {
+        setStatus("Saving…");
+        await updateTask(taskId, next);
+        if (autosaveSeqRef.current !== seq) return; // superseded
+        lastSavedRef.current = next;
+        setTaskState((t) => (t ? { ...t, ...next, assignee_id: next.assignee_id, project_id: next.project_id, due_at: next.due_at } : t));
+        setStatus("Saved.");
+      } catch (e) {
+        if (autosaveSeqRef.current !== seq) return;
+        setStatus(e instanceof Error ? e.message : "Failed to save");
+      }
+    }, 650);
+
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [approvalState, assigneeId, canEdit, description, dueAt, loadingTask, priority, projectId, task, taskId, taskStatus, title]);
 
   async function onDelete() {
     if (!canDelete) return;
@@ -284,7 +343,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
       }
 
       setStatus("Contributions saved.");
-      await refresh();
+      const next = await listTaskContributions(taskId);
+      setContributions(next);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to save contributions");
     }
@@ -296,10 +356,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
     if (!t) return;
     setStatus("Creating subtask…");
     try {
-      await createTaskSubtask({ task_id: taskId, title: t });
+      const created = await createTaskSubtask({ task_id: taskId, title: t });
       setNewSubtaskTitle("");
       setStatus("Subtask created.");
-      await refresh();
+      setSubtasks((prev) => [...prev, created]);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to create subtask");
     }
@@ -308,11 +368,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
   async function onUpdateSubtask(id: string, patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "due_at" | "effort_points">>) {
     if (!canEdit) return;
     setStatus("Saving subtask…");
+    const snapshot = subtasks;
+    setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
     try {
       await updateTaskSubtask(id, patch);
       setStatus("Subtask saved.");
-      await refresh();
     } catch (e) {
+      setSubtasks(snapshot);
+      await refreshSubtasksOnly().catch(() => null);
       setStatus(e instanceof Error ? e.message : "Failed to save subtask");
     }
   }
@@ -321,11 +384,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
     if (!canEdit) return;
     if (!confirm("Delete this subtask?")) return;
     setStatus("Deleting subtask…");
+    const snapshot = subtasks;
+    setSubtasks((prev) => prev.filter((s) => s.id !== id));
     try {
       await deleteTaskSubtask(id);
       setStatus("Subtask deleted.");
-      await refresh();
     } catch (e) {
+      setSubtasks(snapshot);
+      await refreshSubtasksOnly().catch(() => null);
       setStatus(e instanceof Error ? e.message : "Failed to delete subtask");
     }
   }
@@ -810,9 +876,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               ariaLabel="Subtask status"
                               disabled={!canEdit}
                             >
-                              {(["todo", "in_progress", "done", "dropped"] as const).map((st) => (
+                              {[...PRIMARY_FLOW, ...SIDE_LANE].map((st) => (
                                 <option key={st} value={st} className="bg-zinc-900">
-                                  {st}
+                                  {statusLabel(st)}
                                 </option>
                               ))}
                             </PillSelect>
@@ -848,9 +914,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div className="flex items-center justify-end gap-2">
                   <AppButton intent="secondary" className="h-11 px-6" onPress={refresh}>
                     Refresh
-                  </AppButton>
-                  <AppButton intent="primary" className="h-11 px-6" onPress={onSave} isDisabled={!canEdit}>
-                    Save changes
                   </AppButton>
                 </div>
               </div>

@@ -10,7 +10,7 @@ import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task } from "@/lib/dashboardDb";
 import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks } from "@/lib/dashboardDb";
-import { endOfWeek, isoDate, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
+import { endOfWeek, isoDate, isAssignableTaskRole, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 
 type View = "board" | "with_me" | "blocked" | "delivery" | "impact" | "reliability" | "project";
 
@@ -54,6 +54,15 @@ export function TasksPage() {
   const canSeeTasks =
     profile?.role != null &&
     (profile.role === "cmo" || (profile.role !== "sales_ops" && profile.is_marketing_team === true));
+
+  const assignableProfiles = useMemo(() => profiles.filter((p) => isAssignableTaskRole(p.role)), [profiles]);
+
+  function getAssigneeFilterOptionProfiles(selected: string) {
+    if (!selected || selected === "__me__" || selected === "__none__") return assignableProfiles;
+    if (assignableProfiles.some((p) => p.id === selected)) return assignableProfiles;
+    const current = profiles.find((p) => p.id === selected) ?? null;
+    return current ? [current, ...assignableProfiles] : assignableProfiles;
+  }
 
   async function refresh() {
     try {
@@ -251,11 +260,15 @@ export function TasksPage() {
                   <option value="__none__" className="bg-zinc-900">
                     Unassigned
                   </option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id} className="bg-zinc-900">
-                      {p.full_name || p.email || p.id}
-                    </option>
-                  ))}
+                  {getAssigneeFilterOptionProfiles(assigneeFilter).map((p) => {
+                    const canAssign = isAssignableTaskRole(p.role);
+                    return (
+                      <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                        {p.full_name || p.email || p.id}
+                        {!canAssign ? " (not assignable)" : ""}
+                      </option>
+                    );
+                  })}
                 </PillSelect>
 
                 <PillSelect value={priorityFilter} onChange={setPriorityFilter} ariaLabel="Priority filter">
