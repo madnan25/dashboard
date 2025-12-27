@@ -9,8 +9,10 @@ import { PillSelect } from "@/components/ds/PillSelect";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task } from "@/lib/dashboardDb";
-import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks } from "@/lib/dashboardDb";
+import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, updateTask } from "@/lib/dashboardDb";
 import { endOfWeek, isoDate, isAssignableTaskRole, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
+import type { TaskStatus } from "@/lib/dashboardDb";
+import Link from "next/link";
 
 type View = "board" | "with_me" | "blocked" | "delivery" | "impact" | "reliability" | "project";
 
@@ -50,6 +52,7 @@ export function TasksPage() {
   const [creating, setCreating] = useState(false);
 
   const isCmo = profile?.role === "cmo";
+  const isManager = profile?.role === "cmo" || profile?.is_marketing_manager === true;
   const canEdit = profile?.role != null && profile.role !== "viewer";
   const canSeeTasks =
     profile?.role != null &&
@@ -165,6 +168,35 @@ export function TasksPage() {
     ? ["board", "with_me", "blocked", "delivery", "impact", "reliability", "project"]
     : ["board", "blocked", "delivery", "impact", "reliability", "project"];
 
+  function canMoveToStatus(t: Task, next: TaskStatus): { ok: boolean; reason?: string } {
+    if (!canEdit) return { ok: false, reason: "You can’t edit tickets" };
+    if (isManager) return { ok: true };
+
+    // Non-managers: can move only within early workflow and into holds
+    const allowed: TaskStatus[] = ["queued", "in_progress", "submitted", "blocked", "on_hold"];
+    const terminalForNonManagers: TaskStatus[] = ["submitted", "blocked", "on_hold"];
+    if (!allowed.includes(next)) return { ok: false, reason: "Only managers can move to that stage" };
+    if (terminalForNonManagers.includes(t.status) && next !== t.status) return { ok: false, reason: "Only managers can move tickets after this stage" };
+    return { ok: true };
+  }
+
+  async function onMoveTask(t: Task, next: TaskStatus) {
+    const chk = canMoveToStatus(t, next);
+    if (!chk.ok) {
+      setStatus(chk.reason || "Move not allowed");
+      return;
+    }
+    const prev = tasks;
+    setTasks((cur) => cur.map((x) => (x.id === t.id ? { ...x, status: next, updated_at: new Date().toISOString() } : x)));
+    try {
+      await updateTask(t.id, { status: next });
+      setStatus("");
+    } catch (e) {
+      setTasks(prev);
+      setStatus(e instanceof Error ? e.message : "Failed to move ticket");
+    }
+  }
+
   if (profile && !canSeeTasks) {
     return (
       <main className="min-h-screen px-4 md:px-6 pb-10">
@@ -189,6 +221,11 @@ export function TasksPage() {
           backHref="/"
           right={
             <div className="hidden md:flex items-center gap-2">
+              {(profile?.role === "cmo" || profile?.role === "brand_manager" || profile?.is_marketing_manager === true) ? (
+                <Link href="/tasks/templates" className="text-xs text-white/70 underline">
+                  Templates
+                </Link>
+              ) : null}
               <PillSelect value={view} onChange={(v) => setView(v as View)} ariaLabel="View">
                 {viewOptions.map((v) => (
                   <option key={v} value={v} className="bg-zinc-900">
@@ -306,6 +343,8 @@ export function TasksPage() {
               onOpenTask={(t) => {
                 router.push(`/tasks/${t.id}`);
               }}
+              canMoveToStatus={canMoveToStatus}
+              onMoveTask={onMoveTask}
             />
           </Surface>
         )}

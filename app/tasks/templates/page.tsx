@@ -49,7 +49,8 @@ export default function TaskTemplatesPage() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const canManage = me?.is_marketing_manager === true || me?.role === "cmo";
+  // Allow CMO, marketing managers, and brand managers to manage templates.
+  const canManage = me?.role === "cmo" || me?.role === "brand_manager" || me?.is_marketing_manager === true;
 
   const selectedTemplate = useMemo(() => templates.find((t) => t.id === selectedId) ?? null, [selectedId, templates]);
   const marketingManagers = useMemo(

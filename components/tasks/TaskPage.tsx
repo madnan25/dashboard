@@ -521,27 +521,42 @@ export function TaskPage({ taskId }: { taskId: string }) {
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <AppButton intent="secondary" size="sm" className="h-10 px-4" onPress={() => onSetStatus("in_progress")} isDisabled={!canEdit}>
-                  Start work
-                </AppButton>
+                {task.status !== "closed" ? (
+                  <AppButton intent="secondary" size="sm" className="h-10 px-4" onPress={() => onSetStatus("in_progress")} isDisabled={!canEdit}>
+                    Start work
+                  </AppButton>
+                ) : null}
                 <AppButton
                   intent="secondary"
                   size="sm"
                   className="h-10 px-4"
                   onPress={() => onSetStatus("submitted")}
-                  isDisabled={!canEdit || !flowInstance || !managerUserId}
+                  isDisabled={!canEdit || task.status === "closed" || !flowInstance || !managerUserId}
                 >
                   Submit for approval
                 </AppButton>
-                <AppButton
-                  intent="primary"
-                  size="sm"
-                  className="h-10 px-4"
-                  onPress={() => onSetStatus("closed")}
-                  isDisabled={!canEdit || !isManager}
-                >
-                  Close ticket
-                </AppButton>
+                {task.status === "closed" ? (
+                  <AppButton
+                    intent="secondary"
+                    size="sm"
+                    className="h-10 px-4"
+                    onPress={() => onSetStatus("in_progress")}
+                    isDisabled={!canEdit || !isManager}
+                  >
+                    Reopen ticket
+                  </AppButton>
+                ) : (
+                  <AppButton
+                    intent="primary"
+                    size="sm"
+                    className="h-10 px-4"
+                    onPress={() => onSetStatus("closed")}
+                    isDisabled={!canEdit || !isManager}
+                  >
+                    Close ticket
+                  </AppButton>
+                )}
+                {!isManager ? <div className="text-xs text-white/45">Close/reopen is manager-only.</div> : null}
                 {!managerUserId ? <div className="text-xs text-white/45">Set a ticket manager to enable approvals.</div> : null}
                 {!flowInstance ? <div className="text-xs text-white/45">Set a flow template to enable approvals.</div> : null}
               </div>
