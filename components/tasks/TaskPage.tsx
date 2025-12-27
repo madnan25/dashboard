@@ -421,6 +421,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   async function onSetStatus(next: TaskStatus) {
     if (!canEdit) return;
+    const prevStatus = taskStatus;
     setTaskStatus(next);
     try {
       setStatus("Saving…");
@@ -429,6 +430,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setTaskState((t) => (t ? { ...t, status: next } : t));
       setStatus("Saved.");
     } catch (e) {
+      setTaskStatus(prevStatus);
       setStatus(e instanceof Error ? e.message : "Failed to update status");
       await refresh().catch(() => null);
     }
@@ -521,7 +523,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {task.status !== "closed" ? (
+                {taskStatus !== "closed" ? (
                   <AppButton intent="secondary" size="sm" className="h-10 px-4" onPress={() => onSetStatus("in_progress")} isDisabled={!canEdit}>
                     Start work
                   </AppButton>
@@ -531,11 +533,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   size="sm"
                   className="h-10 px-4"
                   onPress={() => onSetStatus("submitted")}
-                  isDisabled={!canEdit || task.status === "closed" || !flowInstance || !managerUserId}
+                  isDisabled={!canEdit || taskStatus === "closed" || !flowInstance || !managerUserId}
                 >
                   Submit for approval
                 </AppButton>
-                {task.status === "closed" ? (
+                {taskStatus === "closed" ? (
                   <AppButton
                     intent="secondary"
                     size="sm"
@@ -551,12 +553,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     size="sm"
                     className="h-10 px-4"
                     onPress={() => onSetStatus("closed")}
-                    isDisabled={!canEdit || !isManager}
+                    isDisabled={!canEdit || !isManager || approvalState !== "approved"}
                   >
                     Close ticket
                   </AppButton>
                 )}
                 {!isManager ? <div className="text-xs text-white/45">Close/reopen is manager-only.</div> : null}
+                {isManager && taskStatus !== "closed" && approvalState !== "approved" ? (
+                  <div className="text-xs text-white/45">Close requires approval.</div>
+                ) : null}
                 {!managerUserId ? <div className="text-xs text-white/45">Set a ticket manager to enable approvals.</div> : null}
                 {!flowInstance ? <div className="text-xs text-white/45">Set a flow template to enable approvals.</div> : null}
               </div>
@@ -721,6 +726,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     </div>
                   ) : (
                     <div className="mt-3 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs text-white/50">Need to create or edit templates?</div>
+                        {(profile?.role === "cmo" || profile?.role === "brand_manager" || profile?.is_marketing_manager === true) ? (
+                          <Link href="/tasks/templates" className="text-xs text-white/70 underline">
+                            Manage templates
+                          </Link>
+                        ) : null}
+                      </div>
                       <div className="grid gap-3 md:grid-cols-2">
                         <div>
                           <div className="text-xs uppercase tracking-widest text-white/45">Template</div>
@@ -740,6 +753,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               </option>
                             ))}
                           </PillSelect>
+                          {flowTemplates.length === 0 ? (
+                            <div className="mt-2 text-xs text-white/45">No templates found. Create one in Templates.</div>
+                          ) : null}
                         </div>
                         <div className="flex items-end">
                           <AppButton

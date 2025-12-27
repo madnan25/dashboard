@@ -241,6 +241,11 @@ export function TasksPage() {
         <div className="md:hidden">
           <Surface>
             <div className="flex flex-wrap items-center gap-2">
+              {(profile?.role === "cmo" || profile?.role === "brand_manager" || profile?.is_marketing_manager === true) ? (
+                <Link href="/tasks/templates" className="text-xs text-white/70 underline">
+                  Templates
+                </Link>
+              ) : null}
               <PillSelect value={view} onChange={(v) => setView(v as View)} ariaLabel="View">
                 {viewOptions.map((v) => (
                   <option key={v} value={v} className="bg-zinc-900">
