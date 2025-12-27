@@ -132,6 +132,16 @@ export async function listTaskPointsLedger(
   return (data as TaskPointsLedgerEntry[]) ?? [];
 }
 
+export async function listTaskPointsLedgerByTaskId(supabase: SupabaseClient, taskId: string): Promise<TaskPointsLedgerEntry[]> {
+  const { data, error } = await supabase
+    .from("task_points_ledger")
+    .select("id, user_id, task_id, weight_tier, points_awarded, breakdown, week_start, created_at")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as TaskPointsLedgerEntry[]) ?? [];
+}
+
 export async function deleteTask(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from("tasks").delete().eq("id", id);
   if (error) throw error;

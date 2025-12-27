@@ -252,6 +252,10 @@ export async function listTaskPointsLedger(filters?: { userId?: string; weekStar
   return await repo().listTaskPointsLedger(filters);
 }
 
+export async function listTaskPointsLedgerByTaskId(taskId: string): Promise<TaskPointsLedgerEntry[]> {
+  return await repo().listTaskPointsLedgerByTaskId(taskId);
+}
+
 export async function listTaskContributions(taskId: string): Promise<TaskContribution[]> {
   return await repo().listTaskContributions(taskId);
 }

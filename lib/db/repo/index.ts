@@ -67,6 +67,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     getTaskWeightConfig: () => tasks.getTaskWeightConfig(supabase),
     updateTaskWeightConfig: (patch: Parameters<typeof tasks.updateTaskWeightConfig>[1]) => tasks.updateTaskWeightConfig(supabase, patch),
     listTaskPointsLedger: (filters?: Parameters<typeof tasks.listTaskPointsLedger>[1]) => tasks.listTaskPointsLedger(supabase, filters),
+    listTaskPointsLedgerByTaskId: (taskId: string) => tasks.listTaskPointsLedgerByTaskId(supabase, taskId),
 
     // tasks collaboration
     listTaskContributions: (taskId: string) => tasks.listTaskContributions(supabase, taskId),
