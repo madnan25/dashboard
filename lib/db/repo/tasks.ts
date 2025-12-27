@@ -343,7 +343,26 @@ export async function createTaskFlowInstanceFromTemplate(
   templateId: string,
   resolvedSteps: Array<Pick<TaskFlowStepInstance, "step_order" | "step_key" | "label" | "approver_user_id">>
 ): Promise<TaskFlowInstance> {
-  // Create instance
+  // New default: use server-side RPC to resolve approvers (e.g. ticket manager).
+  // Keep resolvedSteps param for backwards compatibility; if provided, fall back to client-side path.
+  if (!resolvedSteps || resolvedSteps.length === 0) {
+    const { data, error } = await supabase.rpc("create_task_flow_instance_from_template", {
+      p_task_id: taskId,
+      p_template_id: templateId
+    });
+    if (error) throw error;
+    const instId = data as string | null;
+    if (!instId) throw new Error("Failed to create flow instance");
+    const { data: inst, error: instErr } = await supabase
+      .from("task_flow_instances")
+      .select("id, task_id, template_id, current_step_order, is_overridden, created_by, created_at, updated_at")
+      .eq("id", instId)
+      .single();
+    if (instErr) throw instErr;
+    return inst as TaskFlowInstance;
+  }
+
+  // Legacy: client-resolved flow creation
   const { data: inst, error: instErr } = await supabase
     .from("task_flow_instances")
     .insert({ task_id: taskId, template_id: templateId, is_overridden: false })

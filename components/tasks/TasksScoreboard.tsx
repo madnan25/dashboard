@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
 import { PillSelect } from "@/components/ds/PillSelect";
@@ -175,6 +176,11 @@ export function TasksScoreboard(props: {
         <div>
           <div className="text-sm font-semibold text-white/90">Scoreboard</div>
           <div className="mt-1 text-xs text-white/55">Points award once at approval. Impact over busyness.</div>
+          <div className="mt-2 text-xs text-white/50">
+            <Link href="/tasks/scoring" className="underline text-white/70">
+              How scoring works
+            </Link>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PillSelect value={mode} onChange={(v) => setMode(v as Mode)} ariaLabel="Scoreboard view">

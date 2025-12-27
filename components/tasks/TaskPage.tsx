@@ -72,12 +72,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [flowSteps, setFlowSteps] = useState<TaskFlowStepInstance[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [templateSteps, setTemplateSteps] = useState<TaskFlowTemplateStep[]>([]);
-  const [templateApprovers, setTemplateApprovers] = useState<Record<string, string>>({}); // step_key -> user_id
   const [loadingTask, setLoadingTask] = useState(true);
 
   const isCmo = profile?.role === "cmo";
   const canEdit = profile?.role != null && profile.role !== "viewer";
   const canDelete = profile?.role === "cmo" || (profile?.is_marketing_team === true && profile?.is_marketing_manager === true);
+  const isManager = profile?.role === "cmo" || profile?.is_marketing_manager === true;
   const canSeeTasks =
     profile?.role != null &&
     (profile.role === "cmo" || (profile.role !== "sales_ops" && profile.is_marketing_team === true));
@@ -92,7 +92,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [dueAt, setDueAt] = useState<string>("");
   const [primaryUserId, setPrimaryUserId] = useState<string>("");
   const [secondaryUserId, setSecondaryUserId] = useState<string>("");
-  const [coordinatorUserId, setCoordinatorUserId] = useState<string>("");
+  const [managerUserId, setManagerUserId] = useState<string>("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState<string>("");
 
   const lastSavedRef = useRef<{
@@ -171,7 +171,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         const coord = contribs.find((c) => c.role === "coordinator")?.user_id ?? "";
         setPrimaryUserId(primary || t.assignee_id || t.created_by || "");
         setSecondaryUserId(secondary);
-        setCoordinatorUserId(coord || (t.created_by && t.created_by !== (t.assignee_id ?? "") ? t.created_by : ""));
+        setManagerUserId(coord || (t.created_by && t.created_by !== (t.assignee_id ?? "") ? t.created_by : ""));
       }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to load task");
@@ -215,26 +215,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
     { value: "approved", label: approvalLabel("approved"), disabled: profile?.is_marketing_manager !== true }
   ];
 
-  const marketingManagers = useMemo(() => profiles.filter((p) => p.is_marketing_manager === true), [profiles]);
-
   useEffect(() => {
     let cancelled = false;
     async function loadTemplateSteps() {
       if (!selectedTemplateId) {
         setTemplateSteps([]);
-        setTemplateApprovers({});
         return;
       }
       try {
         const steps = await listTaskFlowTemplateSteps(selectedTemplateId);
         if (cancelled) return;
         setTemplateSteps(steps);
-        const defaults: Record<string, string> = {};
-        const fallback = marketingManagers[0]?.id || profile?.id || "";
-        for (const s of steps) {
-          defaults[s.step_key] = s.approver_user_id || fallback;
-        }
-        setTemplateApprovers(defaults);
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load flow template");
@@ -244,7 +235,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [marketingManagers, profile?.id, selectedTemplateId]);
+  }, [selectedTemplateId]);
 
   useEffect(() => {
     if (!canEdit) return;
@@ -325,7 +316,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       const next = {
         primary: primaryUserId.trim(),
         secondary: secondaryUserId.trim(),
-        coordinator: coordinatorUserId.trim()
+        coordinator: managerUserId.trim()
       };
 
       (["primary", "secondary", "coordinator"] as const).forEach((role) => {
@@ -334,7 +325,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
         else upserts.push({ role, user_id: val });
       });
 
-      // delete first so "clearing" a role works
       for (const role of deletes) {
         await deleteTaskContributionByRole(taskId, role);
       }
@@ -407,23 +397,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setStatus("This ticket already has a flow.");
       return;
     }
-    if (templateSteps.length === 0) {
-      setStatus("This template has no steps.");
-      return;
-    }
     setStatus("Creating approval flow…");
     try {
-      const resolved = templateSteps.map((s) => ({
-        step_order: s.step_order,
-        step_key: s.step_key,
-        label: s.label,
-        approver_user_id: (templateApprovers[s.step_key] || s.approver_user_id || null) as string | null
-      }));
-      if (resolved.some((r) => !r.approver_user_id)) {
-        setStatus("Every step needs an approver.");
-        return;
-      }
-      await createTaskFlowInstanceFromTemplate(taskId, selectedTemplateId, resolved);
+      // Server-side resolves approvers (e.g. ticket manager). We pass an empty array.
+      await createTaskFlowInstanceFromTemplate(taskId, selectedTemplateId, []);
       setStatus("Approval flow created.");
       await refresh();
     } catch (e) {
@@ -439,6 +416,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
       await refresh();
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to approve");
+    }
+  }
+
+  async function onSetStatus(next: TaskStatus) {
+    if (!canEdit) return;
+    setTaskStatus(next);
+    try {
+      setStatus("Saving…");
+      await updateTask(taskId, { status: next });
+      lastSavedRef.current = lastSavedRef.current ? { ...lastSavedRef.current, status: next } : lastSavedRef.current;
+      setTaskState((t) => (t ? { ...t, status: next } : t));
+      setStatus("Saved.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to update status");
+      await refresh().catch(() => null);
     }
   }
 
@@ -526,6 +518,32 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     Delete
                   </AppButton>
                 ) : null}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <AppButton intent="secondary" size="sm" className="h-10 px-4" onPress={() => onSetStatus("in_progress")} isDisabled={!canEdit}>
+                  Start work
+                </AppButton>
+                <AppButton
+                  intent="secondary"
+                  size="sm"
+                  className="h-10 px-4"
+                  onPress={() => onSetStatus("submitted")}
+                  isDisabled={!canEdit || !flowInstance || !managerUserId}
+                >
+                  Submit for approval
+                </AppButton>
+                <AppButton
+                  intent="primary"
+                  size="sm"
+                  className="h-10 px-4"
+                  onPress={() => onSetStatus("closed")}
+                  isDisabled={!canEdit || !isManager}
+                >
+                  Close ticket
+                </AppButton>
+                {!managerUserId ? <div className="text-xs text-white/45">Set a ticket manager to enable approvals.</div> : null}
+                {!flowInstance ? <div className="text-xs text-white/45">Set a flow template to enable approvals.</div> : null}
               </div>
 
               <div className="mt-4 space-y-4">
@@ -713,42 +731,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             intent="primary"
                             className="h-11 px-6"
                             onPress={onCreateFlowFromTemplate}
-                            isDisabled={!canEdit || !selectedTemplateId || templateSteps.length === 0}
+                            isDisabled={!canEdit || !selectedTemplateId}
                           >
                             Set flow
                           </AppButton>
                         </div>
                       </div>
-
                       {selectedTemplateId && templateSteps.length > 0 ? (
-                        <div className="space-y-2">
-                          {templateSteps.map((s) => (
-                            <div
-                              key={s.id}
-                              className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3"
-                            >
-                              <div className="text-sm font-semibold text-white/90">
-                                {s.step_order}. {s.label}
-                              </div>
-                              <div className="mt-2">
-                                <PillSelect
-                                  value={templateApprovers[s.step_key] || ""}
-                                  onChange={(v) => setTemplateApprovers((prev) => ({ ...prev, [s.step_key]: v }))}
-                                  ariaLabel={`Approver for ${s.label}`}
-                                  disabled={!canEdit}
-                                >
-                                  <option value="" className="bg-zinc-900">
-                                    Select approver…
-                                  </option>
-                                  {marketingManagers.map((p) => (
-                                    <option key={p.id} value={p.id} className="bg-zinc-900">
-                                      {toOptionLabel(p)}
-                                    </option>
-                                  ))}
-                                </PillSelect>
-                              </div>
-                            </div>
-                          ))}
+                        <div className="mt-2 text-xs text-white/50">
+                          This template has {templateSteps.length} step{templateSteps.length === 1 ? "" : "s"}. Approvers are resolved automatically from the ticket manager.
                         </div>
                       ) : null}
                     </div>
@@ -788,8 +779,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         </PillSelect>
                       </div>
                       <div className="grid gap-2 md:grid-cols-2">
-                        <div className="text-xs text-white/45 pt-2">Coordinator (10%)</div>
-                        <PillSelect value={coordinatorUserId} onChange={setCoordinatorUserId} ariaLabel="Coordinator" disabled={!canEdit}>
+                        <div className="text-xs text-white/45 pt-2">Manager (10%)</div>
+                        <PillSelect value={managerUserId} onChange={setManagerUserId} ariaLabel="Manager" disabled={!canEdit}>
                           <option value="" className="bg-zinc-900">
                             None
                           </option>
@@ -803,7 +794,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                       <div className="flex justify-end">
                         <AppButton intent="secondary" className="h-10 px-4" onPress={onSaveContributions} isDisabled={!canEdit}>
-                          Save split
+                          Save manager & split
                         </AppButton>
                       </div>
                     </div>

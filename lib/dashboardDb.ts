@@ -323,7 +323,7 @@ export async function replaceTaskFlowTemplateSteps(
     step_order: number;
     step_key: string;
     label: string;
-    approver_kind: "marketing_manager" | "user";
+    approver_kind: "marketing_manager" | "user" | "ticket_manager";
     approver_user_id: string | null;
   }>
 ): Promise<void> {

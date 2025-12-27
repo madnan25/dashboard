@@ -184,7 +184,7 @@ export type TaskSubtask = {
   updated_at: string;
 };
 
-export type TaskFlowApproverKind = "marketing_manager" | "user";
+export type TaskFlowApproverKind = "marketing_manager" | "user" | "ticket_manager";
 export type TaskFlowStepStatus = "pending" | "approved";
 
 export type TaskFlowTemplate = {
