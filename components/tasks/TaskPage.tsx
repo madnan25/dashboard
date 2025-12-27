@@ -343,8 +343,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
       }
 
       setStatus("Contributions saved.");
-      const next = await listTaskContributions(taskId);
-      setContributions(next);
+      const nextContributions = await listTaskContributions(taskId);
+      setContributions(nextContributions);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to save contributions");
     }
