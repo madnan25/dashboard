@@ -829,7 +829,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
   const remainingBudget = Math.max(0, budgetCap - allocatedTotal);
 
   const isCmo = profile?.role === "cmo";
-  const canEditPlan = isCmo || activeVersion?.status === "draft" || activeVersion?.status === "rejected";
+  const isBrandManager = profile?.role === "brand_manager";
+  const canEditPlan = isCmo || (isBrandManager && (activeVersion?.status === "draft" || activeVersion?.status === "rejected"));
 
   return {
     envMissing,

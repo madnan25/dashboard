@@ -102,7 +102,7 @@ export default function BrandDataEntryClient() {
           </Surface>
         ) : null}
 
-        {profile?.role === "brand_manager" || isCmo ? (
+        {profile?.role === "brand_manager" || profile?.role === "member" || isCmo ? (
           <div className="grid gap-4 md:grid-cols-12">
             <BrandTargetsCard
               isCmo={isCmo}
@@ -133,7 +133,7 @@ export default function BrandDataEntryClient() {
           </div>
         ) : null}
 
-        {profile?.role === "brand_manager" || isCmo ? (
+        {profile?.role === "brand_manager" || profile?.role === "member" || isCmo ? (
           <BrandSpendCard
             isCmo={isCmo}
             actuals={actuals}
@@ -174,7 +174,7 @@ export default function BrandDataEntryClient() {
           />
         ) : null}
 
-        {profile && profile.role !== "cmo" && profile.role !== "brand_manager" && profile.role !== "sales_ops" ? (
+        {profile && profile.role !== "cmo" && profile.role !== "brand_manager" && profile.role !== "member" && profile.role !== "sales_ops" ? (
           <Surface>
             <div className="text-sm text-white/70">Unknown role: {String(profile.role)}</div>
           </Surface>
