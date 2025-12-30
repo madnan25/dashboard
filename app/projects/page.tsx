@@ -380,8 +380,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
                 qualifiedLeads: 0,
                 qualifiedPipelineSqft: 0
               };
-            // Efficiency is pipeline-only so misc/transfers don't distort spend efficiency.
-            const costPerSqft = a.sqftPipeline > 0 ? a.spend / a.sqftPipeline : Number.POSITIVE_INFINITY;
+            const costPerSqft = a.sqftAll > 0 ? a.spend / a.sqftAll : Number.POSITIVE_INFINITY;
             const costPerQualifiedLead = a.qualifiedLeads > 0 ? a.spend / a.qualifiedLeads : Number.POSITIVE_INFINITY;
             return {
               id: p.id,
@@ -401,8 +400,8 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
     }
   }
 
-  const roiSqftPerSpend = totalSpend > 0 ? totalSqftPipeline / totalSpend : null;
-  const costPerSqft = totalSqftPipeline > 0 ? totalSpend / totalSqftPipeline : null;
+  const roiSqftPerSpend = totalSpend > 0 ? totalSqft / totalSpend : null;
+  const costPerSqft = totalSqft > 0 ? totalSpend / totalSqft : null;
 
   const qs = `?year=${encodeURIComponent(String(year))}&monthIndex=${encodeURIComponent(String(monthIndex))}&mode=${encodeURIComponent(mode)}`;
   const qsProject = `?year=${encodeURIComponent(String(year))}&monthIndex=${encodeURIComponent(String(monthIndex))}`;
@@ -459,7 +458,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               <KpiCard
                 label="Efficiency (spend / SQFT)"
                 value={costPerSqft != null ? format2(costPerSqft) : "—"}
-                helper={costPerSqft != null ? "Pipeline-only (excludes transfers/misc)." : "No pipeline SQFT won recorded"}
+                helper={costPerSqft != null ? "All closes (includes transfers + misc)." : "No SQFT won recorded"}
               />
             </div>
 
