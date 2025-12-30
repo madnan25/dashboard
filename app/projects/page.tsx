@@ -444,38 +444,16 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               </Surface>
             ) : null}
 
-            <div className="grid gap-4 md:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-4">
               <KpiCard
                 label="Qualified pipeline created (SQFT)"
                 value={formatNumber(totalQualifiedPipelineSqft)}
                 helper={mode === "ytd" ? "Year to date" : "This month"}
-                right={<div className="text-xs text-white/45">Qualified leads × avg deal size</div>}
               />
               <KpiCard
                 label="Pipeline actualized (SQFT)"
                 value={formatNumber(totalSqft)}
                 helper={mode === "ytd" ? "Year to date" : "This month"}
-                right={
-                  <div className="space-y-1 text-xs text-white/45">
-                    <div>In: {formatNumber(totalSqftPipeline)} pipeline</div>
-                    <div>+ {formatNumber(totalSqftTransfer)} transfer</div>
-                    <div>+ {formatNumber(totalSqftMisc)} misc</div>
-                    <div className="text-white/35">Out: {formatNumber(totalSqftTransferOut)}</div>
-                  </div>
-                }
-              />
-              <KpiCard
-                label="Deals won"
-                value={formatNumber(totalDeals)}
-                helper={mode === "ytd" ? "Year to date" : "This month"}
-                right={
-                  <div className="space-y-1 text-xs text-white/45">
-                    <div>In: {formatNumber(totalDealsPipeline)} pipeline</div>
-                    <div>+ {formatNumber(totalDealsTransfer)} transfer</div>
-                    <div>+ {formatNumber(totalDealsMisc)} misc</div>
-                    <div className="text-white/35">Out: {formatNumber(totalDealsTransferOut)}</div>
-                  </div>
-                }
               />
               <KpiCard label="Total spend" value={formatNumber(totalSpend)} helper="Digital + Inbound + Activations" />
               <KpiCard
