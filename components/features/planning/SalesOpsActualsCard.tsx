@@ -147,8 +147,6 @@ export function SalesOpsActualsCard(props: {
   const [transferSourceProjectId, setTransferSourceProjectId] = useState("");
   const [transferDeals, setTransferDeals] = useState("1");
   const [transferSqft, setTransferSqft] = useState("0");
-  const [transferCampaign, setTransferCampaign] = useState("");
-  const [transferNotes, setTransferNotes] = useState("");
 
   async function refreshAdjustments() {
     if (!canAdjust) return;
@@ -504,13 +502,6 @@ export function SalesOpsActualsCard(props: {
               </div>
               <NumberInput label="Deals won" unit="deals" value={transferDeals} onValueChange={setTransferDeals} integerOnly />
               <NumberInput label="SQFT won" unit="sqft" value={transferSqft} onValueChange={setTransferSqft} integerOnly />
-              <AppInput
-                label="Source campaign (optional)"
-                placeholder="e.g. V3 Full"
-                value={transferCampaign}
-                onValueChange={setTransferCampaign}
-              />
-              <AppInput label="Notes" placeholder="Optional context" value={transferNotes} onValueChange={setTransferNotes} />
               <div className="flex items-center justify-end">
                 <AppButton
                   intent="primary"
@@ -534,15 +525,11 @@ export function SalesOpsActualsCard(props: {
                         sqft_won: sqft,
                         bucket: "transfer",
                         source_kind: "project",
-                        source_project_id: transferSourceProjectId,
-                        source_campaign: transferCampaign || null,
-                        notes: transferNotes || null
+                        source_project_id: transferSourceProjectId
                       });
 
                       setTransferDeals("1");
                       setTransferSqft("0");
-                      setTransferCampaign("");
-                      setTransferNotes("");
                       setTransferSourceProjectId("");
                       await Promise.all([refreshAdjustments(), refresh()]);
                       setAdjStatus("Saved.");
@@ -566,9 +553,7 @@ export function SalesOpsActualsCard(props: {
                   <div key={e.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
                     <div className="min-w-0 text-xs text-white/70">
                       {e.deals_won} deals • {e.sqft_won} sqft
-                      {e.source_campaign ? ` • ${e.source_campaign}` : ""}
                       {e.source_project_id ? ` • from ${projects.find((p) => p.id === e.source_project_id)?.name ?? "—"}` : ""}
-                      {e.notes ? ` • ${e.notes}` : ""}
                     </div>
                     <AppButton
                       intent="ghost"
