@@ -28,24 +28,34 @@ export function ProjectActualsPanel(props: {
   const sqftMisc = (actuals as unknown as { sqft_won_misc?: number })?.sqft_won_misc ?? 0;
   const sqftAll = sqftPipeline + sqftTransferIn + sqftMisc;
 
-  const breakdownCopy = useMemo(() => {
-    const dealsParts = [
-      `Pipeline ${formatNumber(dealsPipeline)}`,
-      `Transfers in ${formatNumber(dealsTransferIn)}`,
-      `Misc ${formatNumber(dealsMisc)}`
+  const breakdownCards = useMemo(() => {
+    return [
+      {
+        key: "pipeline",
+        label: "Pipeline",
+        hint: "From this month’s channel leads",
+        dotClass: "bg-white/60",
+        deals: dealsPipeline,
+        sqft: sqftPipeline
+      },
+      {
+        key: "transfers",
+        label: "Transfers in",
+        hint: "Closed here, originated elsewhere",
+        dotClass: "bg-sky-300/80",
+        deals: dealsTransferIn,
+        sqft: sqftTransferIn
+      },
+      {
+        key: "misc",
+        label: "Misc",
+        hint: "Older leads / outbound / other",
+        dotClass: "bg-fuchsia-300/80",
+        deals: dealsMisc,
+        sqft: sqftMisc
+      }
     ];
-    const sqftParts = [
-      `Pipeline ${formatNumber(sqftPipeline)}`,
-      `Transfers in ${formatNumber(sqftTransferIn)}`,
-      `Misc ${formatNumber(sqftMisc)}`
-    ];
-    return {
-      dealsIn: dealsParts.join(" • "),
-      sqftIn: sqftParts.join(" • "),
-      dealsOut: `Transferred out ${formatNumber(dealsTransferOut)} deals`,
-      sqftOut: `Transferred out ${formatNumber(sqftTransferOut)} sqft`
-    };
-  }, [dealsMisc, dealsPipeline, dealsTransferIn, dealsTransferOut, sqftMisc, sqftPipeline, sqftTransferIn, sqftTransferOut]);
+  }, [dealsMisc, dealsPipeline, dealsTransferIn, sqftMisc, sqftPipeline, sqftTransferIn]);
 
   const [transferOutByDest, setTransferOutByDest] = useState<Array<{ projectId: string; name: string; deals: number; sqft: number }>>([]);
   const [transferOutStatus, setTransferOutStatus] = useState<string>("");
@@ -100,25 +110,78 @@ export function ProjectActualsPanel(props: {
           ]}
           formatNumber={formatNumber}
         />
-        <div className="mt-3 space-y-1 text-xs text-white/45">
-          <div>Deals (in): {breakdownCopy.dealsIn}</div>
-          <div>SQFT (in): {breakdownCopy.sqftIn}</div>
+
+        <div className="mt-4">
+          <div className="text-xs uppercase tracking-widest text-white/45">Close breakdown</div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {breakdownCards.map((c) => {
+              const muted = (c.deals ?? 0) <= 0 && (c.sqft ?? 0) <= 0;
+              return (
+                <div
+                  key={c.key}
+                  className={[
+                    "glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-4",
+                    muted ? "opacity-70" : ""
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full ${c.dotClass}`} aria-hidden="true" />
+                        <div className="text-sm font-semibold text-white/85">{c.label}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-white/45">{c.hint}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-widest text-white/45">Deals</div>
+                      <div className="mt-1 text-lg font-semibold text-white/90 tabular-nums">{formatNumber(c.deals)}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-widest text-white/45">Sqft</div>
+                      <div className="mt-1 text-lg font-semibold text-white/90 tabular-nums">{formatNumber(c.sqft)}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           {dealsTransferOut > 0 || sqftTransferOut > 0 ? (
-            <>
-              <div>{breakdownCopy.dealsOut}</div>
-              <div>{breakdownCopy.sqftOut}</div>
-              {transferOutStatus ? <div className="text-amber-200/90">{transferOutStatus}</div> : null}
-              {transferOutByDest.length > 0 ? (
+            <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 shadow-[0_0_28px_rgba(255,255,255,0.06)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  To:{" "}
-                  {transferOutByDest
-                    .map((r) => {
-                      return `${r.name} (${formatNumber(r.deals)} deals, ${formatNumber(r.sqft)} sqft)`;
-                    })
-                    .join(" • ")}
+                  <div className="text-sm font-semibold text-white/85">Transfers out</div>
+                  <div className="mt-1 text-xs text-white/45">Closed in another project, originated here.</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-right">
+                    <div className="text-[11px] uppercase tracking-widest text-white/45">Deals</div>
+                    <div className="mt-1 text-base font-semibold text-white/90 tabular-nums">{formatNumber(dealsTransferOut)}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-right">
+                    <div className="text-[11px] uppercase tracking-widest text-white/45">Sqft</div>
+                    <div className="mt-1 text-base font-semibold text-white/90 tabular-nums">{formatNumber(sqftTransferOut)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {transferOutStatus ? <div className="mt-3 text-sm text-amber-200/90">{transferOutStatus}</div> : null}
+
+              {transferOutByDest.length > 0 ? (
+                <div className="mt-3 text-xs text-white/55">
+                  Top destinations:{" "}
+                  <span className="text-white/70">
+                    {transferOutByDest
+                      .map((r) => `${r.name} (${formatNumber(r.deals)} deals, ${formatNumber(r.sqft)} sqft)`)
+                      .join(" • ")}
+                  </span>
                 </div>
               ) : null}
-            </>
+            </div>
           ) : null}
         </div>
       </div>
