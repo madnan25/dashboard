@@ -8,6 +8,7 @@ import type { Project } from "@/lib/db/types";
 import Link from "next/link";
 import { ProjectsOverviewControls, type OverviewMode } from "@/components/projects/ProjectsOverviewControls";
 import { formatNumber } from "@/lib/format";
+import { TopEfficiencyPanel, type EfficiencyRow } from "@/components/projects/TopEfficiencyPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -67,15 +68,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
   let totalSpend = 0;
 
   let topImpact: Array<{ id: string; name: string; sqft: number; momDelta?: number }> = [];
-  let topEfficiency: Array<{
-    id: string;
-    name: string;
-    sqft: number;
-    spend: number;
-    qualifiedLeads: number;
-    costPerSqft: number;
-    costPerQualifiedLead: number;
-  }> = [];
+  let topEfficiency: EfficiencyRow[] = [];
 
   if (!envMissing) {
     try {
@@ -171,7 +164,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           .sort((a, b) => b.sqft - a.sqft)
           .slice(0, 5);
 
-        // Ranked: Efficiency
+        // Ranked: Efficiency (full list; client panel handles sorting/toggle)
         topEfficiency = [...projects]
           .map((p) => {
             const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0 };
@@ -187,9 +180,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               costPerQualifiedLead
             };
           })
-          .filter((x) => Number.isFinite(x.costPerSqft))
-          .sort((a, b) => a.costPerSqft - b.costPerSqft)
-          .slice(0, 5);
+          .filter((x) => Number.isFinite(x.costPerSqft) || Number.isFinite(x.costPerQualifiedLead));
       }
     } catch (e) {
       status = e instanceof Error ? e.message : "Failed to load projects";
@@ -282,35 +273,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
                 </div>
               </Surface>
 
-              <Surface>
-                <div className="text-sm font-semibold text-white/90">Top 5: Efficiency</div>
-                <div className="mt-1 text-xs text-white/55">Lowest cost per sqft, plus cost per qualified lead.</div>
-                <div className="mt-4 space-y-2">
-                  {topEfficiency.length === 0 ? (
-                    <div className="text-sm text-white/50">No data yet.</div>
-                  ) : (
-                    topEfficiency.map((x, i) => (
-                      <div key={x.id} className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm text-white/85">
-                            {i + 1}.{" "}
-                            <Link className="underline text-white/80" href={`/projects/${x.id}${qs}`}>
-                              {x.name}
-                            </Link>
-                          </div>
-                          <div className="text-xs text-white/45">
-                            Spend {formatNumber(x.spend)} · Sqft {formatNumber(x.sqft)} · QL {formatNumber(x.qualifiedLeads)}
-                          </div>
-                          <div className="text-xs text-white/45">
-                            Cost/QL {Number.isFinite(x.costPerQualifiedLead) ? format2(x.costPerQualifiedLead) : "—"}
-                          </div>
-                        </div>
-                        <div className="text-sm font-semibold text-white/90 tabular-nums">{format2(x.costPerSqft)}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Surface>
+              <TopEfficiencyPanel rows={topEfficiency} qs={qs} />
             </div>
           </div>
         ) : null}
