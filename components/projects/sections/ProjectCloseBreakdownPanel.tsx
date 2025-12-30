@@ -86,11 +86,19 @@ export function ProjectCloseBreakdownPanel(props: { actuals: ProjectActuals | nu
   }, [actuals, dealsTransferOut, sqftTransferOut]);
 
   return (
-    <Surface>
-      <div className="flex items-center justify-between gap-3">
+    <Surface className="relative overflow-hidden">
+      <div
+        className="pointer-events-none absolute -top-24 left-1/2 h-56 w-[720px] -translate-x-1/2 rounded-full blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(56,189,248,0.14), rgba(217,70,239,0.10), rgba(255,255,255,0.0) 70%)"
+        }}
+      />
+
+      <div className="relative flex items-center justify-between gap-3">
         <div>
-          <div className="text-lg font-semibold text-white/90">Close breakdown</div>
-          <div className="mt-1 text-sm text-white/55">Pipeline vs transfers vs misc, for this month.</div>
+          <div className="text-lg font-semibold text-white/95">Deals won breakdown</div>
+          <div className="mt-1 text-sm text-white/55">Where the deals came from this month (pipeline vs transfers vs misc).</div>
         </div>
       </div>
 
@@ -101,10 +109,22 @@ export function ProjectCloseBreakdownPanel(props: { actuals: ProjectActuals | nu
             <div
               key={c.key}
               className={[
-                "glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-4",
+                "relative glass-inset rounded-2xl border border-white/10 bg-white/[0.02] p-4",
                 muted ? "opacity-70" : ""
               ].join(" ")}
             >
+              <div
+                className="pointer-events-none absolute inset-x-6 -top-10 h-20 rounded-full blur-2xl"
+                style={{
+                  background:
+                    c.key === "pipeline"
+                      ? "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.10), rgba(255,255,255,0.0) 70%)"
+                      : c.key === "transfers"
+                        ? "radial-gradient(circle at 50% 50%, rgba(56,189,248,0.18), rgba(56,189,248,0.0) 70%)"
+                        : "radial-gradient(circle at 50% 50%, rgba(217,70,239,0.16), rgba(217,70,239,0.0) 70%)"
+                }}
+              />
+
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -131,11 +151,11 @@ export function ProjectCloseBreakdownPanel(props: { actuals: ProjectActuals | nu
       </div>
 
       {dealsTransferOut > 0 || sqftTransferOut > 0 ? (
-        <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 shadow-[0_0_28px_rgba(255,255,255,0.06)]">
+        <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 shadow-[0_0_36px_rgba(56,189,248,0.10)]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-white/85">Transfers out</div>
-              <div className="mt-1 text-xs text-white/45">Closed in another project, originated here.</div>
+              <div className="mt-1 text-xs text-white/45">Deals won elsewhere that originated from this project.</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-right">
