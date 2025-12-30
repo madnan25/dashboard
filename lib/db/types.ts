@@ -68,6 +68,9 @@ export type ProjectActuals = {
   // Adjustments (entered by Sales Ops via sales_attribution_events; rolled up by trigger)
   deals_won_transfer_in: number;
   sqft_won_transfer_in: number;
+  // Derived visibility: what this project's leads closed as in other projects (computed from same transfer events)
+  deals_won_transfer_out: number;
+  sqft_won_transfer_out: number;
   deals_won_misc: number;
   sqft_won_misc: number;
   spend_digital: number;

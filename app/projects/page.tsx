@@ -43,10 +43,12 @@ type ActualRow = {
   month: number;
   sqft_won: number;
   sqft_won_transfer_in?: number;
+  sqft_won_transfer_out?: number;
   sqft_won_misc?: number;
   qualified_leads: number;
   deals_won?: number;
   deals_won_transfer_in?: number;
+  deals_won_transfer_out?: number;
   deals_won_misc?: number;
   spend_digital: number;
   spend_inbound: number;
@@ -73,11 +75,13 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
   let totalSqftPipeline = 0;
   let totalSqftTransfer = 0;
   let totalSqftMisc = 0;
+  let totalSqftTransferOut = 0;
   let totalQualifiedPipelineSqft = 0;
   let totalDeals = 0;
   let totalDealsPipeline = 0;
   let totalDealsTransfer = 0;
   let totalDealsMisc = 0;
+  let totalDealsTransferOut = 0;
   let totalSpend = 0;
 
   let topImpact: Array<{ id: string; name: string; sqft: number; momDelta?: number }> = [];
@@ -98,7 +102,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           const { data, error } = await supabase
             .from("project_actuals")
             .select(
-              "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
+              "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_transfer_out, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_transfer_out, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
             )
             .eq("year", y)
             .eq("month", m)
@@ -108,9 +112,11 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
             ...r,
             sqft_won: r.sqft_won ?? 0,
             sqft_won_transfer_in: r.sqft_won_transfer_in ?? 0,
+            sqft_won_transfer_out: r.sqft_won_transfer_out ?? 0,
             sqft_won_misc: r.sqft_won_misc ?? 0,
             deals_won: r.deals_won ?? 0,
             deals_won_transfer_in: r.deals_won_transfer_in ?? 0,
+            deals_won_transfer_out: r.deals_won_transfer_out ?? 0,
             deals_won_misc: r.deals_won_misc ?? 0,
             qualified_leads: (r as unknown as { qualified_leads?: number }).qualified_leads ?? 0,
             spend_digital: r.spend_digital ?? 0,
@@ -139,7 +145,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           const { data, error } = await supabase
             .from("project_actuals")
             .select(
-              "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
+              "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_transfer_out, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_transfer_out, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
             )
             .eq("year", year)
             .lte("month", month)
@@ -149,9 +155,11 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
             ...r,
             sqft_won: r.sqft_won ?? 0,
             sqft_won_transfer_in: r.sqft_won_transfer_in ?? 0,
+            sqft_won_transfer_out: r.sqft_won_transfer_out ?? 0,
             sqft_won_misc: r.sqft_won_misc ?? 0,
             deals_won: r.deals_won ?? 0,
             deals_won_transfer_in: r.deals_won_transfer_in ?? 0,
+            deals_won_transfer_out: r.deals_won_transfer_out ?? 0,
             deals_won_misc: r.deals_won_misc ?? 0,
             qualified_leads: (r as unknown as { qualified_leads?: number }).qualified_leads ?? 0,
             spend_digital: r.spend_digital ?? 0,
@@ -200,10 +208,12 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
             sqftTransfer: number;
             sqftMisc: number;
             sqftAll: number;
+            sqftTransferOut: number;
             dealsPipeline: number;
             dealsTransfer: number;
             dealsMisc: number;
             dealsAll: number;
+            dealsTransferOut: number;
             spend: number;
             qualifiedLeads: number;
             qualifiedPipelineSqft: number;
@@ -218,19 +228,23 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
             const sqftTransfer = r.sqft_won_transfer_in ?? 0;
             const sqftMisc = r.sqft_won_misc ?? 0;
             const sqftAll = sqftPipeline + sqftTransfer + sqftMisc;
+            const sqftTransferOut = r.sqft_won_transfer_out ?? 0;
             const dealsPipeline = r.deals_won ?? 0;
             const dealsTransfer = r.deals_won_transfer_in ?? 0;
             const dealsMisc = r.deals_won_misc ?? 0;
             const dealsAll = dealsPipeline + dealsTransfer + dealsMisc;
+            const dealsTransferOut = r.deals_won_transfer_out ?? 0;
             actualByProject.set(r.project_id, {
               sqftPipeline,
               sqftTransfer,
               sqftMisc,
               sqftAll,
+              sqftTransferOut,
               dealsPipeline,
               dealsTransfer,
               dealsMisc,
               dealsAll,
+              dealsTransferOut,
               spend,
               qualifiedLeads,
               qualifiedPipelineSqft: qualifiedLeads * avgSqft
@@ -245,10 +259,12 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
                 sqftTransfer: 0,
                 sqftMisc: 0,
                 sqftAll: 0,
+                sqftTransferOut: 0,
                 dealsPipeline: 0,
                 dealsTransfer: 0,
                 dealsMisc: 0,
                 dealsAll: 0,
+                dealsTransferOut: 0,
                 spend: 0,
                 qualifiedLeads: 0,
                 qualifiedPipelineSqft: 0
@@ -261,6 +277,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
             cur.sqftTransfer += sqftTransfer;
             cur.sqftMisc += sqftMisc;
             cur.sqftAll += sqftPipeline + sqftTransfer + sqftMisc;
+            cur.sqftTransferOut += r.sqft_won_transfer_out ?? 0;
             cur.spend += spend;
             const qualifiedLeads = r.qualified_leads ?? 0;
             cur.qualifiedLeads += qualifiedLeads;
@@ -272,6 +289,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
             cur.dealsTransfer += dealsTransfer;
             cur.dealsMisc += dealsMisc;
             cur.dealsAll += dealsPipeline + dealsTransfer + dealsMisc;
+            cur.dealsTransferOut += r.deals_won_transfer_out ?? 0;
             actualByProject.set(r.project_id, cur);
           }
         }
@@ -288,11 +306,13 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         totalSqftPipeline = 0;
         totalSqftTransfer = 0;
         totalSqftMisc = 0;
+        totalSqftTransferOut = 0;
         totalQualifiedPipelineSqft = 0;
         totalDeals = 0;
         totalDealsPipeline = 0;
         totalDealsTransfer = 0;
         totalDealsMisc = 0;
+        totalDealsTransferOut = 0;
         totalSpend = 0;
         for (const p of projects) {
           const a =
@@ -301,10 +321,12 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               sqftTransfer: 0,
               sqftMisc: 0,
               sqftAll: 0,
+              sqftTransferOut: 0,
               dealsPipeline: 0,
               dealsTransfer: 0,
               dealsMisc: 0,
               dealsAll: 0,
+              dealsTransferOut: 0,
               spend: 0,
               qualifiedLeads: 0,
               qualifiedPipelineSqft: 0
@@ -313,11 +335,13 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           totalSqftPipeline += a.sqftPipeline;
           totalSqftTransfer += a.sqftTransfer;
           totalSqftMisc += a.sqftMisc;
+          totalSqftTransferOut += a.sqftTransferOut;
           totalQualifiedPipelineSqft += a.qualifiedPipelineSqft;
           totalDeals += a.dealsAll;
           totalDealsPipeline += a.dealsPipeline;
           totalDealsTransfer += a.dealsTransfer;
           totalDealsMisc += a.dealsMisc;
+          totalDealsTransferOut += a.dealsTransferOut;
           totalSpend += a.spend;
         }
 
@@ -424,17 +448,34 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               <KpiCard
                 label="Qualified pipeline created (SQFT)"
                 value={formatNumber(totalQualifiedPipelineSqft)}
-                helper={`${mode === "ytd" ? "Year to date" : "This month"} • Qualified leads × avg deal size`}
+                helper={mode === "ytd" ? "Year to date" : "This month"}
+                right={<div className="text-xs text-white/45">Qualified leads × avg deal size</div>}
               />
               <KpiCard
                 label="Pipeline actualized (SQFT)"
                 value={formatNumber(totalSqft)}
-                helper={`${mode === "ytd" ? "Year to date" : "This month"} • Pipeline ${formatNumber(totalSqftPipeline)} • Transfers ${formatNumber(totalSqftTransfer)} • Misc ${formatNumber(totalSqftMisc)}`}
+                helper={mode === "ytd" ? "Year to date" : "This month"}
+                right={
+                  <div className="space-y-1 text-xs text-white/45">
+                    <div>In: {formatNumber(totalSqftPipeline)} pipeline</div>
+                    <div>+ {formatNumber(totalSqftTransfer)} transfer</div>
+                    <div>+ {formatNumber(totalSqftMisc)} misc</div>
+                    <div className="text-white/35">Out: {formatNumber(totalSqftTransferOut)}</div>
+                  </div>
+                }
               />
               <KpiCard
                 label="Deals won"
                 value={formatNumber(totalDeals)}
-                helper={`${mode === "ytd" ? "Year to date" : "This month"} • Pipeline ${formatNumber(totalDealsPipeline)} • Transfers ${formatNumber(totalDealsTransfer)} • Misc ${formatNumber(totalDealsMisc)}`}
+                helper={mode === "ytd" ? "Year to date" : "This month"}
+                right={
+                  <div className="space-y-1 text-xs text-white/45">
+                    <div>In: {formatNumber(totalDealsPipeline)} pipeline</div>
+                    <div>+ {formatNumber(totalDealsTransfer)} transfer</div>
+                    <div>+ {formatNumber(totalDealsMisc)} misc</div>
+                    <div className="text-white/35">Out: {formatNumber(totalDealsTransferOut)}</div>
+                  </div>
+                }
               />
               <KpiCard label="Total spend" value={formatNumber(totalSpend)} helper="Digital + Inbound + Activations" />
               <KpiCard

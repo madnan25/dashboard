@@ -48,7 +48,7 @@ export async function getProjectActuals(
   const { data, error } = await supabase
     .from("project_actuals")
     .select(
-      "project_id, year, month, leads, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won, deals_won_transfer_in, sqft_won_transfer_in, deals_won_misc, sqft_won_misc, spend_digital, spend_inbound, spend_activations"
+      "project_id, year, month, leads, qualified_leads, meetings_scheduled, meetings_done, deals_won, sqft_won, deals_won_transfer_in, sqft_won_transfer_in, deals_won_transfer_out, sqft_won_transfer_out, deals_won_misc, sqft_won_misc, spend_digital, spend_inbound, spend_activations"
     )
     .eq("project_id", projectId)
     .eq("year", year)

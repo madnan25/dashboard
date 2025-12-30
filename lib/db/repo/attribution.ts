@@ -33,6 +33,26 @@ export async function listSalesAttributionEvents(
   return (data as SalesAttributionEvent[]) ?? [];
 }
 
+export async function listTransferOutEvents(
+  supabase: SupabaseClient,
+  sourceProjectId: string,
+  year: number,
+  month: number
+): Promise<SalesAttributionEvent[]> {
+  const { data, error } = await supabase
+    .from("sales_attribution_events")
+    .select(
+      "id, closed_project_id, close_year, close_month, deals_won, sqft_won, source_kind, source_campaign, source_project_id, bucket, notes, created_by, created_at, updated_at"
+    )
+    .eq("bucket", "transfer")
+    .eq("source_project_id", sourceProjectId)
+    .eq("close_year", year)
+    .eq("close_month", month)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as SalesAttributionEvent[]) ?? [];
+}
+
 export async function createSalesAttributionEvent(
   supabase: SupabaseClient,
   input: CreateSalesAttributionEventInput

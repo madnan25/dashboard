@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NumberInput } from "@/components/ds/NumberInput";
 import { AppButton } from "@/components/ds/AppButton";
 import { Surface } from "@/components/ds/Surface";
-import type { PlanChannel, ProjectActuals } from "@/lib/dashboardDb";
+import { AppInput } from "@/components/ds/AppInput";
+import { PillSelect } from "@/components/ds/PillSelect";
+import { createSalesAttributionEvent, deleteSalesAttributionEvent, listSalesAttributionEvents } from "@/lib/dashboardDb";
+import type { PlanChannel, Project, ProjectActuals } from "@/lib/dashboardDb";
+import type { SalesAttributionEvent } from "@/lib/db/types";
 
 type FormRow = {
   leads: string;
@@ -23,6 +27,11 @@ export function SalesOpsActualsCard(props: {
   actuals: ProjectActuals | null;
   metricsDirty: boolean;
   metricsSavedAt: number | null;
+  projects: Project[];
+  projectId: string;
+  year: number;
+  month: number; // 1-12
+  refresh: () => Promise<void>;
   salesOpsByChannel: Record<PlanChannel, ChannelRow>;
   digitalSources: Record<"meta" | "web", DigitalSourceRow>;
   setDigitalSources: (updater: (prev: Record<"meta" | "web", DigitalSourceRow>) => Record<"meta" | "web", DigitalSourceRow>) => void;
@@ -66,6 +75,11 @@ export function SalesOpsActualsCard(props: {
     actuals,
     metricsDirty,
     metricsSavedAt,
+    projects,
+    projectId,
+    year,
+    month,
+    refresh,
     salesOpsByChannel,
     digitalSources,
     setDigitalSources,
@@ -119,6 +133,38 @@ export function SalesOpsActualsCard(props: {
       sqftWon: digitalTotals.sqftWon + toNumber(inbound.sqft_won) + toNumber(activations.sqft_won)
     };
   }, [digitalTotals, salesOpsByChannel.activations, salesOpsByChannel.inbound]);
+
+  // ---- Adjustments (non-pipeline closes): Misc + Transfers
+  const canAdjust = Boolean(projectId);
+  const [adjustments, setAdjustments] = useState<SalesAttributionEvent[]>([]);
+  const [adjStatus, setAdjStatus] = useState<string>("");
+  const [adjSaving, setAdjSaving] = useState(false);
+
+  const [miscDeals, setMiscDeals] = useState("0");
+  const [miscSqft, setMiscSqft] = useState("0");
+  const [miscNotes, setMiscNotes] = useState("");
+
+  const [transferSourceProjectId, setTransferSourceProjectId] = useState("");
+  const [transferDeals, setTransferDeals] = useState("1");
+  const [transferSqft, setTransferSqft] = useState("0");
+  const [transferCampaign, setTransferCampaign] = useState("");
+  const [transferNotes, setTransferNotes] = useState("");
+
+  async function refreshAdjustments() {
+    if (!canAdjust) return;
+    const rows = await listSalesAttributionEvents(projectId, year, month);
+    setAdjustments(rows);
+  }
+
+  useEffect(() => {
+    setAdjStatus("");
+    setTransferSourceProjectId("");
+    refreshAdjustments().catch((e) => setAdjStatus(e instanceof Error ? e.message : "Failed to load adjustments"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, year, month]);
+
+  const miscList = useMemo(() => adjustments.filter((e) => e.bucket === "misc"), [adjustments]);
+  const transferInList = useMemo(() => adjustments.filter((e) => e.bucket === "transfer"), [adjustments]);
 
   return (
     <Surface>
@@ -335,6 +381,221 @@ export function SalesOpsActualsCard(props: {
       ) : (
         <div className="mt-3 text-xs text-white/45">No actuals saved yet for this month.</div>
       )}
+
+      <div className="mt-6 border-t border-white/10 pt-5">
+        <div className="text-sm font-semibold text-white/85">Non-pipeline closes</div>
+        <div className="mt-1 text-xs text-white/45">
+          Use these when a close happened for this project but it wasn’t created by this month’s channel leads.
+        </div>
+
+        {adjStatus ? <div className="mt-3 text-sm text-amber-200/90">{adjStatus}</div> : null}
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="glass-inset rounded-2xl p-4">
+            <div className="text-sm font-semibold text-white/85">Misc deals won</div>
+            <div className="mt-1 text-xs text-white/45">Older leads, outbound, or other sources.</div>
+            <div className="mt-4 grid gap-3">
+              <NumberInput label="Deals won" unit="deals" value={miscDeals} onValueChange={setMiscDeals} integerOnly />
+              <NumberInput label="SQFT won" unit="sqft" value={miscSqft} onValueChange={setMiscSqft} integerOnly />
+              <AppInput
+                label="Notes"
+                placeholder="Optional context"
+                value={miscNotes}
+                onValueChange={setMiscNotes}
+              />
+              <div className="flex items-center justify-end">
+                <AppButton
+                  intent="primary"
+                  effect="wow"
+                  isDisabled={!canAdjust || adjSaving}
+                  onPress={async () => {
+                    try {
+                      setAdjStatus("");
+                      setAdjSaving(true);
+                      const deals = Math.trunc(Number(miscDeals || "0"));
+                      const sqft = Math.trunc(Number(miscSqft || "0"));
+                      if (!Number.isFinite(deals) || deals < 0) throw new Error("Misc deals won must be a valid integer.");
+                      if (!Number.isFinite(sqft) || sqft < 0) throw new Error("Misc SQFT won must be a valid integer.");
+                      if (deals === 0 && sqft === 0) throw new Error("Enter at least deals or sqft for misc.");
+
+                      await createSalesAttributionEvent({
+                        closed_project_id: projectId,
+                        close_year: year,
+                        close_month: month,
+                        deals_won: deals,
+                        sqft_won: sqft,
+                        bucket: "misc",
+                        source_kind: "unknown",
+                        notes: miscNotes || null
+                      });
+                      setMiscDeals("0");
+                      setMiscSqft("0");
+                      setMiscNotes("");
+                      await Promise.all([refreshAdjustments(), refresh()]);
+                      setAdjStatus("Saved.");
+                    } catch (e) {
+                      setAdjStatus(e instanceof Error ? e.message : "Failed to save misc");
+                    } finally {
+                      setAdjSaving(false);
+                    }
+                  }}
+                >
+                  Add misc
+                </AppButton>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {miscList.length === 0 ? (
+                <div className="text-sm text-white/45">No misc entries yet.</div>
+              ) : (
+                miscList.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+                    <div className="min-w-0 text-xs text-white/70">
+                      {e.deals_won} deals • {e.sqft_won} sqft{e.notes ? ` • ${e.notes}` : ""}
+                    </div>
+                    <AppButton
+                      intent="ghost"
+                      isDisabled={adjSaving}
+                      onPress={async () => {
+                        try {
+                          setAdjStatus("");
+                          setAdjSaving(true);
+                          await deleteSalesAttributionEvent(e.id);
+                          await Promise.all([refreshAdjustments(), refresh()]);
+                          setAdjStatus("Deleted.");
+                        } catch (err) {
+                          setAdjStatus(err instanceof Error ? err.message : "Failed to delete misc");
+                        } finally {
+                          setAdjSaving(false);
+                        }
+                      }}
+                    >
+                      Delete
+                    </AppButton>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="glass-inset rounded-2xl p-4">
+            <div className="text-sm font-semibold text-white/85">Transfers (from another project)</div>
+            <div className="mt-1 text-xs text-white/45">A lead from Project A closed as a deal for this project.</div>
+
+            <div className="mt-4 grid gap-3">
+              <div>
+                <div className="mb-2 text-xs text-white/55">Source project (required)</div>
+                <PillSelect
+                  value={transferSourceProjectId}
+                  onChange={setTransferSourceProjectId}
+                  ariaLabel="Source project"
+                  disabled={!canAdjust}
+                >
+                  <option value="">Select a source project…</option>
+                  {projects
+                    .filter((p) => p.is_active && p.id !== projectId)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                </PillSelect>
+              </div>
+              <NumberInput label="Deals won" unit="deals" value={transferDeals} onValueChange={setTransferDeals} integerOnly />
+              <NumberInput label="SQFT won" unit="sqft" value={transferSqft} onValueChange={setTransferSqft} integerOnly />
+              <AppInput
+                label="Source campaign (optional)"
+                placeholder="e.g. V3 Full"
+                value={transferCampaign}
+                onValueChange={setTransferCampaign}
+              />
+              <AppInput label="Notes" placeholder="Optional context" value={transferNotes} onValueChange={setTransferNotes} />
+              <div className="flex items-center justify-end">
+                <AppButton
+                  intent="primary"
+                  effect="wow"
+                  isDisabled={!canAdjust || adjSaving}
+                  onPress={async () => {
+                    try {
+                      setAdjStatus("");
+                      setAdjSaving(true);
+                      if (!transferSourceProjectId) throw new Error("Source project is required for transfers.");
+                      const deals = Math.trunc(Number(transferDeals || "0"));
+                      const sqft = Math.trunc(Number(transferSqft || "0"));
+                      if (!Number.isFinite(deals) || deals <= 0) throw new Error("Transfer deals won must be a positive integer.");
+                      if (!Number.isFinite(sqft) || sqft < 0) throw new Error("Transfer SQFT won must be a valid integer.");
+
+                      await createSalesAttributionEvent({
+                        closed_project_id: projectId,
+                        close_year: year,
+                        close_month: month,
+                        deals_won: deals,
+                        sqft_won: sqft,
+                        bucket: "transfer",
+                        source_kind: "project",
+                        source_project_id: transferSourceProjectId,
+                        source_campaign: transferCampaign || null,
+                        notes: transferNotes || null
+                      });
+
+                      setTransferDeals("1");
+                      setTransferSqft("0");
+                      setTransferCampaign("");
+                      setTransferNotes("");
+                      setTransferSourceProjectId("");
+                      await Promise.all([refreshAdjustments(), refresh()]);
+                      setAdjStatus("Saved.");
+                    } catch (e) {
+                      setAdjStatus(e instanceof Error ? e.message : "Failed to save transfer");
+                    } finally {
+                      setAdjSaving(false);
+                    }
+                  }}
+                >
+                  Add transfer
+                </AppButton>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {transferInList.length === 0 ? (
+                <div className="text-sm text-white/45">No transfers yet.</div>
+              ) : (
+                transferInList.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+                    <div className="min-w-0 text-xs text-white/70">
+                      {e.deals_won} deals • {e.sqft_won} sqft
+                      {e.source_campaign ? ` • ${e.source_campaign}` : ""}
+                      {e.source_project_id ? ` • from ${projects.find((p) => p.id === e.source_project_id)?.name ?? "—"}` : ""}
+                      {e.notes ? ` • ${e.notes}` : ""}
+                    </div>
+                    <AppButton
+                      intent="ghost"
+                      isDisabled={adjSaving}
+                      onPress={async () => {
+                        try {
+                          setAdjStatus("");
+                          setAdjSaving(true);
+                          await deleteSalesAttributionEvent(e.id);
+                          await Promise.all([refreshAdjustments(), refresh()]);
+                          setAdjStatus("Deleted.");
+                        } catch (err) {
+                          setAdjStatus(err instanceof Error ? err.message : "Failed to delete transfer");
+                        } finally {
+                          setAdjSaving(false);
+                        }
+                      }}
+                    >
+                      Delete
+                    </AppButton>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </Surface>
   );
 }

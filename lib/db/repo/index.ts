@@ -58,6 +58,8 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     // attribution + misc (Sales Ops)
     listSalesAttributionEvents: (projectId: string, year: number, month: number) =>
       attribution.listSalesAttributionEvents(supabase, projectId, year, month),
+    listTransferOutEvents: (sourceProjectId: string, year: number, month: number) =>
+      attribution.listTransferOutEvents(supabase, sourceProjectId, year, month),
     createSalesAttributionEvent: (input: Parameters<typeof attribution.createSalesAttributionEvent>[1]) =>
       attribution.createSalesAttributionEvent(supabase, input),
     deleteSalesAttributionEvent: (id: string) => attribution.deleteSalesAttributionEvent(supabase, id),

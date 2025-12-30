@@ -17,6 +17,7 @@ export default function BrandDataEntryClient() {
 
   const {
     envMissing,
+    month,
     monthLabel,
     profile,
     projects,
@@ -52,7 +53,8 @@ export default function BrandDataEntryClient() {
     onSavePlanInputs,
     onSubmitForApproval,
     onSaveSalesOpsActuals,
-    onSaveSpendActuals
+    onSaveSpendActuals,
+    refresh
   } = usePlanningData({ year, monthIndex });
 
   return (
@@ -164,6 +166,11 @@ export default function BrandDataEntryClient() {
             actuals={actuals}
             metricsDirty={metricsDirty}
             metricsSavedAt={metricsSavedAt}
+            projects={projects}
+            projectId={projectId}
+            year={year}
+            month={month}
+            refresh={refresh}
             salesOpsByChannel={salesOpsByChannel}
             digitalSources={digitalSources}
             setDigitalSources={setDigitalSources}

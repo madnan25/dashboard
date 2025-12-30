@@ -217,6 +217,10 @@ export async function listSalesAttributionEvents(projectId: string, year: number
   return await repo().listSalesAttributionEvents(projectId, year, month);
 }
 
+export async function listTransferOutEvents(sourceProjectId: string, year: number, month: number) {
+  return await repo().listTransferOutEvents(sourceProjectId, year, month);
+}
+
 export async function createSalesAttributionEvent(input: CreateSalesAttributionEventInput) {
   return await repo().createSalesAttributionEvent(input);
 }

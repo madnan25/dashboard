@@ -876,7 +876,8 @@ export function usePlanningData(props: { year: number; monthIndex: number }) {
     onApprove,
     onReject,
     onSaveSalesOpsActuals,
-    onSaveSpendActuals
+    onSaveSpendActuals,
+    refresh
   };
 }
 
