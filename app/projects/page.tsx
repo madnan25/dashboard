@@ -495,17 +495,56 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           </div>
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {projects.map((p) => (
-            <NavCard
-              key={p.id}
-              href={`/projects/${p.id}${qsProject}`}
-              title={p.name}
-              description="Master dashboard + channel reports."
-              meta="Open project"
-              size="md"
+        <div className="pt-2">
+          <div className="relative mx-1 mb-5">
+            <div className="h-px w-full bg-white/10" />
+            <div
+              className="pointer-events-none absolute inset-x-0 -top-6 h-12 blur-2xl"
+              style={{
+                background:
+                  "radial-gradient(circle at 25% 50%, rgba(56,189,248,0.12), rgba(56,189,248,0.0) 55%), radial-gradient(circle at 75% 50%, rgba(217,70,239,0.10), rgba(217,70,239,0.0) 55%)"
+              }}
+              aria-hidden="true"
             />
-          ))}
+          </div>
+
+          <Surface className="relative overflow-hidden">
+            <div
+              className="pointer-events-none absolute -top-16 left-1/2 h-40 w-[820px] -translate-x-1/2 rounded-full blur-3xl"
+              style={{
+                background:
+                  "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.08), rgba(56,189,248,0.08), rgba(217,70,239,0.06), rgba(255,255,255,0.0) 70%)"
+              }}
+              aria-hidden="true"
+            />
+
+            <div className="relative flex flex-wrap items-end justify-between gap-3 px-1">
+              <div>
+                <div className="text-lg font-semibold text-white/95">Project deep dives</div>
+                <div className="mt-1 text-sm text-white/55">
+                  Open a project to view its dashboard, channels, planning, and sales ops actuals.
+                </div>
+              </div>
+              <div className="text-xs text-white/45">{projects.length} active</div>
+            </div>
+
+            <div className="relative mt-4 grid gap-4 md:grid-cols-2">
+              {projects.length === 0 ? (
+                <div className="text-sm text-white/50">No projects found.</div>
+              ) : (
+                projects.map((p) => (
+                  <NavCard
+                    key={p.id}
+                    href={`/projects/${p.id}${qsProject}`}
+                    title={p.name}
+                    description="Master dashboard + channel reports."
+                    meta="Open project"
+                    size="md"
+                  />
+                ))
+              )}
+            </div>
+          </Surface>
         </div>
       </div>
     </main>
