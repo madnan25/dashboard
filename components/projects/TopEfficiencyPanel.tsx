@@ -18,8 +18,13 @@ export type EfficiencyRow = {
 
 type Metric = "cost_sqft" | "cost_ql";
 
+const fmt2 = new Intl.NumberFormat("en-PK", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
 function format2(n: number) {
-  return Number.isFinite(n) ? n.toFixed(2) : "—";
+  return Number.isFinite(n) ? fmt2.format(n) : "—";
 }
 
 export function TopEfficiencyPanel(props: { rows: EfficiencyRow[]; qs: string }) {
