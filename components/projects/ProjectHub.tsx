@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { Surface } from "@/components/ds/Surface";
 import { ProjectActualsPanel } from "@/components/projects/sections/ProjectActualsPanel";
+import { ProjectCloseBreakdownPanel } from "@/components/projects/sections/ProjectCloseBreakdownPanel";
 import { ProjectPlanAllocations } from "@/components/projects/sections/ProjectPlanAllocations";
 import { ProjectReportNav } from "@/components/projects/sections/ProjectReportNav";
 import { ProjectTargetsKpis } from "@/components/projects/sections/ProjectTargetsKpis";
@@ -161,6 +162,8 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
         ) : null}
 
         <ProjectTargetsKpis targets={targets} budgetSpentTotal={budgetSpentTotal} budgetRemaining={budgetRemaining} />
+
+        <ProjectCloseBreakdownPanel actuals={actuals} />
 
         <ProjectReportNav projectId={projectId} year={selectedYear} monthIndex={selectedMonthIndex} />
 
