@@ -318,8 +318,25 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
   const leadToQualifiedTargetPct = channelInputs?.qualification_percent ?? null;
   const qualifiedToMeetingPct = clampPercent((snapshot.meetingsCompleted / Math.max(snapshot.qualifiedLeads, 1)) * 100);
   const qualifiedToMeetingTargetPct = targets?.qualified_to_meeting_done_percent ?? null;
-  const meetingToClosePct = clampPercent((snapshot.dealsWon / Math.max(snapshot.meetingsCompleted, 1)) * 100);
   const meetingToCloseTargetPct = targets?.meeting_done_to_close_percent ?? null;
+  let meetingToCloseNote: string | null = null;
+  let meetingToClosePct = clampPercent((snapshot.dealsWon / Math.max(snapshot.meetingsCompleted, 1)) * 100);
+
+  // Fallback: when meetings are missing (0) but deals exist, compute Meeting→Close against expected meetings
+  // derived from qualified leads and the configured qualified→meeting done target rate.
+  if ((snapshot.meetingsCompleted ?? 0) <= 0 && (snapshot.dealsWon ?? 0) > 0) {
+    const q = snapshot.qualifiedLeads ?? 0;
+    const q2m = typeof qualifiedToMeetingTargetPct === "number" && Number.isFinite(qualifiedToMeetingTargetPct) ? qualifiedToMeetingTargetPct : null;
+    if (q > 0 && q2m != null && q2m > 0) {
+      const expectedMeetings = (q * q2m) / 100;
+      meetingToClosePct = clampPercent((snapshot.dealsWon / Math.max(expectedMeetings, 1)) * 100);
+      meetingToCloseNote = `Meetings done is 0, so “Meeting→Close” uses expected meetings (${q2m.toFixed(0)}% of qualified).`;
+    } else if (q > 0) {
+      // Last-resort fallback: use qualified as base if we don't have a target meeting rate.
+      meetingToClosePct = clampPercent((snapshot.dealsWon / Math.max(q, 1)) * 100);
+      meetingToCloseNote = "Meetings done is 0, so “Meeting→Close” is approximated from qualified leads.";
+    }
+  }
 
   const projectName = projects.find((p) => p.id === projectId)?.name ?? "—";
   const title = `${channelTitle(channel)} – Monthly Snapshot`;
@@ -422,6 +439,7 @@ export function MonthlySnapshotReport(props: MonthlySnapshotReportProps) {
             qualifiedToMeetingTargetPct={qualifiedToMeetingTargetPct}
             meetingToClosePct={meetingToClosePct}
             meetingToCloseTargetPct={meetingToCloseTargetPct}
+            meetingToCloseNote={meetingToCloseNote}
             rows={rows}
           />
 

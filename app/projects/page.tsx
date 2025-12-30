@@ -358,9 +358,9 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               />
               <KpiCard label="Total spend" value={formatNumber(totalSpend)} helper="Digital + Inbound + Activations" />
               <KpiCard
-                label="Efficiency"
+                label="Efficiency (spend per sqft)"
                 value={costPerSqft != null ? format2(costPerSqft) : "—"}
-                helper={roiSqftPerSpend != null ? `${format2(roiSqftPerSpend)} sqft per spend-unit` : "No spend recorded"}
+                helper={costPerSqft != null ? "How much we spent per 1 sqft won." : "No sqft won recorded"}
               />
             </div>
 

@@ -21,6 +21,7 @@ export function SnapshotChartsAndDetails(props: {
   qualifiedToMeetingTargetPct?: number | null;
   meetingToClosePct: number;
   meetingToCloseTargetPct?: number | null;
+  meetingToCloseNote?: string | null;
   rows: { metric: string; value: string }[];
   channel: PlanChannel;
 }) {
@@ -35,6 +36,7 @@ export function SnapshotChartsAndDetails(props: {
     qualifiedToMeetingTargetPct,
     meetingToClosePct,
     meetingToCloseTargetPct,
+    meetingToCloseNote,
     rows
   } = props;
 
@@ -75,6 +77,7 @@ export function SnapshotChartsAndDetails(props: {
           </div>
           <div className="mb-2 text-sm font-semibold text-white/80">Leads → Qualified → Meetings → Close</div>
           <div className="text-sm text-white/55">Conversion rates from actuals.</div>
+          {meetingToCloseNote ? <div className="mt-2 text-xs text-white/45">{meetingToCloseNote}</div> : null}
 
           {typeof addressedLeads === "number" && typeof notContacted === "number" && addressedLeads >= 0 ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
