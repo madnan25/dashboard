@@ -5,6 +5,7 @@ import * as projects from "./projects";
 import * as targets from "./targets";
 import * as plans from "./plans";
 import * as actuals from "./actuals";
+import * as attribution from "./attribution";
 import * as tasks from "./tasks";
 
 export function createDashboardRepo(supabase: SupabaseClient) {
@@ -53,6 +54,13 @@ export function createDashboardRepo(supabase: SupabaseClient) {
       actuals.listProjectActualsDigitalSources(supabase, projectId, year, month),
     upsertProjectActualsDigitalSources: (inputs: Parameters<typeof actuals.upsertProjectActualsDigitalSources>[1]) =>
       actuals.upsertProjectActualsDigitalSources(supabase, inputs),
+
+    // attribution + misc (Sales Ops)
+    listSalesAttributionEvents: (projectId: string, year: number, month: number) =>
+      attribution.listSalesAttributionEvents(supabase, projectId, year, month),
+    createSalesAttributionEvent: (input: Parameters<typeof attribution.createSalesAttributionEvent>[1]) =>
+      attribution.createSalesAttributionEvent(supabase, input),
+    deleteSalesAttributionEvent: (id: string) => attribution.deleteSalesAttributionEvent(supabase, id),
 
     // tasks
     listTasks: (filters?: Parameters<typeof tasks.listTasks>[1]) => tasks.listTasks(supabase, filters),

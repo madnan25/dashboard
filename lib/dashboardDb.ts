@@ -6,6 +6,7 @@ import type {
   ProjectActualsMetricsInput,
   ProjectActualsSpendInput
 } from "@/lib/db/repo/actuals";
+import type { CreateSalesAttributionEventInput } from "@/lib/db/repo/attribution";
 import type { CreateTaskInput, ListTasksFilters, UpdateTaskPatch } from "@/lib/db/repo/tasks";
 export type {
   DigitalSource,
@@ -210,6 +211,18 @@ export async function listProjectActualsDigitalSources(projectId: string, year: 
 
 export async function upsertProjectActualsDigitalSources(inputs: ProjectActualsDigitalSourceInput[]): Promise<void> {
   return await repo().upsertProjectActualsDigitalSources(inputs);
+}
+
+export async function listSalesAttributionEvents(projectId: string, year: number, month: number) {
+  return await repo().listSalesAttributionEvents(projectId, year, month);
+}
+
+export async function createSalesAttributionEvent(input: CreateSalesAttributionEventInput) {
+  return await repo().createSalesAttributionEvent(input);
+}
+
+export async function deleteSalesAttributionEvent(id: string): Promise<void> {
+  return await repo().deleteSalesAttributionEvent(id);
 }
 
 export async function listTasks(filters?: ListTasksFilters): Promise<Task[]> {

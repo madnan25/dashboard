@@ -42,7 +42,12 @@ type ActualRow = {
   year: number;
   month: number;
   sqft_won: number;
+  sqft_won_transfer_in?: number;
+  sqft_won_misc?: number;
   qualified_leads: number;
+  deals_won?: number;
+  deals_won_transfer_in?: number;
+  deals_won_misc?: number;
   spend_digital: number;
   spend_inbound: number;
   spend_activations: number;
@@ -65,7 +70,14 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
 
   // Overview data
   let totalSqft = 0;
+  let totalSqftPipeline = 0;
+  let totalSqftTransfer = 0;
+  let totalSqftMisc = 0;
   let totalQualifiedPipelineSqft = 0;
+  let totalDeals = 0;
+  let totalDealsPipeline = 0;
+  let totalDealsTransfer = 0;
+  let totalDealsMisc = 0;
   let totalSpend = 0;
 
   let topImpact: Array<{ id: string; name: string; sqft: number; momDelta?: number }> = [];
@@ -85,7 +97,9 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         async function fetchActualsMonth(y: number, m: number) {
           const { data, error } = await supabase
             .from("project_actuals")
-            .select("project_id, year, month, sqft_won, qualified_leads, spend_digital, spend_inbound, spend_activations")
+            .select(
+              "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
+            )
             .eq("year", y)
             .eq("month", m)
             .in("project_id", projectIds);
@@ -93,6 +107,11 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           return ((data as ActualRow[]) ?? []).map((r) => ({
             ...r,
             sqft_won: r.sqft_won ?? 0,
+            sqft_won_transfer_in: r.sqft_won_transfer_in ?? 0,
+            sqft_won_misc: r.sqft_won_misc ?? 0,
+            deals_won: r.deals_won ?? 0,
+            deals_won_transfer_in: r.deals_won_transfer_in ?? 0,
+            deals_won_misc: r.deals_won_misc ?? 0,
             qualified_leads: (r as unknown as { qualified_leads?: number }).qualified_leads ?? 0,
             spend_digital: r.spend_digital ?? 0,
             spend_inbound: r.spend_inbound ?? 0,
@@ -119,7 +138,9 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         async function fetchActualsYtd() {
           const { data, error } = await supabase
             .from("project_actuals")
-            .select("project_id, year, month, sqft_won, qualified_leads, spend_digital, spend_inbound, spend_activations")
+            .select(
+              "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
+            )
             .eq("year", year)
             .lte("month", month)
             .in("project_id", projectIds);
@@ -127,6 +148,11 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           return ((data as ActualRow[]) ?? []).map((r) => ({
             ...r,
             sqft_won: r.sqft_won ?? 0,
+            sqft_won_transfer_in: r.sqft_won_transfer_in ?? 0,
+            sqft_won_misc: r.sqft_won_misc ?? 0,
+            deals_won: r.deals_won ?? 0,
+            deals_won_transfer_in: r.deals_won_transfer_in ?? 0,
+            deals_won_misc: r.deals_won_misc ?? 0,
             qualified_leads: (r as unknown as { qualified_leads?: number }).qualified_leads ?? 0,
             spend_digital: r.spend_digital ?? 0,
             spend_inbound: r.spend_inbound ?? 0,
@@ -169,15 +195,42 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         // Aggregate actuals by project
         const actualByProject = new Map<
           string,
-          { sqft: number; spend: number; qualifiedLeads: number; qualifiedPipelineSqft: number }
+          {
+            sqftPipeline: number;
+            sqftTransfer: number;
+            sqftMisc: number;
+            sqftAll: number;
+            dealsPipeline: number;
+            dealsTransfer: number;
+            dealsMisc: number;
+            dealsAll: number;
+            spend: number;
+            qualifiedLeads: number;
+            qualifiedPipelineSqft: number;
+          }
         >();
         if (mode === "month") {
           for (const r of actualsRows) {
             const spend = (r.spend_digital ?? 0) + (r.spend_inbound ?? 0) + (r.spend_activations ?? 0);
             const avgSqft = avgSqftByProjectMonth.get(`${r.project_id}:${r.month}`) ?? 0;
             const qualifiedLeads = r.qualified_leads ?? 0;
+            const sqftPipeline = r.sqft_won ?? 0;
+            const sqftTransfer = r.sqft_won_transfer_in ?? 0;
+            const sqftMisc = r.sqft_won_misc ?? 0;
+            const sqftAll = sqftPipeline + sqftTransfer + sqftMisc;
+            const dealsPipeline = r.deals_won ?? 0;
+            const dealsTransfer = r.deals_won_transfer_in ?? 0;
+            const dealsMisc = r.deals_won_misc ?? 0;
+            const dealsAll = dealsPipeline + dealsTransfer + dealsMisc;
             actualByProject.set(r.project_id, {
-              sqft: r.sqft_won ?? 0,
+              sqftPipeline,
+              sqftTransfer,
+              sqftMisc,
+              sqftAll,
+              dealsPipeline,
+              dealsTransfer,
+              dealsMisc,
+              dealsAll,
               spend,
               qualifiedLeads,
               qualifiedPipelineSqft: qualifiedLeads * avgSqft
@@ -186,39 +239,105 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         } else {
           for (const r of actualsRows) {
             const spend = (r.spend_digital ?? 0) + (r.spend_inbound ?? 0) + (r.spend_activations ?? 0);
-            const cur = actualByProject.get(r.project_id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0, qualifiedPipelineSqft: 0 };
+            const cur =
+              actualByProject.get(r.project_id) ?? {
+                sqftPipeline: 0,
+                sqftTransfer: 0,
+                sqftMisc: 0,
+                sqftAll: 0,
+                dealsPipeline: 0,
+                dealsTransfer: 0,
+                dealsMisc: 0,
+                dealsAll: 0,
+                spend: 0,
+                qualifiedLeads: 0,
+                qualifiedPipelineSqft: 0
+              };
             const avgSqft = avgSqftByProjectMonth.get(`${r.project_id}:${r.month}`) ?? 0;
-            cur.sqft += r.sqft_won ?? 0;
+            const sqftPipeline = r.sqft_won ?? 0;
+            const sqftTransfer = r.sqft_won_transfer_in ?? 0;
+            const sqftMisc = r.sqft_won_misc ?? 0;
+            cur.sqftPipeline += sqftPipeline;
+            cur.sqftTransfer += sqftTransfer;
+            cur.sqftMisc += sqftMisc;
+            cur.sqftAll += sqftPipeline + sqftTransfer + sqftMisc;
             cur.spend += spend;
             const qualifiedLeads = r.qualified_leads ?? 0;
             cur.qualifiedLeads += qualifiedLeads;
             cur.qualifiedPipelineSqft += qualifiedLeads * avgSqft;
+            const dealsPipeline = r.deals_won ?? 0;
+            const dealsTransfer = r.deals_won_transfer_in ?? 0;
+            const dealsMisc = r.deals_won_misc ?? 0;
+            cur.dealsPipeline += dealsPipeline;
+            cur.dealsTransfer += dealsTransfer;
+            cur.dealsMisc += dealsMisc;
+            cur.dealsAll += dealsPipeline + dealsTransfer + dealsMisc;
             actualByProject.set(r.project_id, cur);
           }
         }
 
         // Prev month sqft by project (for MoM delta)
         const prevSqftByProject = new Map<string, number>();
-        for (const r of prevRows ?? []) prevSqftByProject.set(r.project_id, r.sqft_won ?? 0);
+        for (const r of prevRows ?? []) {
+          const all = (r.sqft_won ?? 0) + (r.sqft_won_transfer_in ?? 0) + (r.sqft_won_misc ?? 0);
+          prevSqftByProject.set(r.project_id, all);
+        }
 
         // Totals
         totalSqft = 0;
+        totalSqftPipeline = 0;
+        totalSqftTransfer = 0;
+        totalSqftMisc = 0;
         totalQualifiedPipelineSqft = 0;
+        totalDeals = 0;
+        totalDealsPipeline = 0;
+        totalDealsTransfer = 0;
+        totalDealsMisc = 0;
         totalSpend = 0;
         for (const p of projects) {
-          const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0, qualifiedPipelineSqft: 0 };
-          totalSqft += a.sqft;
+          const a =
+            actualByProject.get(p.id) ?? {
+              sqftPipeline: 0,
+              sqftTransfer: 0,
+              sqftMisc: 0,
+              sqftAll: 0,
+              dealsPipeline: 0,
+              dealsTransfer: 0,
+              dealsMisc: 0,
+              dealsAll: 0,
+              spend: 0,
+              qualifiedLeads: 0,
+              qualifiedPipelineSqft: 0
+            };
+          totalSqft += a.sqftAll;
+          totalSqftPipeline += a.sqftPipeline;
+          totalSqftTransfer += a.sqftTransfer;
+          totalSqftMisc += a.sqftMisc;
           totalQualifiedPipelineSqft += a.qualifiedPipelineSqft;
+          totalDeals += a.dealsAll;
+          totalDealsPipeline += a.dealsPipeline;
+          totalDealsTransfer += a.dealsTransfer;
+          totalDealsMisc += a.dealsMisc;
           totalSpend += a.spend;
         }
 
         // Ranked: Impact
         topImpact = [...projects]
           .map((p) => {
-            const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0, qualifiedPipelineSqft: 0 };
+            const a =
+              actualByProject.get(p.id) ?? {
+                sqftPipeline: 0,
+                sqftTransfer: 0,
+                sqftMisc: 0,
+                sqftAll: 0,
+                dealsAll: 0,
+                spend: 0,
+                qualifiedLeads: 0,
+                qualifiedPipelineSqft: 0
+              };
             const prevSqft = prevSqftByProject.get(p.id) ?? 0;
-            const momDelta = mode === "month" ? a.sqft - prevSqft : undefined;
-            return { id: p.id, name: p.name, sqft: a.sqft, momDelta };
+            const momDelta = mode === "month" ? a.sqftAll - prevSqft : undefined;
+            return { id: p.id, name: p.name, sqft: a.sqftAll, momDelta };
           })
           .sort((a, b) => b.sqft - a.sqft)
           .slice(0, 5);
@@ -226,13 +345,24 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         // Ranked: Efficiency (full list; client panel handles sorting/toggle)
         topEfficiency = [...projects]
           .map((p) => {
-            const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0, qualifiedPipelineSqft: 0 };
-            const costPerSqft = a.sqft > 0 ? a.spend / a.sqft : Number.POSITIVE_INFINITY;
+            const a =
+              actualByProject.get(p.id) ?? {
+                sqftPipeline: 0,
+                sqftTransfer: 0,
+                sqftMisc: 0,
+                sqftAll: 0,
+                dealsAll: 0,
+                spend: 0,
+                qualifiedLeads: 0,
+                qualifiedPipelineSqft: 0
+              };
+            // Efficiency is pipeline-only so misc/transfers don't distort spend efficiency.
+            const costPerSqft = a.sqftPipeline > 0 ? a.spend / a.sqftPipeline : Number.POSITIVE_INFINITY;
             const costPerQualifiedLead = a.qualifiedLeads > 0 ? a.spend / a.qualifiedLeads : Number.POSITIVE_INFINITY;
             return {
               id: p.id,
               name: p.name,
-              sqft: a.sqft,
+              sqft: a.sqftAll,
               spend: a.spend,
               qualifiedLeads: a.qualifiedLeads,
               costPerSqft,
@@ -247,8 +377,8 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
     }
   }
 
-  const roiSqftPerSpend = totalSpend > 0 ? totalSqft / totalSpend : null;
-  const costPerSqft = totalSqft > 0 ? totalSpend / totalSqft : null;
+  const roiSqftPerSpend = totalSpend > 0 ? totalSqftPipeline / totalSpend : null;
+  const costPerSqft = totalSqftPipeline > 0 ? totalSpend / totalSqftPipeline : null;
 
   const qs = `?year=${encodeURIComponent(String(year))}&monthIndex=${encodeURIComponent(String(monthIndex))}&mode=${encodeURIComponent(mode)}`;
   const qsProject = `?year=${encodeURIComponent(String(year))}&monthIndex=${encodeURIComponent(String(monthIndex))}`;
@@ -290,7 +420,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               </Surface>
             ) : null}
 
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
               <KpiCard
                 label="Qualified pipeline created (SQFT)"
                 value={formatNumber(totalQualifiedPipelineSqft)}
@@ -299,13 +429,18 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               <KpiCard
                 label="Pipeline actualized (SQFT)"
                 value={formatNumber(totalSqft)}
-                helper={`${mode === "ytd" ? "Year to date" : "This month"} • SQFT won`}
+                helper={`${mode === "ytd" ? "Year to date" : "This month"} • Pipeline ${formatNumber(totalSqftPipeline)} • Transfers ${formatNumber(totalSqftTransfer)} • Misc ${formatNumber(totalSqftMisc)}`}
+              />
+              <KpiCard
+                label="Deals won"
+                value={formatNumber(totalDeals)}
+                helper={`${mode === "ytd" ? "Year to date" : "This month"} • Pipeline ${formatNumber(totalDealsPipeline)} • Transfers ${formatNumber(totalDealsTransfer)} • Misc ${formatNumber(totalDealsMisc)}`}
               />
               <KpiCard label="Total spend" value={formatNumber(totalSpend)} helper="Digital + Inbound + Activations" />
               <KpiCard
                 label="Efficiency (spend / SQFT)"
                 value={costPerSqft != null ? format2(costPerSqft) : "—"}
-                helper={costPerSqft != null ? "How much we spent per 1 sqft won." : "No sqft won recorded"}
+                helper={costPerSqft != null ? "Pipeline-only (excludes transfers/misc)." : "No pipeline SQFT won recorded"}
               />
             </div>
 

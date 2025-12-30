@@ -65,9 +65,34 @@ export type ProjectActuals = {
   meetings_done: number;
   deals_won: number;
   sqft_won: number;
+  // Adjustments (entered by Sales Ops via sales_attribution_events; rolled up by trigger)
+  deals_won_transfer_in: number;
+  sqft_won_transfer_in: number;
+  deals_won_misc: number;
+  sqft_won_misc: number;
   spend_digital: number;
   spend_inbound: number;
   spend_activations: number;
+};
+
+export type SalesAttributionSourceKind = "campaign" | "project" | "unknown";
+export type SalesAttributionBucket = "transfer" | "misc";
+
+export type SalesAttributionEvent = {
+  id: string;
+  closed_project_id: string;
+  close_year: number;
+  close_month: number; // 1-12
+  deals_won: number;
+  sqft_won: number;
+  source_kind: SalesAttributionSourceKind;
+  source_campaign: string | null;
+  source_project_id: string | null;
+  bucket: SalesAttributionBucket;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ProjectActualsChannel = {

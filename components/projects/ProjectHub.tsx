@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
@@ -90,6 +90,20 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
     };
   }, [envMissing, projectId, initial]);
 
+  const refreshProject = useCallback(async () => {
+    if (envMissing) return;
+    setStatus("");
+    const [t, versions, a] = await Promise.all([getProjectTargets(projectId, selectedYear, month), listPlanVersions(projectId, selectedYear, month), getProjectActuals(projectId, selectedYear, month)]);
+    const active = versions.find((v) => v.active && v.status === "approved") ?? null;
+    const inputs = active ? await getPlanChannelInputs(active.id) : [];
+    setTargets(t);
+    setActivePlanVersion(active);
+    setActuals(a);
+    const map: Record<PlanChannel, PlanChannelInputs | null> = { digital: null, inbound: null, activations: null };
+    for (const row of inputs ?? []) map[row.channel] = row;
+    setInputsByChannel(map);
+  }, [envMissing, month, projectId, selectedYear]);
+
   useEffect(() => {
     // If we already rendered this month/year from the server, skip ONLY the first client refetch.
     // Otherwise, switching back to the initial month would incorrectly skip reloading and leave stale state.
@@ -101,25 +115,8 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
     async function load() {
       if (envMissing) return;
       try {
-        setStatus("");
-        const [t, versions, a] = await Promise.all([
-          getProjectTargets(projectId, selectedYear, month),
-          listPlanVersions(projectId, selectedYear, month),
-          getProjectActuals(projectId, selectedYear, month)
-        ]);
-
-        const active = versions.find((v) => v.active && v.status === "approved") ?? null;
-        const inputs = active ? await getPlanChannelInputs(active.id) : [];
-
+        await refreshProject();
         if (cancelled) return;
-
-        setTargets(t);
-        setActivePlanVersion(active);
-        setActuals(a);
-
-        const map: Record<PlanChannel, PlanChannelInputs | null> = { digital: null, inbound: null, activations: null };
-        for (const row of inputs ?? []) map[row.channel] = row;
-        setInputsByChannel(map);
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load project data");
@@ -129,7 +126,7 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
     return () => {
       cancelled = true;
     };
-  }, [envMissing, month, projectId, selectedMonthIndex, selectedYear, initial]);
+  }, [envMissing, month, projectId, selectedMonthIndex, selectedYear, initial, refreshProject]);
 
   const totalBudgetCap = targets?.total_budget ?? 0;
   const budgetSpentTotal = (actuals?.spend_digital ?? 0) + (actuals?.spend_inbound ?? 0) + (actuals?.spend_activations ?? 0);
@@ -174,7 +171,16 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
 
         <div className="grid gap-4 md:grid-cols-12">
           <ProjectPlanAllocations activePlanVersion={activePlanVersion} inputsByChannel={inputsByChannel} targets={targets} />
-          <ProjectActualsPanel actuals={actuals} role={role} targets={funnelTargets} sqftTarget={targets?.sales_target_sqft ?? 0} />
+          <ProjectActualsPanel
+            actuals={actuals}
+            role={role}
+            projectId={projectId}
+            year={selectedYear}
+            month={month}
+            onRefresh={refreshProject}
+            targets={funnelTargets}
+            sqftTarget={targets?.sales_target_sqft ?? 0}
+          />
         </div>
       </div>
     </main>
