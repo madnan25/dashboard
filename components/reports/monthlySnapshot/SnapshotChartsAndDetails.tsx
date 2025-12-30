@@ -77,7 +77,6 @@ export function SnapshotChartsAndDetails(props: {
           </div>
           <div className="mb-2 text-sm font-semibold text-white/80">Leads → Qualified → Meetings → Close</div>
           <div className="text-sm text-white/55">Conversion rates from actuals.</div>
-          {meetingToCloseNote ? <div className="mt-2 text-xs text-white/45">{meetingToCloseNote}</div> : null}
 
           {typeof addressedLeads === "number" && typeof notContacted === "number" && addressedLeads >= 0 ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -125,7 +124,8 @@ export function SnapshotChartsAndDetails(props: {
                   to: "Close",
                   percent: meetingToClosePct,
                   targetPercent: meetingToCloseTargetPct ?? null,
-                  colorClassName: "bg-blue-400"
+                  colorClassName: "bg-blue-400",
+                  note: meetingToCloseNote ?? null
                 }
               ]}
             />

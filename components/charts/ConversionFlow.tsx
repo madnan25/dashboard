@@ -12,6 +12,7 @@ type Step = {
   percent: number; // 0-100
   targetPercent?: number | null; // 0-100 (optional)
   colorClassName: string; // e.g. "bg-emerald-400"
+  note?: string | null;
 };
 
 export function ConversionFlow({ steps }: { steps: Step[] }) {
@@ -66,6 +67,12 @@ export function ConversionFlow({ steps }: { steps: Step[] }) {
               />
               <div className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/10" />
             </div>
+
+            {s.note ? (
+              <div className="glass-inset rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/60 shadow-[0_0_24px_rgba(125,211,252,0.10)]">
+                {s.note}
+              </div>
+            ) : null}
           </div>
         );
       })}
