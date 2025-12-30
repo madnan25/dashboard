@@ -65,6 +65,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
 
   // Overview data
   let totalSqft = 0;
+  let totalQualifiedPipelineSqft = 0;
   let totalSpend = 0;
 
   let topImpact: Array<{ id: string; name: string; sqft: number; momDelta?: number }> = [];
@@ -99,6 +100,22 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           }));
         }
 
+        type TargetRow = { project_id: string; year: number; month: number; avg_sqft_per_deal: number };
+
+        async function fetchTargetsMonth(y: number, m: number) {
+          const { data, error } = await supabase
+            .from("project_targets")
+            .select("project_id, year, month, avg_sqft_per_deal")
+            .eq("year", y)
+            .eq("month", m)
+            .in("project_id", projectIds);
+          if (error) throw error;
+          return ((data as TargetRow[]) ?? []).map((r) => ({
+            ...r,
+            avg_sqft_per_deal: r.avg_sqft_per_deal ?? 0
+          }));
+        }
+
         async function fetchActualsYtd() {
           const { data, error } = await supabase
             .from("project_actuals")
@@ -117,25 +134,65 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
           }));
         }
 
-        const [actualsRows, prevRows] =
+        const [actualsRows, prevRows, targetsRows] =
           mode === "month"
-            ? await Promise.all([fetchActualsMonth(year, month), fetchActualsMonth(prevMonthOf(year, month).year, prevMonthOf(year, month).month)])
-            : await Promise.all([fetchActualsYtd(), Promise.resolve([] as ActualRow[])]);
+            ? await Promise.all([
+                fetchActualsMonth(year, month),
+                fetchActualsMonth(prevMonthOf(year, month).year, prevMonthOf(year, month).month),
+                fetchTargetsMonth(year, month)
+              ])
+            : await Promise.all([
+                fetchActualsYtd(),
+                Promise.resolve([] as ActualRow[]),
+                // For YTD, pull targets month-by-month so we can compute:
+                // qualified_pipeline = Σ (qualified_leads_month × avg_sqft_per_deal_month)
+                (async () => {
+                  const { data, error } = await supabase
+                    .from("project_targets")
+                    .select("project_id, year, month, avg_sqft_per_deal")
+                    .eq("year", year)
+                    .lte("month", month)
+                    .in("project_id", projectIds);
+                  if (error) throw error;
+                  return ((data as TargetRow[]) ?? []).map((r) => ({
+                    ...r,
+                    avg_sqft_per_deal: r.avg_sqft_per_deal ?? 0
+                  }));
+                })()
+              ]);
+
+        const avgSqftByProjectMonth = new Map<string, number>();
+        for (const t of targetsRows ?? []) {
+          avgSqftByProjectMonth.set(`${t.project_id}:${t.month}`, Math.max(0, Number(t.avg_sqft_per_deal ?? 0)));
+        }
 
         // Aggregate actuals by project
-        const actualByProject = new Map<string, { sqft: number; spend: number; qualifiedLeads: number }>();
+        const actualByProject = new Map<
+          string,
+          { sqft: number; spend: number; qualifiedLeads: number; qualifiedPipelineSqft: number }
+        >();
         if (mode === "month") {
           for (const r of actualsRows) {
             const spend = (r.spend_digital ?? 0) + (r.spend_inbound ?? 0) + (r.spend_activations ?? 0);
-            actualByProject.set(r.project_id, { sqft: r.sqft_won ?? 0, spend, qualifiedLeads: r.qualified_leads ?? 0 });
+            const avgSqft = avgSqftByProjectMonth.get(`${r.project_id}:${r.month}`) ?? 0;
+            const qualifiedLeads = r.qualified_leads ?? 0;
+            actualByProject.set(r.project_id, {
+              sqft: r.sqft_won ?? 0,
+              spend,
+              qualifiedLeads,
+              qualifiedPipelineSqft: qualifiedLeads * avgSqft
+            });
           }
         } else {
           for (const r of actualsRows) {
             const spend = (r.spend_digital ?? 0) + (r.spend_inbound ?? 0) + (r.spend_activations ?? 0);
-            const cur = actualByProject.get(r.project_id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0 };
+            const cur = actualByProject.get(r.project_id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0, qualifiedPipelineSqft: 0 };
+            const avgSqft = avgSqftByProjectMonth.get(`${r.project_id}:${r.month}`) ?? 0;
             cur.sqft += r.sqft_won ?? 0;
             cur.spend += spend;
-            cur.qualifiedLeads += r.qualified_leads ?? 0;
+            const qualifiedLeads = r.qualified_leads ?? 0;
+            cur.qualifiedLeads += qualifiedLeads;
+            cur.qualifiedPipelineSqft += qualifiedLeads * avgSqft;
             actualByProject.set(r.project_id, cur);
           }
         }
@@ -146,17 +203,19 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
 
         // Totals
         totalSqft = 0;
+        totalQualifiedPipelineSqft = 0;
         totalSpend = 0;
         for (const p of projects) {
-          const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0 };
+          const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0, qualifiedPipelineSqft: 0 };
           totalSqft += a.sqft;
+          totalQualifiedPipelineSqft += a.qualifiedPipelineSqft;
           totalSpend += a.spend;
         }
 
         // Ranked: Impact
         topImpact = [...projects]
           .map((p) => {
-            const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0 };
+            const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0, qualifiedPipelineSqft: 0 };
             const prevSqft = prevSqftByProject.get(p.id) ?? 0;
             const momDelta = mode === "month" ? a.sqft - prevSqft : undefined;
             return { id: p.id, name: p.name, sqft: a.sqft, momDelta };
@@ -167,7 +226,7 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         // Ranked: Efficiency (full list; client panel handles sorting/toggle)
         topEfficiency = [...projects]
           .map((p) => {
-            const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0 };
+            const a = actualByProject.get(p.id) ?? { sqft: 0, spend: 0, qualifiedLeads: 0, qualifiedPipelineSqft: 0 };
             const costPerSqft = a.sqft > 0 ? a.spend / a.sqft : Number.POSITIVE_INFINITY;
             const costPerQualifiedLead = a.qualifiedLeads > 0 ? a.spend / a.qualifiedLeads : Number.POSITIVE_INFINITY;
             return {
@@ -231,15 +290,20 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
               </Surface>
             ) : null}
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
               <KpiCard
-                label="Total pipeline created (SQFT)"
+                label="Qualified pipeline created (SQFT)"
+                value={formatNumber(totalQualifiedPipelineSqft)}
+                helper={`${mode === "ytd" ? "Year to date" : "This month"} • Qualified leads × avg deal size`}
+              />
+              <KpiCard
+                label="Pipeline actualized (SQFT)"
                 value={formatNumber(totalSqft)}
-                helper={mode === "ytd" ? "Year to date" : "This month"}
+                helper={`${mode === "ytd" ? "Year to date" : "This month"} • SQFT won`}
               />
               <KpiCard label="Total spend" value={formatNumber(totalSpend)} helper="Digital + Inbound + Activations" />
               <KpiCard
-                label="Efficiency (spend per sqft)"
+                label="Efficiency (spend / SQFT)"
                 value={costPerSqft != null ? format2(costPerSqft) : "—"}
                 helper={costPerSqft != null ? "How much we spent per 1 sqft won." : "No sqft won recorded"}
               />
