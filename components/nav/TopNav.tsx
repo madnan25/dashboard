@@ -99,7 +99,7 @@ export function TopNav() {
 
   // Mobile uses the bottom tab bar; keep the top nav desktop-only.
   return (
-    <div className="hidden md:block sticky top-0 z-40 p-6">
+    <div className="hidden md:block sticky top-0 z-50 p-6">
       <Surface
         className="px-4 py-3 md:px-5 md:py-4 border border-white/10 transition-colors"
         style={{

@@ -10,7 +10,7 @@ export type EfficiencyRow = {
   id: string;
   name: string;
   spend: number;
-  sqft: number;
+  sqft: number; // sqft won
   qualifiedLeads: number;
   costPerSqft: number; // spend / sqft
   costPerQualifiedLead: number; // spend / qualifiedLeads
@@ -49,7 +49,9 @@ export function TopEfficiencyPanel(props: { rows: EfficiencyRow[]; qs: string })
   }, [metric, rows]);
 
   const subtitle =
-    metric === "cost_ql" ? "Lowest cost per qualified lead (includes volume)." : "Lowest cost per sqft (includes volume).";
+    metric === "cost_ql"
+      ? "Lowest cost per qualified lead (includes volume)."
+      : "Lowest cost per sqft won (includes volume).";
 
   return (
     <Surface>
@@ -61,7 +63,7 @@ export function TopEfficiencyPanel(props: { rows: EfficiencyRow[]; qs: string })
         <div className="min-w-[220px]">
           <PillSelect value={metric} onChange={(v) => setMetric(v as Metric)} ariaLabel="Efficiency metric">
             <option value="cost_sqft" className="bg-zinc-900">
-              Cost per sqft
+              Cost per sqft won
             </option>
             <option value="cost_ql" className="bg-zinc-900">
               Cost per qualified lead
@@ -78,7 +80,9 @@ export function TopEfficiencyPanel(props: { rows: EfficiencyRow[]; qs: string })
             const primary =
               metric === "cost_ql" ? format2(x.costPerQualifiedLead) : format2(x.costPerSqft);
             const secondary =
-              metric === "cost_ql" ? `Cost/Sqft ${format2(x.costPerSqft)}` : `Cost/QL ${x.qualifiedLeads > 0 ? format2(x.costPerQualifiedLead) : "—"}`;
+              metric === "cost_ql"
+                ? `Cost/Sqft won ${format2(x.costPerSqft)}`
+                : `Cost/QL ${x.qualifiedLeads > 0 ? format2(x.costPerQualifiedLead) : "—"}`;
 
             return (
               <div key={x.id} className="flex items-start justify-between gap-4">
@@ -90,13 +94,13 @@ export function TopEfficiencyPanel(props: { rows: EfficiencyRow[]; qs: string })
                     </Link>
                   </div>
                   <div className="mt-1 text-xs text-white/45">
-                    Spend {formatNumber(x.spend)} · Sqft {formatNumber(x.sqft)} · QL {formatNumber(x.qualifiedLeads)}
+                    Spend {formatNumber(x.spend)} · Sqft won {formatNumber(x.sqft)} · QL {formatNumber(x.qualifiedLeads)}
                   </div>
                   <div className="mt-1 text-xs text-white/45">{secondary}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-semibold text-white/90 tabular-nums">{primary}</div>
-                  <div className="text-xs text-white/45">{metric === "cost_ql" ? "per QL" : "per sqft"}</div>
+                  <div className="text-xs text-white/45">{metric === "cost_ql" ? "per QL" : "per sqft won"}</div>
                 </div>
               </div>
             );

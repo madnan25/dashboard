@@ -83,7 +83,7 @@ export function MonthYearPicker({
   const isCurrent = now.year === year && now.monthIndex === monthIndex;
 
   return (
-    <div className="relative z-[1000] isolate" ref={ref}>
+    <div className="relative" ref={ref}>
       <Button
         ref={anchorRef as unknown as never}
         size="sm"
@@ -109,7 +109,7 @@ export function MonthYearPicker({
 
       {open ? (
         <div
-          className="fixed z-[2000] rounded-2xl border border-white/10 bg-black/70 p-3 shadow-2xl backdrop-blur pointer-events-auto"
+          className="fixed z-[60] rounded-2xl border border-white/10 bg-black/70 p-3 shadow-2xl backdrop-blur pointer-events-auto"
           style={{
             left: pos?.left ?? 12,
             top: pos?.top ?? 56,
