@@ -48,8 +48,16 @@ import {
   updateTaskSubtask,
   upsertTaskContributions
 } from "@/lib/dashboardDb";
-import { PRIMARY_FLOW, SIDE_LANE, approvalLabel, priorityLabel, statusLabel } from "@/components/tasks/taskModel";
-import { isAssignableTaskRole } from "@/components/tasks/taskModel";
+import {
+  PRIMARY_FLOW,
+  SIDE_LANE,
+  approvalLabel,
+  isAssignableTaskProfile,
+  isMarketingManagerProfile,
+  isMarketingTeamProfile,
+  priorityLabel,
+  statusLabel
+} from "@/components/tasks/taskModel";
 
 function toOptionLabel(p: Profile) {
   return p.full_name || p.email || p.id;
@@ -73,14 +81,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [templateSteps, setTemplateSteps] = useState<TaskFlowTemplateStep[]>([]);
   const [loadingTask, setLoadingTask] = useState(true);
+  const [savingManager, setSavingManager] = useState(false);
 
   const isCmo = profile?.role === "cmo";
+  const isManager = isMarketingManagerProfile(profile);
   const canEdit = profile?.role != null && profile.role !== "viewer";
-  const canDelete = profile?.role === "cmo" || (profile?.is_marketing_team === true && profile?.is_marketing_manager === true);
-  const isManager = profile?.role === "cmo" || profile?.is_marketing_manager === true;
-  const canSeeTasks =
-    profile?.role != null &&
-    (profile.role === "cmo" || (profile.role !== "sales_ops" && profile.is_marketing_team === true));
+  const canDelete = isMarketingManagerProfile(profile);
+  const canSeeTasks = isMarketingTeamProfile(profile);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -110,7 +117,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
-  const assignableProfiles = useMemo(() => profiles.filter((p) => isAssignableTaskRole(p.role)), [profiles]);
+  const assignableProfiles = useMemo(() => profiles.filter(isAssignableTaskProfile), [profiles]);
+  const marketingManagers = useMemo(() => profiles.filter(isMarketingManagerProfile), [profiles]);
 
   function getAssigneeOptionProfiles(selectedId: string | null) {
     if (!selectedId) return assignableProfiles;
@@ -118,6 +126,37 @@ export function TaskPage({ taskId }: { taskId: string }) {
     const current = profiles.find((p) => p.id === selectedId) ?? null;
     return current ? [current, ...assignableProfiles] : assignableProfiles;
   }
+
+  function getContributorOptionProfiles(selectedId: string | null) {
+    if (!selectedId) return assignableProfiles;
+    if (assignableProfiles.some((p) => p.id === selectedId)) return assignableProfiles;
+    const current = profiles.find((p) => p.id === selectedId) ?? null;
+    return current ? [current, ...assignableProfiles] : assignableProfiles;
+  }
+
+  function getManagerOptionProfiles(selectedId: string | null) {
+    if (!selectedId) return marketingManagers;
+    if (marketingManagers.some((p) => p.id === selectedId)) return marketingManagers;
+    const current = profiles.find((p) => p.id === selectedId) ?? null;
+    return current ? [current, ...marketingManagers] : marketingManagers;
+  }
+
+  const savedManagerId = useMemo(
+    () => contributions.find((c) => c.role === "coordinator")?.user_id ?? "",
+    [contributions]
+  );
+  const hasSavedManager = Boolean(savedManagerId);
+  const managerNeedsSave = managerUserId !== savedManagerId;
+  const managerLabel = useMemo(() => {
+    if (!savedManagerId) return "—";
+    const managerProfile = profiles.find((p) => p.id === savedManagerId);
+    return managerProfile ? toOptionLabel(managerProfile) : `${savedManagerId.slice(0, 8)}…`;
+  }, [profiles, savedManagerId]);
+  const managerProfile = useMemo(
+    () => (managerUserId ? profiles.find((p) => p.id === managerUserId) ?? null : null),
+    [managerUserId, profiles]
+  );
+  const managerIsValid = managerUserId ? isMarketingManagerProfile(managerProfile) : true;
 
   async function refresh() {
     setLoadingTask(true);
@@ -305,6 +344,32 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
+  async function onSaveManager() {
+    if (!canEdit) return;
+    if (!task) return;
+    if (managerUserId && !managerIsValid) {
+      setStatus("Only marketing managers can be ticket managers.");
+      return;
+    }
+    setSavingManager(true);
+    setStatus("Saving manager…");
+    try {
+      const nextId = managerUserId.trim();
+      if (!nextId) {
+        await deleteTaskContributionByRole(taskId, "coordinator");
+      } else {
+        await upsertTaskContributions(taskId, [{ role: "coordinator", user_id: nextId }]);
+      }
+      const nextContributions = await listTaskContributions(taskId);
+      setContributions(nextContributions);
+      setStatus("Manager saved.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to save manager");
+    } finally {
+      setSavingManager(false);
+    }
+  }
+
   async function onSaveContributions() {
     if (!canEdit) return;
     if (!task) return;
@@ -390,6 +455,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
     if (!canEdit) return;
     if (!selectedTemplateId) {
       setStatus("Select a flow template first.");
+      return;
+    }
+    if (!hasSavedManager) {
+      setStatus("Set a ticket manager before creating a flow.");
+      return;
+    }
+    if (managerNeedsSave) {
+      setStatus("Save the ticket manager before creating a flow.");
       return;
     }
     if (!task) return;
@@ -533,7 +606,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   size="sm"
                   className="h-10 px-4"
                   onPress={() => onSetStatus("submitted")}
-                  isDisabled={!canEdit || taskStatus === "closed" || !flowInstance || !managerUserId}
+                  isDisabled={!canEdit || taskStatus === "closed" || !flowInstance || !hasSavedManager}
                 >
                   Submit for approval
                 </AppButton>
@@ -562,7 +635,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 {isManager && taskStatus !== "closed" && approvalState !== "approved" ? (
                   <div className="text-xs text-white/45">Close requires approval.</div>
                 ) : null}
-                {!managerUserId ? <div className="text-xs text-white/45">Set a ticket manager to enable approvals.</div> : null}
+                {!hasSavedManager ? <div className="text-xs text-white/45">Set a ticket manager to enable approvals.</div> : null}
                 {!flowInstance ? <div className="text-xs text-white/45">Set a flow template to enable approvals.</div> : null}
               </div>
 
@@ -615,7 +688,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         Unassigned
                       </option>
                       {getAssigneeOptionProfiles(assigneeId || null).map((p) => {
-                        const canAssign = isAssignableTaskRole(p.role);
+                        const canAssign = isAssignableTaskProfile(p);
                         return (
                           <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
                             {toOptionLabel(p)}
@@ -643,16 +716,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Approval stamp</div>
-                    <PillSelect value={approvalState} onChange={(v) => setApprovalState(v as TaskApprovalState)} ariaLabel="Approval" disabled={!canEdit} className="mt-2">
+                    <PillSelect value={approvalState} onChange={() => null} ariaLabel="Approval" disabled className="mt-2">
                       {approvalOptions.map((o) => (
                         <option key={o.value} value={o.value} className="bg-zinc-900" disabled={o.disabled}>
                           {o.label}
                         </option>
                       ))}
                     </PillSelect>
-                    {profile?.is_marketing_manager !== true ? (
-                      <div className="mt-2 text-xs text-white/45">Only marketing managers can stamp “Approved”.</div>
-                    ) : null}
+                    <div className="mt-2 text-xs text-white/45">Approval updates when the final flow step is approved.</div>
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Due date (optional)</div>
@@ -678,14 +749,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                   {flowInstance ? (
                     <div className="mt-3 space-y-2">
+                      <div className="text-xs text-white/55">
+                        Ticket manager: <span className="text-white/75">{managerLabel}</span>
+                      </div>
                       {flowSteps.length === 0 ? (
                         <div className="text-sm text-white/50">This ticket has a flow instance but no steps.</div>
                       ) : (
                         flowSteps.map((s) => {
                           const isCurrent = flowInstance.current_step_order === s.step_order;
                           const canApprove =
-                            profile?.role === "cmo" ||
-                            (profile?.id != null && s.approver_user_id != null && s.approver_user_id === profile.id);
+                            isCmo || (isManager && profile?.id != null && s.approver_user_id != null && s.approver_user_id === profile.id);
                           return (
                             <div
                               key={s.id}
@@ -705,6 +778,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                     </span>{" "}
                                     · Status: <span className="text-white/75">{s.status}</span>
                                   </div>
+                                  {isCurrent && !canApprove ? (
+                                    <div className="mt-1 text-xs text-white/45">Only the assigned manager can approve this step.</div>
+                                  ) : null}
                                 </div>
 
                                 {isCurrent && s.status !== "approved" ? (
@@ -728,7 +804,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     <div className="mt-3 space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-xs text-white/50">Need to create or edit templates?</div>
-                        {(profile?.role === "cmo" || profile?.role === "brand_manager" || profile?.is_marketing_manager === true) ? (
+                        {(profile?.role === "brand_manager" || isMarketingManagerProfile(profile)) ? (
                           <Link href="/tasks/templates" className="text-xs text-white/70 underline">
                             Manage templates
                           </Link>
@@ -757,16 +833,56 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             <div className="mt-2 text-xs text-white/45">No templates found. Create one in Templates.</div>
                           ) : null}
                         </div>
-                        <div className="flex items-end">
-                          <AppButton
-                            intent="primary"
-                            className="h-11 px-6"
-                            onPress={onCreateFlowFromTemplate}
-                            isDisabled={!canEdit || !selectedTemplateId}
+                        <div>
+                          <div className="text-xs uppercase tracking-widest text-white/45">Ticket manager</div>
+                          <PillSelect
+                            value={managerUserId}
+                            onChange={setManagerUserId}
+                            ariaLabel="Ticket manager"
+                            disabled={!canEdit || savingManager}
+                            className="mt-2"
                           >
-                            Set flow
-                          </AppButton>
+                            <option value="" className="bg-zinc-900">
+                              Select…
+                            </option>
+                            {getManagerOptionProfiles(managerUserId || null).map((p) => {
+                              const canAssign = isMarketingManagerProfile(p);
+                              return (
+                                <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                                  {toOptionLabel(p)}
+                                  {!canAssign ? " (not a manager)" : ""}
+                                </option>
+                              );
+                            })}
+                          </PillSelect>
+                          {!managerUserId ? (
+                            <div className="mt-2 text-xs text-white/45">Select a ticket manager to enable approvals.</div>
+                          ) : !managerIsValid ? (
+                            <div className="mt-2 text-xs text-white/45">Only marketing managers can approve tickets.</div>
+                          ) : managerNeedsSave ? (
+                            <div className="mt-2 text-xs text-white/45">Save the manager to continue.</div>
+                          ) : null}
                         </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <AppButton
+                          intent="secondary"
+                          className="h-11 px-6"
+                          onPress={onSaveManager}
+                          isDisabled={!canEdit || savingManager || managerUserId === savedManagerId || !managerIsValid}
+                        >
+                          {savingManager ? "Saving…" : "Save manager"}
+                        </AppButton>
+                        <AppButton
+                          intent="primary"
+                          className="h-11 px-6"
+                          onPress={onCreateFlowFromTemplate}
+                          isDisabled={
+                            !canEdit || !selectedTemplateId || !hasSavedManager || managerNeedsSave || savingManager || !managerIsValid
+                          }
+                        >
+                          Set flow
+                        </AppButton>
                       </div>
                       {selectedTemplateId && templateSteps.length > 0 ? (
                         <div className="mt-2 text-xs text-white/50">
@@ -789,11 +905,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           <option value="" className="bg-zinc-900">
                             Select…
                           </option>
-                          {profiles.map((p) => (
-                            <option key={p.id} value={p.id} className="bg-zinc-900">
-                              {toOptionLabel(p)}
-                            </option>
-                          ))}
+                          {getContributorOptionProfiles(primaryUserId || null).map((p) => {
+                            const canAssign = isAssignableTaskProfile(p);
+                            return (
+                              <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                                {toOptionLabel(p)}
+                                {!canAssign ? " (not assignable)" : ""}
+                              </option>
+                            );
+                          })}
                         </PillSelect>
                       </div>
                       <div className="grid gap-2 md:grid-cols-2">
@@ -802,11 +922,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           <option value="" className="bg-zinc-900">
                             None
                           </option>
-                          {profiles.map((p) => (
-                            <option key={p.id} value={p.id} className="bg-zinc-900">
-                              {toOptionLabel(p)}
-                            </option>
-                          ))}
+                          {getContributorOptionProfiles(secondaryUserId || null).map((p) => {
+                            const canAssign = isAssignableTaskProfile(p);
+                            return (
+                              <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                                {toOptionLabel(p)}
+                                {!canAssign ? " (not assignable)" : ""}
+                              </option>
+                            );
+                          })}
                         </PillSelect>
                       </div>
                       <div className="grid gap-2 md:grid-cols-2">
@@ -815,17 +939,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           <option value="" className="bg-zinc-900">
                             None
                           </option>
-                          {profiles.map((p) => (
-                            <option key={p.id} value={p.id} className="bg-zinc-900">
-                              {toOptionLabel(p)}
-                            </option>
-                          ))}
+                          {getManagerOptionProfiles(managerUserId || null).map((p) => {
+                            const canAssign = isMarketingManagerProfile(p);
+                            return (
+                              <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                                {toOptionLabel(p)}
+                                {!canAssign ? " (not a manager)" : ""}
+                              </option>
+                            );
+                          })}
                         </PillSelect>
                       </div>
 
                       <div className="flex justify-end">
                         <AppButton intent="secondary" className="h-10 px-4" onPress={onSaveContributions} isDisabled={!canEdit}>
-                          Save manager & split
+                          Save split
                         </AppButton>
                       </div>
                     </div>
@@ -914,7 +1042,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 Unassigned
                               </option>
                               {getAssigneeOptionProfiles(s.assignee_id ?? null).map((p) => {
-                                const canAssign = isAssignableTaskRole(p.role);
+                                const canAssign = isAssignableTaskProfile(p);
                                 return (
                                   <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
                                     {toOptionLabel(p)}

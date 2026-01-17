@@ -10,7 +10,15 @@ import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task } from "@/lib/dashboardDb";
 import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, updateTask } from "@/lib/dashboardDb";
-import { endOfWeek, isoDate, isAssignableTaskRole, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
+import {
+  endOfWeek,
+  isoDate,
+  isAssignableTaskProfile,
+  isMarketingManagerProfile,
+  isMarketingTeamProfile,
+  startOfWeek,
+  taskIsOpen
+} from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
 
@@ -52,13 +60,11 @@ export function TasksPage() {
   const [creating, setCreating] = useState(false);
 
   const isCmo = profile?.role === "cmo";
-  const isManager = profile?.role === "cmo" || profile?.is_marketing_manager === true;
+  const isManager = isMarketingManagerProfile(profile);
   const canEdit = profile?.role != null && profile.role !== "viewer";
-  const canSeeTasks =
-    profile?.role != null &&
-    (profile.role === "cmo" || (profile.role !== "sales_ops" && profile.is_marketing_team === true));
+  const canSeeTasks = isMarketingTeamProfile(profile);
 
-  const assignableProfiles = useMemo(() => profiles.filter((p) => isAssignableTaskRole(p.role)), [profiles]);
+  const assignableProfiles = useMemo(() => profiles.filter(isAssignableTaskProfile), [profiles]);
 
   function getAssigneeFilterOptionProfiles(selected: string) {
     if (!selected || selected === "__me__" || selected === "__none__") return assignableProfiles;
@@ -303,7 +309,7 @@ export function TasksPage() {
                     Unassigned
                   </option>
                   {getAssigneeFilterOptionProfiles(assigneeFilter).map((p) => {
-                    const canAssign = isAssignableTaskRole(p.role);
+                    const canAssign = isAssignableTaskProfile(p);
                     return (
                       <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
                         {p.full_name || p.email || p.id}

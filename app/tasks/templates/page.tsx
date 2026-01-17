@@ -7,6 +7,7 @@ import { AppButton } from "@/components/ds/AppButton";
 import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import type { Profile, TaskFlowTemplate, TaskFlowTemplateStep } from "@/lib/dashboardDb";
+import { isMarketingManagerProfile } from "@/components/tasks/taskModel";
 import {
   createTaskFlowTemplate,
   deleteTaskFlowTemplate,
@@ -50,13 +51,10 @@ export default function TaskTemplatesPage() {
   const [saving, setSaving] = useState(false);
 
   // Allow CMO, marketing managers, and brand managers to manage templates.
-  const canManage = me?.role === "cmo" || me?.role === "brand_manager" || me?.is_marketing_manager === true;
+  const canManage = me?.role === "brand_manager" || isMarketingManagerProfile(me);
 
   const selectedTemplate = useMemo(() => templates.find((t) => t.id === selectedId) ?? null, [selectedId, templates]);
-  const marketingManagers = useMemo(
-    () => profiles.filter((p) => p.is_marketing_manager === true || p.role === "cmo"),
-    [profiles]
-  );
+  const marketingManagers = useMemo(() => profiles.filter(isMarketingManagerProfile), [profiles]);
 
   async function refreshTemplates() {
     const [t, ps] = await Promise.all([listTaskFlowTemplates(), listProfiles()]);
