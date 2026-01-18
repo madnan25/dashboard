@@ -508,33 +508,29 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 >
                   Submit for approval
                 </AppButton>
-                {taskStatus === "closed" ? (
-                  <AppButton
-                    intent="secondary"
-                    size="sm"
-                    className="h-10 px-4"
-                    onPress={() => onSetStatus("in_progress")}
-                    isDisabled={!canEdit || !canApprove}
-                  >
-                    Reopen ticket
-                  </AppButton>
-                ) : (
-                  <AppButton
-                    intent="primary"
-                    size="sm"
-                    className="h-10 px-4"
-                    onPress={() => onSetStatus("closed")}
-                    isDisabled={!canEdit || !canApprove || approvalState !== "approved"}
-                  >
-                    Close ticket
-                  </AppButton>
-                )}
-                {!canApprove ? <div className="text-xs text-white/45">Close/reopen is approver-only.</div> : null}
-                {canApprove && taskStatus !== "closed" && approvalState !== "approved" ? (
-                  <div className="text-xs text-white/45">Close requires approval.</div>
-                ) : null}
-                {!teamId ? <div className="text-xs text-white/45">Select a team to enable approvals.</div> : null}
-                {!approverUserId ? <div className="text-xs text-white/45">Ask the CMO to set a team approver.</div> : null}
+                  {canApprove ? (
+                    taskStatus === "closed" ? (
+                      <AppButton
+                        intent="secondary"
+                        size="sm"
+                        className="h-10 px-4"
+                        onPress={() => onSetStatus("in_progress")}
+                        isDisabled={!canEdit}
+                      >
+                        Reopen ticket
+                      </AppButton>
+                    ) : (
+                      <AppButton
+                        intent="primary"
+                        size="sm"
+                        className="h-10 px-4"
+                        onPress={() => onSetStatus("closed")}
+                        isDisabled={!canEdit || approvalState !== "approved"}
+                      >
+                        Close ticket
+                      </AppButton>
+                    )
+                  ) : null}
               </div>
 
               <div className="mt-4 space-y-4">
@@ -640,7 +636,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     <div className="text-xs uppercase tracking-widest text-white/45">Approval</div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <div className="text-sm text-white/80">{approvalLabel(approvalState)}</div>
-                      {approvalState === "pending" ? (
+                      {canApprove && approvalState === "pending" ? (
                         <AppButton
                           intent="primary"
                           size="sm"
@@ -654,9 +650,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     </div>
                     {!approverUserId && !isCmo ? (
                       <div className="mt-2 text-xs text-white/45">Approval is blocked until a team approver is assigned.</div>
-                    ) : null}
-                    {approvalState !== "approved" && approverUserId && !canApprove ? (
-                      <div className="mt-2 text-xs text-white/45">Only the assigned approver can approve this ticket.</div>
                     ) : null}
                   </div>
                   <div>
