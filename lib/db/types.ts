@@ -17,6 +17,16 @@ export type Project = {
   is_active: boolean;
 };
 
+export type TaskTeam = {
+  id: string;
+  name: string;
+  description: string | null;
+  approver_user_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ProjectTargets = {
   project_id: string;
   year: number;
@@ -142,6 +152,8 @@ export type Task = {
   approval_state: TaskApprovalState;
   approved_by: string | null;
   approved_at: string | null;
+  team_id: string | null;
+  approver_user_id: string | null;
   assignee_id: string | null;
   project_id: string | null;
   due_at: string | null; // date

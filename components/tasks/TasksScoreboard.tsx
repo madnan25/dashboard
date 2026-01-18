@@ -5,8 +5,8 @@ import Link from "next/link";
 import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
 import { PillSelect } from "@/components/ds/PillSelect";
-import type { Profile, Project, Task, TaskFlowInstance, TaskFlowTemplate, TaskPointsLedgerEntry } from "@/lib/dashboardDb";
-import { listTaskFlowInstancesByTaskIds, listTaskFlowTemplates, listTaskPointsLedger, listTasksByIds } from "@/lib/dashboardDb";
+import type { Profile, Project, Task, TaskPointsLedgerEntry } from "@/lib/dashboardDb";
+import { listTaskPointsLedger, listTasksByIds } from "@/lib/dashboardDb";
 import { isoDate, startOfWeek } from "@/components/tasks/taskModel";
 
 type Mode = "impact" | "reliability" | "project";
@@ -41,15 +41,12 @@ export function TasksScoreboard(props: {
 
   const [weekStart, setWeekStart] = useState(() => props.initialWeekStart ?? isoDate(startOfWeek(new Date())));
   const [projectId, setProjectId] = useState<string>(""); // optional filter
-  const [templateId, setTemplateId] = useState<string>(""); // optional filter
   const [contributorId, setContributorId] = useState<string>(""); // optional filter
 
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
-  const [templates, setTemplates] = useState<TaskFlowTemplate[]>([]);
   const [ledger, setLedger] = useState<TaskPointsLedgerEntry[]>([]);
   const [tasksById, setTasksById] = useState<Record<string, Task>>({});
-  const [flowByTaskId, setFlowByTaskId] = useState<Record<string, TaskFlowInstance>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -62,21 +59,11 @@ export function TasksScoreboard(props: {
         setLedger(rows);
 
         const ids = Array.from(new Set(rows.map((r) => r.task_id)));
-        const [tasks, flows, tpls] = await Promise.all([
-          listTasksByIds(ids),
-          listTaskFlowInstancesByTaskIds(ids),
-          listTaskFlowTemplates()
-        ]);
+        const [tasks] = await Promise.all([listTasksByIds(ids)]);
         if (cancelled) return;
         const map: Record<string, Task> = {};
         for (const t of tasks) map[t.id] = t;
         setTasksById(map);
-
-        const flowMap: Record<string, TaskFlowInstance> = {};
-        for (const f of flows) flowMap[f.task_id] = f;
-        setFlowByTaskId(flowMap);
-
-        setTemplates(tpls);
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load scoreboard");
@@ -93,14 +80,10 @@ export function TasksScoreboard(props: {
   const filteredLedger = useMemo(() => {
     return ledger.filter((r) => {
       if (projectId && (tasksById[r.task_id]?.project_id ?? "") !== projectId) return false;
-      if (templateId) {
-        const tId = flowByTaskId[r.task_id]?.template_id ?? "";
-        if (tId !== templateId) return false;
-      }
       if (contributorId && r.user_id !== contributorId) return false;
       return true;
     });
-  }, [contributorId, flowByTaskId, ledger, projectId, tasksById, templateId]);
+  }, [contributorId, ledger, projectId, tasksById]);
 
   const nameFor = (id: string) => {
     const p = profiles.find((x) => x.id === id);
@@ -202,17 +185,6 @@ export function TasksScoreboard(props: {
             {projects.map((p) => (
               <option key={p.id} className="bg-zinc-900" value={p.id}>
                 {p.name}
-              </option>
-            ))}
-          </PillSelect>
-
-          <PillSelect value={templateId} onChange={setTemplateId} ariaLabel="Flow template filter">
-            <option className="bg-zinc-900" value="">
-              All templates
-            </option>
-            {templates.map((t) => (
-              <option key={t.id} className="bg-zinc-900" value={t.id}>
-                {t.name}
               </option>
             ))}
           </PillSelect>

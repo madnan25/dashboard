@@ -1,6 +1,6 @@
 "use client";
 
-import type { Profile, Project, Task } from "@/lib/dashboardDb";
+import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
 
 function pillClass(kind: "p0" | "p1" | "p2" | "p3") {
   switch (kind) {
@@ -30,12 +30,14 @@ export function TaskCard({
   task,
   assignee,
   project,
+  team,
   onOpen,
   onHover
 }: {
   task: Task;
   assignee: Profile | null;
   project: Project | null;
+  team?: TaskTeam | null;
   onOpen: () => void;
   onHover?: () => void;
 }) {
@@ -58,6 +60,7 @@ export function TaskCard({
               <span className="text-white/50">Unassigned</span>
             )}
             {project ? <span className="ml-2 text-white/45">· {project.name}</span> : null}
+            {team ? <span className="ml-2 text-white/45">· {team.name}</span> : null}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">

@@ -16,33 +16,25 @@ import type {
   TaskApprovalState,
   TaskContribution,
   TaskEvent,
-  TaskFlowInstance,
-  TaskFlowStepInstance,
-  TaskFlowTemplate,
-  TaskFlowTemplateStep,
   TaskPointsLedgerEntry,
   TaskPriority,
   TaskStatus,
-  TaskSubtask
+  TaskSubtask,
+  TaskTeam
 } from "@/lib/dashboardDb";
 import {
-  approveTaskFlowStep,
-  createTaskFlowInstanceFromTemplate,
   createTaskSubtask,
   deleteTask,
   deleteTaskContributionByRole,
   deleteTaskSubtask,
   getCurrentProfile,
   getTask,
-  getTaskFlowInstance,
   listProfiles,
   listProjects,
   listTaskContributions,
   listTaskEvents,
-  listTaskFlowStepInstances,
-  listTaskFlowTemplateSteps,
-  listTaskFlowTemplates,
   listTaskPointsLedgerByTaskId,
+  listTaskTeams,
   listTaskSubtasks,
   updateTask,
   updateTaskSubtask,
@@ -52,9 +44,6 @@ import {
   PRIMARY_FLOW,
   SIDE_LANE,
   approvalLabel,
-  isAssignableTaskProfile,
-  isMarketingManagerProfile,
-  isMarketingTeamProfile,
   priorityLabel,
   statusLabel
 } from "@/components/tasks/taskModel";
@@ -69,37 +58,32 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [teams, setTeams] = useState<TaskTeam[]>([]);
 
   const [task, setTaskState] = useState<Task | null>(null);
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [ledger, setLedger] = useState<TaskPointsLedgerEntry[]>([]);
   const [contributions, setContributions] = useState<TaskContribution[]>([]);
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
-  const [flowTemplates, setFlowTemplates] = useState<TaskFlowTemplate[]>([]);
-  const [flowInstance, setFlowInstance] = useState<TaskFlowInstance | null>(null);
-  const [flowSteps, setFlowSteps] = useState<TaskFlowStepInstance[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [templateSteps, setTemplateSteps] = useState<TaskFlowTemplateStep[]>([]);
   const [loadingTask, setLoadingTask] = useState(true);
-  const [savingManager, setSavingManager] = useState(false);
 
   const isCmo = profile?.role === "cmo";
-  const isManager = isMarketingManagerProfile(profile);
-  const canEdit = profile?.role != null && profile.role !== "viewer";
-  const canDelete = isMarketingManagerProfile(profile);
-  const canSeeTasks = isMarketingTeamProfile(profile);
+  const canEdit = profile != null;
+  const canDelete = isCmo;
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("p2");
   const [taskStatus, setTaskStatus] = useState<TaskStatus>("queued");
   const [approvalState, setApprovalState] = useState<TaskApprovalState>("pending");
+  const [teamId, setTeamId] = useState<string>("");
+  const [approverUserId, setApproverUserId] = useState<string>("");
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [projectId, setProjectId] = useState<string>("");
   const [dueAt, setDueAt] = useState<string>("");
   const [primaryUserId, setPrimaryUserId] = useState<string>("");
   const [secondaryUserId, setSecondaryUserId] = useState<string>("");
-  const [managerUserId, setManagerUserId] = useState<string>("");
+  const [coordinatorUserId, setCoordinatorUserId] = useState<string>("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState<string>("");
 
   const lastSavedRef = useRef<{
@@ -108,6 +92,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     priority: TaskPriority;
     status: TaskStatus;
     approval_state: TaskApprovalState;
+    team_id: string | null;
     assignee_id: string | null;
     project_id: string | null;
     due_at: string | null;
@@ -117,9 +102,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
-  const assignableProfiles = useMemo(() => profiles.filter(isAssignableTaskProfile), [profiles]);
-  const marketingManagers = useMemo(() => profiles.filter(isMarketingManagerProfile), [profiles]);
-
+  const assignableProfiles = useMemo(() => profiles, [profiles]);
+  const team = useMemo(() => teams.find((t) => t.id === teamId) ?? null, [teamId, teams]);
+  const approverProfile = useMemo(() => profiles.find((p) => p.id === approverUserId) ?? null, [approverUserId, profiles]);
+  const approverLabel = useMemo(() => {
+    if (!approverUserId) return "—";
+    return approverProfile ? toOptionLabel(approverProfile) : `${approverUserId.slice(0, 8)}…`;
+  }, [approverProfile, approverUserId]);
+  const isApprover = profile?.id != null && approverUserId != null && approverUserId === profile.id;
+  const canApprove = isCmo || isApprover;
   function getAssigneeOptionProfiles(selectedId: string | null) {
     if (!selectedId) return assignableProfiles;
     if (assignableProfiles.some((p) => p.id === selectedId)) return assignableProfiles;
@@ -134,62 +125,32 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return current ? [current, ...assignableProfiles] : assignableProfiles;
   }
 
-  function getManagerOptionProfiles(selectedId: string | null) {
-    if (!selectedId) return marketingManagers;
-    if (marketingManagers.some((p) => p.id === selectedId)) return marketingManagers;
-    const current = profiles.find((p) => p.id === selectedId) ?? null;
-    return current ? [current, ...marketingManagers] : marketingManagers;
-  }
-
-  const savedManagerId = useMemo(
-    () => contributions.find((c) => c.role === "coordinator")?.user_id ?? "",
-    [contributions]
-  );
-  const hasSavedManager = Boolean(savedManagerId);
-  const managerNeedsSave = managerUserId !== savedManagerId;
-  const managerLabel = useMemo(() => {
-    if (!savedManagerId) return "—";
-    const managerProfile = profiles.find((p) => p.id === savedManagerId);
-    return managerProfile ? toOptionLabel(managerProfile) : `${savedManagerId.slice(0, 8)}…`;
-  }, [profiles, savedManagerId]);
-  const managerProfile = useMemo(
-    () => (managerUserId ? profiles.find((p) => p.id === managerUserId) ?? null : null),
-    [managerUserId, profiles]
-  );
-  const managerIsValid = managerUserId ? isMarketingManagerProfile(managerProfile) : true;
-
   async function refresh() {
     setLoadingTask(true);
     try {
       setStatus("");
-      const [t, ev, led, subs, contribs, inst, tpls] = await Promise.all([
+      const [t, ev, led, subs, contribs, teamRows] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
         listTaskPointsLedgerByTaskId(taskId),
         listTaskSubtasks(taskId),
         listTaskContributions(taskId),
-        getTaskFlowInstance(taskId),
-        listTaskFlowTemplates()
+        listTaskTeams()
       ]);
       setTaskState(t);
       setEvents(ev);
       setLedger(led);
       setSubtasks(subs);
       setContributions(contribs);
-      setFlowInstance(inst);
-      setFlowTemplates(tpls);
-      if (inst) {
-        const steps = await listTaskFlowStepInstances(inst.id);
-        setFlowSteps(steps);
-      } else {
-        setFlowSteps([]);
-      }
+      setTeams(teamRows);
       if (t) {
         setTitle(t.title ?? "");
         setDescription(t.description ?? "");
         setPriority(t.priority);
         setTaskStatus(t.status);
         setApprovalState(t.approval_state);
+        setTeamId(t.team_id ?? "");
+        setApproverUserId(t.approver_user_id ?? "");
         setAssigneeId(t.assignee_id ?? "");
         setProjectId(t.project_id ?? "");
         setDueAt(t.due_at ?? "");
@@ -200,6 +161,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
           priority: t.priority,
           status: t.status,
           approval_state: t.approval_state,
+          team_id: t.team_id ?? null,
           assignee_id: t.assignee_id ?? null,
           project_id: t.project_id ?? null,
           due_at: t.due_at ?? null
@@ -210,7 +172,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         const coord = contribs.find((c) => c.role === "coordinator")?.user_id ?? "";
         setPrimaryUserId(primary || t.assignee_id || t.created_by || "");
         setSecondaryUserId(secondary);
-        setManagerUserId(coord || (t.created_by && t.created_by !== (t.assignee_id ?? "") ? t.created_by : ""));
+        setCoordinatorUserId(coord);
       }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to load task");
@@ -228,11 +190,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
     let cancelled = false;
     async function boot() {
       try {
-        const [me, ps, projs] = await Promise.all([getCurrentProfile(), listProfiles(), listProjects()]);
+        const [me, ps, projs, teamRows] = await Promise.all([getCurrentProfile(), listProfiles(), listProjects(), listTaskTeams()]);
         if (cancelled) return;
         setProfile(me);
         setProfiles(ps);
         setProjects(projs);
+        setTeams(teamRows);
       } catch {
         // ignore
       }
@@ -248,33 +211,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
-  const approvalOptions: Array<{ value: TaskApprovalState; label: string; disabled?: boolean }> = [
-    { value: "not_required", label: approvalLabel("not_required") },
-    { value: "pending", label: approvalLabel("pending") },
-    { value: "approved", label: approvalLabel("approved"), disabled: profile?.is_marketing_manager !== true }
-  ];
-
   useEffect(() => {
-    let cancelled = false;
-    async function loadTemplateSteps() {
-      if (!selectedTemplateId) {
-        setTemplateSteps([]);
-        return;
-      }
-      try {
-        const steps = await listTaskFlowTemplateSteps(selectedTemplateId);
-        if (cancelled) return;
-        setTemplateSteps(steps);
-      } catch (e) {
-        if (cancelled) return;
-        setStatus(e instanceof Error ? e.message : "Failed to load flow template");
-      }
+    if (!teamId) {
+      if (approverUserId) setApproverUserId("");
+      return;
     }
-    loadTemplateSteps();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedTemplateId]);
+    const team = teams.find((t) => t.id === teamId) ?? null;
+    if (!team) return;
+    if (team.approver_user_id !== approverUserId) {
+      setApproverUserId(team.approver_user_id ?? "");
+    }
+  }, [approverUserId, teamId, teams]);
 
   useEffect(() => {
     if (!canEdit) return;
@@ -294,6 +241,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       priority,
       status: taskStatus,
       approval_state: approvalState,
+      team_id: teamId || null,
       assignee_id: assigneeId || null,
       project_id: projectId || null,
       due_at: dueAt || null
@@ -306,10 +254,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
       next.priority !== prev.priority ||
       next.status !== prev.status ||
       next.approval_state !== prev.approval_state ||
+      next.team_id !== prev.team_id ||
       next.assignee_id !== prev.assignee_id ||
       next.project_id !== prev.project_id ||
       next.due_at !== prev.due_at;
     if (!changed) return;
+    const didChangeTeam = next.team_id !== prev.team_id;
 
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     const seq = ++autosaveSeqRef.current;
@@ -318,6 +268,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
         setStatus("Saving…");
         await updateTask(taskId, next);
         if (autosaveSeqRef.current !== seq) return; // superseded
+        if (didChangeTeam) {
+          await refresh();
+          return;
+        }
         lastSavedRef.current = next;
         setTaskState((t) => (t ? { ...t, ...next, assignee_id: next.assignee_id, project_id: next.project_id, due_at: next.due_at } : t));
         setStatus("Saved.");
@@ -330,7 +284,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [approvalState, assigneeId, canEdit, description, dueAt, loadingTask, priority, projectId, task, taskId, taskStatus, title]);
+  }, [approvalState, assigneeId, canEdit, description, dueAt, loadingTask, priority, projectId, task, taskId, taskStatus, title, teamId]);
 
   async function onDelete() {
     if (!canDelete) return;
@@ -341,32 +295,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
       router.push("/tasks");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to delete");
-    }
-  }
-
-  async function onSaveManager() {
-    if (!canEdit) return;
-    if (!task) return;
-    if (managerUserId && !managerIsValid) {
-      setStatus("Only marketing managers can be ticket managers.");
-      return;
-    }
-    setSavingManager(true);
-    setStatus("Saving manager…");
-    try {
-      const nextId = managerUserId.trim();
-      if (!nextId) {
-        await deleteTaskContributionByRole(taskId, "coordinator");
-      } else {
-        await upsertTaskContributions(taskId, [{ role: "coordinator", user_id: nextId }]);
-      }
-      const nextContributions = await listTaskContributions(taskId);
-      setContributions(nextContributions);
-      setStatus("Manager saved.");
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to save manager");
-    } finally {
-      setSavingManager(false);
     }
   }
 
@@ -381,7 +309,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       const next = {
         primary: primaryUserId.trim(),
         secondary: secondaryUserId.trim(),
-        coordinator: managerUserId.trim()
+        coordinator: coordinatorUserId.trim()
       };
 
       (["primary", "secondary", "coordinator"] as const).forEach((role) => {
@@ -451,40 +379,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
-  async function onCreateFlowFromTemplate() {
-    if (!canEdit) return;
-    if (!selectedTemplateId) {
-      setStatus("Select a flow template first.");
+  async function onApproveTask() {
+    if (!canEdit || !task) return;
+    if (approvalState !== "pending") return;
+    if (!canApprove) {
+      setStatus("Only the assigned approver can approve this ticket.");
       return;
     }
-    if (!hasSavedManager) {
-      setStatus("Set a ticket manager before creating a flow.");
-      return;
-    }
-    if (managerNeedsSave) {
-      setStatus("Save the ticket manager before creating a flow.");
-      return;
-    }
-    if (!task) return;
-    if (flowInstance) {
-      setStatus("This ticket already has a flow.");
-      return;
-    }
-    setStatus("Creating approval flow…");
-    try {
-      // Server-side resolves approvers (e.g. ticket manager). We pass an empty array.
-      await createTaskFlowInstanceFromTemplate(taskId, selectedTemplateId, []);
-      setStatus("Approval flow created.");
-      await refresh();
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to create approval flow");
-    }
-  }
-
-  async function onApproveCurrentFlowStep(stepId: string) {
     setStatus("Approving…");
     try {
-      await approveTaskFlowStep(stepId);
+      await updateTask(taskId, { approval_state: "approved" });
       setStatus("Approved.");
       await refresh();
     } catch (e) {
@@ -519,20 +423,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
           backHref="/tasks"
         />
 
-        {profile && !canSeeTasks ? (
-          <Surface>
-            <div className="text-sm text-white/75">You don’t have access to Tasks.</div>
-            <div className="mt-1 text-xs text-white/50">Ask the CMO to add you to the marketing team.</div>
-          </Surface>
-        ) : null}
-
         {status ? (
           <Surface>
             <div className="text-sm text-amber-200/90">{status}</div>
           </Surface>
         ) : null}
 
-        {profile && !canSeeTasks ? null : loadingTask ? (
+        {loadingTask ? (
           <div className="grid gap-4 md:grid-cols-12">
             <Surface className="md:col-span-7">
               <div className="h-5 w-32 rounded bg-white/10 animate-pulse" />
@@ -584,7 +481,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   {assignee ? (
                     <div className="mt-2 text-xs text-white/50">
                       With: <span className="text-white/75">{toOptionLabel(assignee)}</span>
-                      {project ? <span className="text-white/40"> · {project.name}</span> : null}
+                    {project ? <span className="text-white/40"> · {project.name}</span> : null}
+                    {team ? <span className="text-white/40"> · {team.name}</span> : null}
                     </div>
                   ) : null}
                 </div>
@@ -606,7 +504,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   size="sm"
                   className="h-10 px-4"
                   onPress={() => onSetStatus("submitted")}
-                  isDisabled={!canEdit || taskStatus === "closed" || !flowInstance || !hasSavedManager}
+                  isDisabled={!canEdit || taskStatus === "closed" || !teamId || !approverUserId}
                 >
                   Submit for approval
                 </AppButton>
@@ -616,7 +514,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     size="sm"
                     className="h-10 px-4"
                     onPress={() => onSetStatus("in_progress")}
-                    isDisabled={!canEdit || !isManager}
+                    isDisabled={!canEdit || !canApprove}
                   >
                     Reopen ticket
                   </AppButton>
@@ -626,17 +524,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     size="sm"
                     className="h-10 px-4"
                     onPress={() => onSetStatus("closed")}
-                    isDisabled={!canEdit || !isManager || approvalState !== "approved"}
+                    isDisabled={!canEdit || !canApprove || approvalState !== "approved"}
                   >
                     Close ticket
                   </AppButton>
                 )}
-                {!isManager ? <div className="text-xs text-white/45">Close/reopen is manager-only.</div> : null}
-                {isManager && taskStatus !== "closed" && approvalState !== "approved" ? (
+                {!canApprove ? <div className="text-xs text-white/45">Close/reopen is approver-only.</div> : null}
+                {canApprove && taskStatus !== "closed" && approvalState !== "approved" ? (
                   <div className="text-xs text-white/45">Close requires approval.</div>
                 ) : null}
-                {!hasSavedManager ? <div className="text-xs text-white/45">Set a ticket manager to enable approvals.</div> : null}
-                {!flowInstance ? <div className="text-xs text-white/45">Set a flow template to enable approvals.</div> : null}
+                {!teamId ? <div className="text-xs text-white/45">Select a team to enable approvals.</div> : null}
+                {!approverUserId ? <div className="text-xs text-white/45">Ask the CMO to set a team approver.</div> : null}
               </div>
 
               <div className="mt-4 space-y-4">
@@ -688,11 +586,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         Unassigned
                       </option>
                       {getAssigneeOptionProfiles(assigneeId || null).map((p) => {
-                        const canAssign = isAssignableTaskProfile(p);
                         return (
-                          <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                          <option key={p.id} value={p.id} className="bg-zinc-900">
                             {toOptionLabel(p)}
-                            {!canAssign ? " (not assignable)" : ""}
                           </option>
                         );
                       })}
@@ -715,15 +611,53 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Approval stamp</div>
-                    <PillSelect value={approvalState} onChange={() => null} ariaLabel="Approval" disabled className="mt-2">
-                      {approvalOptions.map((o) => (
-                        <option key={o.value} value={o.value} className="bg-zinc-900" disabled={o.disabled}>
-                          {o.label}
+                    <div className="text-xs uppercase tracking-widest text-white/45">Team</div>
+                    <PillSelect value={teamId} onChange={setTeamId} ariaLabel="Team" disabled={!canEdit} className="mt-2">
+                      <option value="" className="bg-zinc-900">
+                        Select…
+                      </option>
+                      {teams.map((t) => (
+                        <option key={t.id} value={t.id} className="bg-zinc-900">
+                          {t.name}
                         </option>
                       ))}
                     </PillSelect>
-                    <div className="mt-2 text-xs text-white/45">Approval updates when the final flow step is approved.</div>
+                    {teams.length === 0 ? (
+                      <div className="mt-2 text-xs text-white/45">No teams configured yet. Ask the CMO to set them up.</div>
+                    ) : null}
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-widest text-white/45">Approver</div>
+                    <div className="mt-2 text-sm text-white/80">{approverLabel}</div>
+                    {!approverUserId ? (
+                      <div className="mt-2 text-xs text-white/45">No approver set for this team.</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-xs uppercase tracking-widest text-white/45">Approval</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <div className="text-sm text-white/80">{approvalLabel(approvalState)}</div>
+                      {approvalState === "pending" ? (
+                        <AppButton
+                          intent="primary"
+                          size="sm"
+                          className="h-10 px-4"
+                          onPress={onApproveTask}
+                          isDisabled={!canEdit || !canApprove || (!approverUserId && !isCmo) || taskStatus === "closed"}
+                        >
+                          Approve ticket
+                        </AppButton>
+                      ) : null}
+                    </div>
+                    {!approverUserId && !isCmo ? (
+                      <div className="mt-2 text-xs text-white/45">Approval is blocked until a team approver is assigned.</div>
+                    ) : null}
+                    {approvalState !== "approved" && approverUserId && !canApprove ? (
+                      <div className="mt-2 text-xs text-white/45">Only the assigned approver can approve this ticket.</div>
+                    ) : null}
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Due date (optional)</div>
@@ -739,255 +673,97 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   </div>
                 </div>
 
-                <div className="my-2 h-px bg-white/10" />
+                {isCmo ? (
+                  <>
+                    <div className="my-2 h-px bg-white/10" />
 
-                <div>
-                  <div className="text-xs uppercase tracking-widest text-white/45">Approval flow</div>
-                  <div className="mt-2 text-sm text-white/60">
-                    Templates define stages and approvers. Approving the terminal step stamps the ticket and awards points.
-                  </div>
-
-                  {flowInstance ? (
-                    <div className="mt-3 space-y-2">
-                      <div className="text-xs text-white/55">
-                        Ticket manager: <span className="text-white/75">{managerLabel}</span>
-                      </div>
-                      {flowSteps.length === 0 ? (
-                        <div className="text-sm text-white/50">This ticket has a flow instance but no steps.</div>
-                      ) : (
-                        flowSteps.map((s) => {
-                          const isCurrent = flowInstance.current_step_order === s.step_order;
-                          const canApprove =
-                            isCmo || (isManager && profile?.id != null && s.approver_user_id != null && s.approver_user_id === profile.id);
-                          return (
-                            <div
-                              key={s.id}
-                              className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-white/90">
-                                    {s.step_order}. {s.label} {isCurrent ? <span className="text-white/50">(current)</span> : null}
-                                  </div>
-                                  <div className="mt-1 text-xs text-white/55">
-                                    Approver:{" "}
-                                    <span className="text-white/75">
-                                      {profiles.find((p) => p.id === s.approver_user_id)?.full_name ||
-                                        profiles.find((p) => p.id === s.approver_user_id)?.email ||
-                                        (s.approver_user_id ? s.approver_user_id.slice(0, 8) + "…" : "—")}
-                                    </span>{" "}
-                                    · Status: <span className="text-white/75">{s.status}</span>
-                                  </div>
-                                  {isCurrent && !canApprove ? (
-                                    <div className="mt-1 text-xs text-white/45">Only the assigned manager can approve this step.</div>
-                                  ) : null}
-                                </div>
-
-                                {isCurrent && s.status !== "approved" ? (
-                                  <AppButton
-                                    intent="primary"
-                                    size="sm"
-                                    className="h-10 px-5 whitespace-nowrap"
-                                    onPress={() => onApproveCurrentFlowStep(s.id)}
-                                    isDisabled={!canEdit || !canApprove}
-                                  >
-                                    Approve step
-                                  </AppButton>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mt-3 space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs text-white/50">Need to create or edit templates?</div>
-                        {(profile?.role === "brand_manager" || isMarketingManagerProfile(profile)) ? (
-                          <Link href="/tasks/templates" className="text-xs text-white/70 underline">
-                            Manage templates
-                          </Link>
-                        ) : null}
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                          <div className="text-xs uppercase tracking-widest text-white/45">Template</div>
-                          <PillSelect
-                            value={selectedTemplateId}
-                            onChange={setSelectedTemplateId}
-                            ariaLabel="Flow template"
-                            disabled={!canEdit}
-                            className="mt-2"
-                          >
-                            <option value="" className="bg-zinc-900">
-                              Select…
-                            </option>
-                            {flowTemplates.map((t) => (
-                              <option key={t.id} value={t.id} className="bg-zinc-900">
-                                {t.name}
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <div className="text-xs uppercase tracking-widest text-white/45">Contribution split</div>
+                        <div className="mt-2 grid gap-2">
+                          <div className="grid gap-2 md:grid-cols-2">
+                            <div className="text-xs text-white/45 pt-2">Primary (65% / 90%)</div>
+                            <PillSelect value={primaryUserId} onChange={setPrimaryUserId} ariaLabel="Primary contributor" disabled={!canEdit}>
+                              <option value="" className="bg-zinc-900">
+                                Select…
                               </option>
-                            ))}
-                          </PillSelect>
-                          {flowTemplates.length === 0 ? (
-                            <div className="mt-2 text-xs text-white/45">No templates found. Create one in Templates.</div>
-                          ) : null}
-                        </div>
-                        <div>
-                          <div className="text-xs uppercase tracking-widest text-white/45">Ticket manager</div>
-                          <PillSelect
-                            value={managerUserId}
-                            onChange={setManagerUserId}
-                            ariaLabel="Ticket manager"
-                            disabled={!canEdit || savingManager}
-                            className="mt-2"
-                          >
-                            <option value="" className="bg-zinc-900">
-                              Select…
-                            </option>
-                            {getManagerOptionProfiles(managerUserId || null).map((p) => {
-                              const canAssign = isMarketingManagerProfile(p);
-                              return (
-                                <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                              {getContributorOptionProfiles(primaryUserId || null).map((p) => {
+                                return (
+                                  <option key={p.id} value={p.id} className="bg-zinc-900">
+                                    {toOptionLabel(p)}
+                                  </option>
+                                );
+                              })}
+                            </PillSelect>
+                          </div>
+                          <div className="grid gap-2 md:grid-cols-2">
+                            <div className="text-xs text-white/45 pt-2">Secondary (25%)</div>
+                            <PillSelect value={secondaryUserId} onChange={setSecondaryUserId} ariaLabel="Secondary contributor" disabled={!canEdit}>
+                              <option value="" className="bg-zinc-900">
+                                None
+                              </option>
+                              {getContributorOptionProfiles(secondaryUserId || null).map((p) => {
+                                return (
+                                  <option key={p.id} value={p.id} className="bg-zinc-900">
+                                    {toOptionLabel(p)}
+                                  </option>
+                                );
+                              })}
+                            </PillSelect>
+                          </div>
+                          <div className="grid gap-2 md:grid-cols-2">
+                            <div className="text-xs text-white/45 pt-2">Coordinator (10%)</div>
+                            <PillSelect value={coordinatorUserId} onChange={setCoordinatorUserId} ariaLabel="Coordinator" disabled={!canEdit}>
+                              <option value="" className="bg-zinc-900">
+                                None
+                              </option>
+                              {getContributorOptionProfiles(coordinatorUserId || null).map((p) => (
+                                <option key={p.id} value={p.id} className="bg-zinc-900">
                                   {toOptionLabel(p)}
-                                  {!canAssign ? " (not a manager)" : ""}
                                 </option>
-                              );
-                            })}
-                          </PillSelect>
-                          {!managerUserId ? (
-                            <div className="mt-2 text-xs text-white/45">Select a ticket manager to enable approvals.</div>
-                          ) : !managerIsValid ? (
-                            <div className="mt-2 text-xs text-white/45">Only marketing managers can approve tickets.</div>
-                          ) : managerNeedsSave ? (
-                            <div className="mt-2 text-xs text-white/45">Save the manager to continue.</div>
-                          ) : null}
+                              ))}
+                            </PillSelect>
+                          </div>
+
+                          <div className="flex justify-end">
+                            <AppButton intent="secondary" className="h-10 px-4" onPress={onSaveContributions} isDisabled={!canEdit}>
+                              Save split
+                            </AppButton>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <AppButton
-                          intent="secondary"
-                          className="h-11 px-6"
-                          onPress={onSaveManager}
-                          isDisabled={!canEdit || savingManager || managerUserId === savedManagerId || !managerIsValid}
-                        >
-                          {savingManager ? "Saving…" : "Save manager"}
-                        </AppButton>
-                        <AppButton
-                          intent="primary"
-                          className="h-11 px-6"
-                          onPress={onCreateFlowFromTemplate}
-                          isDisabled={
-                            !canEdit || !selectedTemplateId || !hasSavedManager || managerNeedsSave || savingManager || !managerIsValid
-                          }
-                        >
-                          Set flow
-                        </AppButton>
-                      </div>
-                      {selectedTemplateId && templateSteps.length > 0 ? (
-                        <div className="mt-2 text-xs text-white/50">
-                          This template has {templateSteps.length} step{templateSteps.length === 1 ? "" : "s"}. Approvers are resolved automatically from the ticket manager.
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
 
-                <div className="my-2 h-px bg-white/10" />
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Contribution split</div>
-                    <div className="mt-2 grid gap-2">
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <div className="text-xs text-white/45 pt-2">Primary (65% / 90%)</div>
-                        <PillSelect value={primaryUserId} onChange={setPrimaryUserId} ariaLabel="Primary contributor" disabled={!canEdit}>
-                          <option value="" className="bg-zinc-900">
-                            Select…
-                          </option>
-                          {getContributorOptionProfiles(primaryUserId || null).map((p) => {
-                            const canAssign = isAssignableTaskProfile(p);
-                            return (
-                              <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
-                                {toOptionLabel(p)}
-                                {!canAssign ? " (not assignable)" : ""}
-                              </option>
-                            );
-                          })}
-                        </PillSelect>
-                      </div>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <div className="text-xs text-white/45 pt-2">Secondary (25%)</div>
-                        <PillSelect value={secondaryUserId} onChange={setSecondaryUserId} ariaLabel="Secondary contributor" disabled={!canEdit}>
-                          <option value="" className="bg-zinc-900">
-                            None
-                          </option>
-                          {getContributorOptionProfiles(secondaryUserId || null).map((p) => {
-                            const canAssign = isAssignableTaskProfile(p);
-                            return (
-                              <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
-                                {toOptionLabel(p)}
-                                {!canAssign ? " (not assignable)" : ""}
-                              </option>
-                            );
-                          })}
-                        </PillSelect>
-                      </div>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <div className="text-xs text-white/45 pt-2">Manager (10%)</div>
-                        <PillSelect value={managerUserId} onChange={setManagerUserId} ariaLabel="Manager" disabled={!canEdit}>
-                          <option value="" className="bg-zinc-900">
-                            None
-                          </option>
-                          {getManagerOptionProfiles(managerUserId || null).map((p) => {
-                            const canAssign = isMarketingManagerProfile(p);
-                            return (
-                              <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
-                                {toOptionLabel(p)}
-                                {!canAssign ? " (not a manager)" : ""}
-                              </option>
-                            );
-                          })}
-                        </PillSelect>
-                      </div>
-
-                      <div className="flex justify-end">
-                        <AppButton intent="secondary" className="h-10 px-4" onPress={onSaveContributions} isDisabled={!canEdit}>
-                          Save split
-                        </AppButton>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Points (awarded on approval)</div>
-                    <div className="mt-2 space-y-2">
-                      {ledger.length === 0 ? (
-                        <div className="text-sm text-white/50">No points awarded yet.</div>
-                      ) : (
-                        ledger.map((l) => {
-                          const who =
-                            profiles.find((p) => p.id === l.user_id)?.full_name ||
-                            profiles.find((p) => p.id === l.user_id)?.email ||
-                            l.user_id.slice(0, 8) + "…";
-                          return (
-                            <div key={l.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-white/90">{who}</div>
-                                  <div className="mt-1 text-xs text-white/55">
-                                    Tier: {l.weight_tier} · Week: {l.week_start}
+                      <div>
+                        <div className="text-xs uppercase tracking-widest text-white/45">Points (awarded on approval)</div>
+                        <div className="mt-2 space-y-2">
+                          {ledger.length === 0 ? (
+                            <div className="text-sm text-white/50">No points awarded yet.</div>
+                          ) : (
+                            ledger.map((l) => {
+                              const who =
+                                profiles.find((p) => p.id === l.user_id)?.full_name ||
+                                profiles.find((p) => p.id === l.user_id)?.email ||
+                                l.user_id.slice(0, 8) + "…";
+                              return (
+                                <div key={l.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-semibold text-white/90">{who}</div>
+                                      <div className="mt-1 text-xs text-white/55">
+                                        Tier: {l.weight_tier} · Week: {l.week_start}
+                                      </div>
+                                    </div>
+                                    <div className="text-lg font-semibold text-white/90 tabular-nums">{l.points_awarded}</div>
                                   </div>
                                 </div>
-                                <div className="text-lg font-semibold text-white/90 tabular-nums">{l.points_awarded}</div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </>
+                ) : null}
 
                 <div className="my-2 h-px bg-white/10" />
 
@@ -1042,11 +818,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 Unassigned
                               </option>
                               {getAssigneeOptionProfiles(s.assignee_id ?? null).map((p) => {
-                                const canAssign = isAssignableTaskProfile(p);
                                 return (
-                                  <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
+                                  <option key={p.id} value={p.id} className="bg-zinc-900">
                                     {toOptionLabel(p)}
-                                    {!canAssign ? " (not assignable)" : ""}
                                   </option>
                                 );
                               })}

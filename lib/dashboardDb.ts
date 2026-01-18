@@ -20,6 +20,7 @@ export type {
   ProjectActualsChannel,
   ProjectActualsDigitalSource,
   ProjectTargets,
+  TaskTeam,
   Task,
   TaskApprovalState,
   TaskContribution,
@@ -51,6 +52,7 @@ import type {
   ProjectActualsChannel,
   ProjectActualsDigitalSource,
   ProjectTargets,
+  TaskTeam,
   Task,
   TaskContribution,
   TaskContributionRole,
@@ -255,6 +257,25 @@ export async function deleteTask(taskId: string): Promise<void> {
 
 export async function listTaskEvents(taskId: string): Promise<TaskEvent[]> {
   return await repo().listTaskEvents(taskId);
+}
+
+export async function listTaskTeams(): Promise<TaskTeam[]> {
+  return await repo().listTaskTeams();
+}
+
+export async function createTaskTeam(input: { name: string; description?: string | null; approver_user_id?: string | null }): Promise<TaskTeam> {
+  return await repo().createTaskTeam(input);
+}
+
+export async function updateTaskTeam(
+  id: string,
+  patch: { name?: string; description?: string | null; approver_user_id?: string | null }
+): Promise<void> {
+  return await repo().updateTaskTeam(id, patch);
+}
+
+export async function deleteTaskTeam(id: string): Promise<void> {
+  return await repo().deleteTaskTeam(id);
 }
 
 export async function getTaskWeightConfig(): Promise<TaskWeightConfig> {

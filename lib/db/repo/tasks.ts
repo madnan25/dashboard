@@ -10,7 +10,8 @@ import type {
   TaskContribution,
   TaskContributionRole,
   TaskSubtask,
-  TaskSubtaskStatus
+  TaskSubtaskStatus,
+  TaskTeam
 } from "@/lib/db/types";
 import type { TaskFlowInstance, TaskFlowStepInstance, TaskFlowTemplate, TaskFlowTemplateStep } from "@/lib/db/types";
 
@@ -20,6 +21,7 @@ export type ListTasksFilters = {
   approvalStates?: TaskApprovalState[];
   assigneeId?: string | null;
   projectId?: string | null;
+  teamId?: string | null;
   dueFrom?: string; // yyyy-mm-dd
   dueTo?: string; // yyyy-mm-dd
 };
@@ -28,7 +30,7 @@ export async function listTasks(supabase: SupabaseClient, filters?: ListTasksFil
   let q = supabase
     .from("tasks")
     .select(
-      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, team_id, approver_user_id, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
     )
     .order("updated_at", { ascending: false });
 
@@ -40,6 +42,8 @@ export async function listTasks(supabase: SupabaseClient, filters?: ListTasksFil
   if (typeof f.assigneeId === "string") q = q.eq("assignee_id", f.assigneeId);
   if (f.projectId === null) q = q.is("project_id", null);
   if (typeof f.projectId === "string") q = q.eq("project_id", f.projectId);
+  if (f.teamId === null) q = q.is("team_id", null);
+  if (typeof f.teamId === "string") q = q.eq("team_id", f.teamId);
   if (f.dueFrom) q = q.gte("due_at", f.dueFrom);
   if (f.dueTo) q = q.lte("due_at", f.dueTo);
 
@@ -54,7 +58,7 @@ export async function listTasksByIds(supabase: SupabaseClient, ids: string[]): P
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, team_id, approver_user_id, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
     )
     .in("id", unique);
   if (error) throw error;
@@ -62,7 +66,7 @@ export async function listTasksByIds(supabase: SupabaseClient, ids: string[]): P
 }
 
 export type CreateTaskInput = Pick<Task, "title"> &
-  Partial<Pick<Task, "description" | "priority" | "status" | "approval_state" | "assignee_id" | "project_id" | "due_at">>;
+  Partial<Pick<Task, "description" | "priority" | "status" | "approval_state" | "assignee_id" | "project_id" | "due_at" | "team_id">>;
 
 export async function createTask(supabase: SupabaseClient, input: CreateTaskInput): Promise<Task> {
   const { data, error } = await supabase
@@ -73,12 +77,13 @@ export async function createTask(supabase: SupabaseClient, input: CreateTaskInpu
       priority: input.priority ?? "p2",
       status: input.status ?? "queued",
       approval_state: input.approval_state ?? "pending",
+      team_id: input.team_id ?? null,
       assignee_id: input.assignee_id ?? null,
       project_id: input.project_id ?? null,
       due_at: input.due_at ?? null
     })
     .select(
-      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, team_id, approver_user_id, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
     )
     .single();
   if (error) throw error;
@@ -86,7 +91,7 @@ export async function createTask(supabase: SupabaseClient, input: CreateTaskInpu
 }
 
 export type UpdateTaskPatch = Partial<
-  Pick<Task, "title" | "description" | "priority" | "status" | "approval_state" | "assignee_id" | "project_id" | "due_at">
+  Pick<Task, "title" | "description" | "priority" | "status" | "approval_state" | "assignee_id" | "project_id" | "due_at" | "team_id">
 >;
 
 export async function updateTask(supabase: SupabaseClient, id: string, patch: UpdateTaskPatch): Promise<void> {
@@ -98,7 +103,7 @@ export async function getTask(supabase: SupabaseClient, id: string): Promise<Tas
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "id, title, description, priority, status, approval_state, approved_by, approved_at, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
+      "id, title, description, priority, status, approval_state, approved_by, approved_at, team_id, approver_user_id, assignee_id, project_id, due_at, weight_tier, base_weight, completed_at, created_by, created_at, updated_at"
     )
     .eq("id", id)
     .maybeSingle();
@@ -155,6 +160,48 @@ export async function listTaskEvents(supabase: SupabaseClient, taskId: string): 
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data as TaskEvent[]) ?? [];
+}
+
+// --- Teams ---
+
+export async function listTaskTeams(supabase: SupabaseClient): Promise<TaskTeam[]> {
+  const { data, error } = await supabase
+    .from("task_teams")
+    .select("id, name, description, approver_user_id, created_by, created_at, updated_at")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data as TaskTeam[]) ?? [];
+}
+
+export async function createTaskTeam(
+  supabase: SupabaseClient,
+  input: Pick<TaskTeam, "name"> & Partial<Pick<TaskTeam, "description" | "approver_user_id">>
+): Promise<TaskTeam> {
+  const { data, error } = await supabase
+    .from("task_teams")
+    .insert({
+      name: input.name,
+      description: input.description ?? null,
+      approver_user_id: input.approver_user_id ?? null
+    })
+    .select("id, name, description, approver_user_id, created_by, created_at, updated_at")
+    .single();
+  if (error) throw error;
+  return data as TaskTeam;
+}
+
+export async function updateTaskTeam(
+  supabase: SupabaseClient,
+  id: string,
+  patch: Partial<Pick<TaskTeam, "name" | "description" | "approver_user_id">>
+): Promise<void> {
+  const { error } = await supabase.from("task_teams").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteTaskTeam(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("task_teams").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function listTaskContributions(supabase: SupabaseClient, taskId: string): Promise<TaskContribution[]> {

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type React from "react";
-import type { Profile, Project, Task, TaskStatus } from "@/lib/dashboardDb";
+import type { Profile, Project, Task, TaskStatus, TaskTeam } from "@/lib/dashboardDb";
 import { PRIMARY_FLOW, SIDE_LANE, statusLabel } from "@/components/tasks/taskModel";
 import { TaskCard } from "@/components/tasks/TaskCard";
 
@@ -11,6 +11,7 @@ export function KanbanBoard({
   tasks,
   profiles,
   projects,
+  teams,
   onOpenTask,
   canMoveToStatus,
   onMoveTask
@@ -18,6 +19,7 @@ export function KanbanBoard({
   tasks: Task[];
   profiles: Profile[];
   projects: Project[];
+  teams: TaskTeam[];
   onOpenTask: (t: Task) => void;
   canMoveToStatus: (task: Task, next: TaskStatus) => { ok: boolean; reason?: string };
   onMoveTask: (task: Task, next: TaskStatus) => Promise<void>;
@@ -36,6 +38,7 @@ export function KanbanBoard({
 
   const assigneeFor = (t: Task) => profiles.find((p) => p.id === t.assignee_id) ?? null;
   const projectFor = (t: Task) => projects.find((p) => p.id === t.project_id) ?? null;
+  const teamFor = (t: Task) => teams.find((team) => team.id === t.team_id) ?? null;
 
   const columns = [...PRIMARY_FLOW, ...SIDE_LANE];
 
@@ -91,6 +94,7 @@ export function KanbanBoard({
                         task={t}
                         assignee={assigneeFor(t)}
                         project={projectFor(t)}
+                        team={teamFor(t)}
                         onOpen={() => onOpenTask(t)}
                         onHover={() => router.prefetch(`/tasks/${t.id}`)}
                       />

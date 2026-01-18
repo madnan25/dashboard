@@ -8,17 +8,9 @@ import { AppButton } from "@/components/ds/AppButton";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
-import type { Profile, Project, Task } from "@/lib/dashboardDb";
-import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, updateTask } from "@/lib/dashboardDb";
-import {
-  endOfWeek,
-  isoDate,
-  isAssignableTaskProfile,
-  isMarketingManagerProfile,
-  isMarketingTeamProfile,
-  startOfWeek,
-  taskIsOpen
-} from "@/components/tasks/taskModel";
+import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
+import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, listTaskTeams, updateTask } from "@/lib/dashboardDb";
+import { endOfWeek, isoDate, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
 
@@ -29,7 +21,7 @@ function labelForView(v: View) {
     case "board":
       return "Board";
     case "with_me":
-      return "With me";
+      return "Approvals";
     case "blocked":
       return "Blocked P0/P1";
     case "delivery":
@@ -49,22 +41,22 @@ export function TasksPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [teams, setTeams] = useState<TaskTeam[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
 
   const [view, setView] = useState<View>("board");
   const [assigneeFilter, setAssigneeFilter] = useState<string>(""); // ""=all, else user id, "__me__" handled
   const [priorityFilter, setPriorityFilter] = useState<string>(""); // ""=all
   const [projectFilter, setProjectFilter] = useState<string>(""); // ""=all
+  const [teamFilter, setTeamFilter] = useState<string>(""); // ""=all
 
   const [newTitle, setNewTitle] = useState("");
+  const [newTeamId, setNewTeamId] = useState("");
   const [creating, setCreating] = useState(false);
 
   const isCmo = profile?.role === "cmo";
-  const isManager = isMarketingManagerProfile(profile);
-  const canEdit = profile?.role != null && profile.role !== "viewer";
-  const canSeeTasks = isMarketingTeamProfile(profile);
-
-  const assignableProfiles = useMemo(() => profiles.filter(isAssignableTaskProfile), [profiles]);
+  const canEdit = profile != null;
+  const assignableProfiles = useMemo(() => profiles, [profiles]);
 
   function getAssigneeFilterOptionProfiles(selected: string) {
     if (!selected || selected === "__me__" || selected === "__none__") return assignableProfiles;
@@ -76,8 +68,9 @@ export function TasksPage() {
   async function refresh() {
     try {
       setStatus("");
-      const rows = await listTasks();
+      const [rows, teamRows] = await Promise.all([listTasks(), listTaskTeams()]);
       setTasks(rows);
+      setTeams(teamRows);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to load tasks");
     }
@@ -87,11 +80,16 @@ export function TasksPage() {
     const t = newTitle.trim();
     if (!t) return;
     if (!canEdit) return;
+    if (!newTeamId) {
+      setStatus("Select a team before creating a task.");
+      return;
+    }
     setCreating(true);
     setStatus("");
     try {
-      const created = await createTask({ title: t });
+      const created = await createTask({ title: t, team_id: newTeamId });
       setNewTitle("");
+      setNewTeamId("");
       router.push(`/tasks/${created.id}`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to create task");
@@ -105,13 +103,19 @@ export function TasksPage() {
     async function boot() {
       try {
         setStatus("");
-        const [me, ps, projs, ts] = await Promise.all([getCurrentProfile(), listProfiles(), listProjects(), listTasks()]);
+        const [me, ps, projs, ts, teamRows] = await Promise.all([
+          getCurrentProfile(),
+          listProfiles(),
+          listProjects(),
+          listTasks(),
+          listTaskTeams()
+        ]);
         if (cancelled) return;
         setProfile(me);
         setProfiles(ps);
         setProjects(projs);
+        setTeams(teamRows);
         setTasks(ts);
-        if (me && me.role !== "cmo") setAssigneeFilter("__me__");
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load tasks");
@@ -149,10 +153,10 @@ export function TasksPage() {
       if (resolvedAssigneeId && t.assignee_id !== resolvedAssigneeId) return false;
       if (priorityFilter && t.priority !== priorityFilter) return false;
       if (projectFilter && (t.project_id ?? "") !== projectFilter) return false;
+      if (teamFilter && (t.team_id ?? "") !== teamFilter) return false;
 
       if (view === "with_me") {
-        // CMO control view: what needs approval
-        return t.approval_state === "pending" && taskIsOpen(t);
+        return t.approval_state === "pending" && taskIsOpen(t) && meId != null && t.approver_user_id === meId;
       }
       if (view === "blocked") {
         return t.status === "blocked" && (t.priority === "p0" || t.priority === "p1");
@@ -168,21 +172,20 @@ export function TasksPage() {
       }
       return true;
     });
-  }, [assigneeMode, priorityFilter, projectFilter, resolvedAssigneeId, tasks, view]);
+  }, [assigneeMode, priorityFilter, projectFilter, resolvedAssigneeId, tasks, teamFilter, view, meId]);
 
-  const viewOptions: View[] = isCmo
-    ? ["board", "with_me", "blocked", "delivery", "impact", "reliability", "project"]
-    : ["board", "blocked", "delivery", "impact", "reliability", "project"];
+  const viewOptions: View[] = isCmo ? ["board", "with_me", "blocked", "delivery", "impact", "reliability", "project"] : ["board", "with_me", "blocked", "delivery"];
 
   function canMoveToStatus(t: Task, next: TaskStatus): { ok: boolean; reason?: string } {
     if (!canEdit) return { ok: false, reason: "You can’t edit tickets" };
-    if (isManager) return { ok: true };
+    const isApprover = profile?.id != null && t.approver_user_id != null && t.approver_user_id === profile.id;
+    if (isCmo || isApprover) return { ok: true };
 
-    // Non-managers: can move only within early workflow and into holds
+    // Non-approvers: can move only within early workflow and into holds
     const allowed: TaskStatus[] = ["queued", "in_progress", "submitted", "blocked", "on_hold"];
     const terminalForNonManagers: TaskStatus[] = ["submitted", "blocked", "on_hold"];
-    if (!allowed.includes(next)) return { ok: false, reason: "Only managers can move to that stage" };
-    if (terminalForNonManagers.includes(t.status) && next !== t.status) return { ok: false, reason: "Only managers can move tickets after this stage" };
+    if (!allowed.includes(next)) return { ok: false, reason: "Only approvers can move to that stage" };
+    if (terminalForNonManagers.includes(t.status) && next !== t.status) return { ok: false, reason: "Only approvers can move tickets after this stage" };
     return { ok: true };
   }
 
@@ -203,33 +206,19 @@ export function TasksPage() {
     }
   }
 
-  if (profile && !canSeeTasks) {
-    return (
-      <main className="min-h-screen px-4 md:px-6 pb-10">
-        <div className="mx-auto w-full max-w-4xl space-y-6">
-          <PageHeader title="Tasks" subtitle="Marketing team only." showBack backHref="/" />
-          <Surface>
-            <div className="text-sm text-white/75">You don’t have access to Tasks.</div>
-            <div className="mt-1 text-xs text-white/50">Ask the CMO to add you to the marketing team.</div>
-          </Surface>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <PageHeader
           title="Tasks"
-          subtitle="A control surface for execution. One card, one owner, one state."
+          subtitle="Request routing by team. One card, one owner, one approval."
           showBack
           backHref="/"
           right={
             <div className="hidden md:flex items-center gap-2">
-              {(profile?.role === "cmo" || profile?.role === "brand_manager" || profile?.is_marketing_manager === true) ? (
+              {isCmo ? (
                 <Link href="/tasks/templates" className="text-xs text-white/70 underline">
-                  Templates
+                  Teams
                 </Link>
               ) : null}
               <PillSelect value={view} onChange={(v) => setView(v as View)} ariaLabel="View">
@@ -247,9 +236,9 @@ export function TasksPage() {
         <div className="md:hidden">
           <Surface>
             <div className="flex flex-wrap items-center gap-2">
-              {(profile?.role === "cmo" || profile?.role === "brand_manager" || profile?.is_marketing_manager === true) ? (
+              {isCmo ? (
                 <Link href="/tasks/templates" className="text-xs text-white/70 underline">
-                  Templates
+                  Teams
                 </Link>
               ) : null}
               <PillSelect value={view} onChange={(v) => setView(v as View)} ariaLabel="View">
@@ -281,15 +270,30 @@ export function TasksPage() {
                   className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
                 />
               </div>
+              <div className="w-full md:w-64">
+                <PillSelect value={newTeamId} onChange={setNewTeamId} ariaLabel="Team" disabled={!canEdit || creating}>
+                  <option value="" className="bg-zinc-900">
+                    Select team…
+                  </option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id} className="bg-zinc-900">
+                      {team.name}
+                    </option>
+                  ))}
+                </PillSelect>
+              </div>
               <AppButton
                 intent="primary"
                 className="h-11 px-6"
                 onPress={onQuickCreate}
-                isDisabled={!canEdit || creating || !newTitle.trim()}
+                isDisabled={!canEdit || creating || !newTitle.trim() || !newTeamId}
               >
                 {creating ? "Creating…" : "Create task"}
               </AppButton>
             </div>
+            {teams.length === 0 ? (
+              <div className="mt-2 text-xs text-white/45">No teams configured yet. Ask the CMO to set up teams.</div>
+            ) : null}
 
             <div className="my-5 h-px bg-white/10" />
 
@@ -308,15 +312,11 @@ export function TasksPage() {
                   <option value="__none__" className="bg-zinc-900">
                     Unassigned
                   </option>
-                  {getAssigneeFilterOptionProfiles(assigneeFilter).map((p) => {
-                    const canAssign = isAssignableTaskProfile(p);
-                    return (
-                      <option key={p.id} value={p.id} className="bg-zinc-900" disabled={!canAssign}>
-                        {p.full_name || p.email || p.id}
-                        {!canAssign ? " (not assignable)" : ""}
-                      </option>
-                    );
-                  })}
+                  {getAssigneeFilterOptionProfiles(assigneeFilter).map((p) => (
+                    <option key={p.id} value={p.id} className="bg-zinc-900">
+                      {p.full_name || p.email || p.id}
+                    </option>
+                  ))}
                 </PillSelect>
 
                 <PillSelect value={priorityFilter} onChange={setPriorityFilter} ariaLabel="Priority filter">
@@ -341,6 +341,17 @@ export function TasksPage() {
                   ))}
                 </PillSelect>
 
+                <PillSelect value={teamFilter} onChange={setTeamFilter} ariaLabel="Team filter">
+                  <option value="" className="bg-zinc-900">
+                    All teams
+                  </option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id} className="bg-zinc-900">
+                      {team.name}
+                    </option>
+                  ))}
+                </PillSelect>
+
                 <AppButton intent="secondary" className="h-10 px-4" onPress={refresh}>
                   Refresh
                 </AppButton>
@@ -351,6 +362,7 @@ export function TasksPage() {
               tasks={filtered}
               profiles={profiles}
               projects={projects}
+              teams={teams}
               onOpenTask={(t) => {
                 router.push(`/tasks/${t.id}`);
               }}
