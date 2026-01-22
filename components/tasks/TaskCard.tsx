@@ -32,7 +32,8 @@ export function TaskCard({
   project,
   team,
   onOpen,
-  onHover
+  onHover,
+  disableOpen
 }: {
   task: Task;
   assignee: Profile | null;
@@ -40,13 +41,17 @@ export function TaskCard({
   team?: TaskTeam | null;
   onOpen: () => void;
   onHover?: () => void;
+  disableOpen?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onOpen}
+      onClick={() => {
+        if (disableOpen) return;
+        onOpen();
+      }}
       onMouseEnter={onHover}
-      className="w-full text-left glass-inset rounded-2xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.03] hover:border-white/15 transition-colors px-4 py-3"
+      className="w-full text-left select-none glass-inset rounded-2xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.03] hover:border-white/15 transition-colors px-4 py-3 cursor-pointer"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

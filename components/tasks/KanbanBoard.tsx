@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type React from "react";
 import type { Profile, Project, Task, TaskStatus, TaskTeam } from "@/lib/dashboardDb";
@@ -25,6 +25,9 @@ export function KanbanBoard({
   onMoveTask: (task: Task, next: TaskStatus) => Promise<void>;
 }) {
   const router = useRouter();
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+
   const byStatus = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
     for (const s of [...PRIMARY_FLOW, ...SIDE_LANE]) map.set(s, []);
@@ -45,6 +48,22 @@ export function KanbanBoard({
   function onDragStart(e: React.DragEvent, t: Task) {
     e.dataTransfer.setData("text/plain", t.id);
     e.dataTransfer.effectAllowed = "move";
+    setDraggingTaskId(t.id);
+    setDragOverStatus(null);
+
+    // Avoid expensive ghost previews that make drag feel laggy.
+    try {
+      const img = new Image();
+      img.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; // 1x1 transparent
+      e.dataTransfer.setDragImage(img, 0, 0);
+    } catch {
+      // ignore
+    }
+  }
+
+  function onDragEnd() {
+    setDraggingTaskId(null);
+    setDragOverStatus(null);
   }
 
   function onDropToStatus(e: React.DragEvent, status: TaskStatus) {
@@ -57,13 +76,19 @@ export function KanbanBoard({
     if (!chk.ok) return;
     if (t.status === status) return;
     void onMoveTask(t, status);
+    setDraggingTaskId(null);
+    setDragOverStatus(null);
   }
+
+  const draggingTask = draggingTaskId ? tasks.find((t) => t.id === draggingTaskId) ?? null : null;
 
   return (
     <div className="mt-4">
       <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
         {columns.map((s) => {
           const col = byStatus.get(s) ?? [];
+          const isOver = dragOverStatus === s;
+          const canDropHere = draggingTask ? canMoveToStatus(draggingTask, s).ok : false;
           return (
             <div key={s} className="min-w-[280px] w-[280px]">
               <div className="mb-2 flex items-center justify-between">
@@ -71,10 +96,24 @@ export function KanbanBoard({
                 <div className="text-xs text-white/45 tabular-nums">{col.length}</div>
               </div>
               <div
-                className="space-y-2"
+                className={[
+                  "space-y-2 min-h-[72px] rounded-2xl p-1 transition-colors",
+                  isOver && canDropHere ? "bg-white/[0.04] ring-1 ring-white/10" : "",
+                  isOver && draggingTask && !canDropHere ? "bg-red-500/[0.06] ring-1 ring-red-400/20" : ""
+                ].join(" ")}
+                onDragEnter={() => {
+                  if (!draggingTaskId) return;
+                  setDragOverStatus(s);
+                }}
                 onDragOver={(e) => {
                   e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
+                  if (!draggingTask) {
+                    e.dataTransfer.dropEffect = "none";
+                    return;
+                  }
+                  const ok = canMoveToStatus(draggingTask, s).ok;
+                  e.dataTransfer.dropEffect = ok ? "move" : "none";
+                  setDragOverStatus(s);
                 }}
                 onDrop={(e) => onDropToStatus(e, s)}
               >
@@ -88,6 +127,7 @@ export function KanbanBoard({
                       key={t.id}
                       draggable
                       onDragStart={(e) => onDragStart(e, t)}
+                      onDragEnd={onDragEnd}
                       title={canMoveToStatus(t, s).ok ? "Drag to move" : canMoveToStatus(t, s).reason || ""}
                     >
                       <TaskCard
@@ -97,6 +137,7 @@ export function KanbanBoard({
                         team={teamFor(t)}
                         onOpen={() => onOpenTask(t)}
                         onHover={() => router.prefetch(`/tasks/${t.id}`)}
+                        disableOpen={draggingTaskId != null}
                       />
                     </div>
                   ))
