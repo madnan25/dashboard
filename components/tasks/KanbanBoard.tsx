@@ -112,6 +112,10 @@ export function KanbanBoard({
     const moved = state?.moved ?? false;
     const t = taskId ? tasks.find((x) => x.id === taskId) ?? null : null;
 
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const column = el?.closest?.("[data-task-status]") as HTMLElement | null;
+    const dropStatus = (column?.dataset?.taskStatus as TaskStatus | undefined) ?? null;
+
     setDraggingTaskId(null);
     setDraggingActive(false);
     setDragPosition(null);
@@ -128,9 +132,9 @@ export function KanbanBoard({
       return;
     }
 
-    if (dragOverStatus && dragOverStatus !== state.originalStatus) {
-      const chk = canMoveToStatus(t, dragOverStatus);
-      if (chk.ok) void onMoveTask(t, dragOverStatus);
+    if (dropStatus && dropStatus !== state.originalStatus) {
+      const chk = canMoveToStatus(t, dropStatus);
+      if (chk.ok) void onMoveTask(t, dropStatus);
     }
     setDragOverStatus(null);
   }
