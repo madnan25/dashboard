@@ -411,7 +411,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
           setApprovalState("approved");
           patch.approval_state = "approved";
         }
-        if (prevStatus === "approved" && next !== "approved") {
+        // Only reset approval when moving back to pre-approval stages.
+        if (next === "queued" || next === "in_progress" || next === "submitted") {
           setApprovalState("pending");
           patch.approval_state = "pending";
         }

@@ -199,7 +199,8 @@ export function TasksPage() {
     if (t.approval_state !== "not_required") {
       // If you can move a ticket into Approved, you can also approve it.
       if (next === "approved") patch.approval_state = "approved";
-      if (t.status === "approved" && next !== "approved") patch.approval_state = "pending";
+      // Only reset approval when moving back to pre-approval stages.
+      if (next === "queued" || next === "in_progress" || next === "submitted") patch.approval_state = "pending";
     }
 
     const prev = tasks;
