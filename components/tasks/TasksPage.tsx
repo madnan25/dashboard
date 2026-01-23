@@ -195,10 +195,30 @@ export function TasksPage() {
       setStatus(chk.reason || "Move not allowed");
       return;
     }
+    const isApprover = profile?.id != null && t.approver_user_id != null && t.approver_user_id === profile.id;
+    const canApproveThis = isCmo || isApprover;
+
+    const patch: Parameters<typeof updateTask>[1] = { status: next };
+    if (t.approval_state !== "not_required") {
+      if (next === "approved" && canApproveThis) patch.approval_state = "approved";
+      if (t.status === "approved" && next !== "approved") patch.approval_state = "pending";
+    }
+
     const prev = tasks;
-    setTasks((cur) => cur.map((x) => (x.id === t.id ? { ...x, status: next, updated_at: new Date().toISOString() } : x)));
+    setTasks((cur) =>
+      cur.map((x) =>
+        x.id === t.id
+          ? {
+              ...x,
+              status: patch.status ?? x.status,
+              approval_state: patch.approval_state ?? x.approval_state,
+              updated_at: new Date().toISOString()
+            }
+          : x
+      )
+    );
     try {
-      await updateTask(t.id, { status: next });
+      await updateTask(t.id, patch);
       setStatus("");
     } catch (e) {
       setTasks(prev);

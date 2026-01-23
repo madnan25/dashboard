@@ -388,7 +388,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
     setStatus("Approving…");
     try {
-      await updateTask(taskId, { approval_state: "approved" });
+      setApprovalState("approved");
+      setTaskStatus("approved");
+      await updateTask(taskId, { approval_state: "approved", status: "approved" });
       setStatus("Approved.");
       await refresh();
     } catch (e) {
@@ -399,15 +401,28 @@ export function TaskPage({ taskId }: { taskId: string }) {
   async function onSetStatus(next: TaskStatus) {
     if (!canEdit) return;
     const prevStatus = taskStatus;
+    const prevApproval = approvalState;
     setTaskStatus(next);
     try {
       setStatus("Saving…");
-      await updateTask(taskId, { status: next });
-      lastSavedRef.current = lastSavedRef.current ? { ...lastSavedRef.current, status: next } : lastSavedRef.current;
-      setTaskState((t) => (t ? { ...t, status: next } : t));
+      const patch: Parameters<typeof updateTask>[1] = { status: next };
+      if (approvalState !== "not_required") {
+        if (next === "approved" && canApprove) {
+          setApprovalState("approved");
+          patch.approval_state = "approved";
+        }
+        if (prevStatus === "approved" && next !== "approved") {
+          setApprovalState("pending");
+          patch.approval_state = "pending";
+        }
+      }
+      await updateTask(taskId, patch);
+      lastSavedRef.current = lastSavedRef.current ? { ...lastSavedRef.current, status: next, approval_state: patch.approval_state ?? lastSavedRef.current.approval_state } : lastSavedRef.current;
+      setTaskState((t) => (t ? { ...t, status: next, approval_state: patch.approval_state ?? t.approval_state } : t));
       setStatus("Saved.");
     } catch (e) {
       setTaskStatus(prevStatus);
+      setApprovalState(prevApproval);
       setStatus(e instanceof Error ? e.message : "Failed to update status");
       await refresh().catch(() => null);
     }
