@@ -75,6 +75,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [ledger, setLedger] = useState<TaskPointsLedgerEntry[]>([]);
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
+  const [commentsStatus, setCommentsStatus] = useState<string>("");
   const [loadingTask, setLoadingTask] = useState(true);
 
   const isCmo = profile?.role === "cmo";
@@ -156,6 +157,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setLoadingTask(true);
     try {
       setStatus("");
+      setCommentsStatus("");
       const [t, ev, led, subs, teamRows] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
@@ -173,7 +175,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         setComments(commentRows);
       } catch (e) {
         setComments([]);
-        setStatus(getErrorMessage(e, "Comments unavailable."));
+        setCommentsStatus(getErrorMessage(e, "Comments unavailable."));
       }
       if (t) {
         setTitle(t.title ?? "");
@@ -213,10 +215,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   async function refreshCommentsOnly() {
     try {
+      setCommentsStatus("");
       const rows = await listTaskComments(taskId);
       setComments(rows);
     } catch (e) {
-      setStatus(getErrorMessage(e, "Failed to load comments"));
+      setComments([]);
+      setCommentsStatus(getErrorMessage(e, "Failed to load comments"));
     }
   }
 
@@ -227,12 +231,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setSavingComment(true);
     setStatus("Posting comment…");
     try {
+      setCommentsStatus("");
       const created = await createTaskComment({ task_id: taskId, body });
       setCommentBody("");
       setComments((prev) => [...prev, created]);
       setStatus("Comment added.");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to add comment");
+      setStatus(getErrorMessage(e, "Failed to add comment"));
       await refreshCommentsOnly().catch(() => null);
     } finally {
       setSavingComment(false);
@@ -257,13 +262,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setSavingComment(true);
     setStatus("Saving comment…");
     try {
+      setCommentsStatus("");
       await updateTaskComment(id, { body });
       setComments((prev) => prev.map((c) => (c.id === id ? { ...c, body } : c)));
       setEditingCommentId("");
       setEditingBody("");
       setStatus("Comment updated.");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to update comment");
+      setStatus(getErrorMessage(e, "Failed to update comment"));
       await refreshCommentsOnly().catch(() => null);
     } finally {
       setSavingComment(false);
@@ -276,11 +282,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setSavingComment(true);
     setStatus("Deleting comment…");
     try {
+      setCommentsStatus("");
       await deleteTaskComment(id);
       setComments((prev) => prev.filter((c) => c.id !== id));
       setStatus("Comment deleted.");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to delete comment");
+      setStatus(getErrorMessage(e, "Failed to delete comment"));
       await refreshCommentsOnly().catch(() => null);
     } finally {
       setSavingComment(false);
@@ -359,8 +366,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
       next.project_id !== prev.project_id ||
       next.due_at !== prev.due_at;
     if (!changed) return;
-    const didChangeTeam = next.team_id !== prev.team_id;
-
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     const seq = ++autosaveSeqRef.current;
     autosaveTimerRef.current = setTimeout(async () => {
@@ -368,10 +373,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
         setStatus("Saving…");
         await updateTask(taskId, next);
         if (autosaveSeqRef.current !== seq) return; // superseded
-        if (didChangeTeam) {
-          await refresh();
-          return;
-        }
         lastSavedRef.current = next;
         setTaskState((t) => (t ? { ...t, ...next, assignee_id: next.assignee_id, project_id: next.project_id, due_at: next.due_at } : t));
         setStatus("Saved.");
@@ -661,193 +662,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     Only the creator, marketing managers, or the CMO can edit priority, status, assignments, or due dates.
                   </div>
                 ) : null}
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Priority</div>
-                    <PillSelect
-                      value={priority}
-                      onChange={(v) => setPriority(v as TaskPriority)}
-                      ariaLabel="Priority"
-                      disabled={!canEditAttributes}
-                      className="mt-2"
-                    >
-                      {(["p0", "p1", "p2", "p3"] as TaskPriority[]).map((p) => (
-                        <option key={p} value={p} className="bg-zinc-900">
-                          {priorityLabel(p)}
-                        </option>
-                      ))}
-                    </PillSelect>
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Status</div>
-                    <PillSelect
-                      value={taskStatus}
-                      onChange={(v) => setTaskStatus(v as TaskStatus)}
-                      ariaLabel="Status"
-                      disabled={!canEditAttributes}
-                      className="mt-2"
-                    >
-                      {[...PRIMARY_FLOW, ...SIDE_LANE].map((s) => (
-                        <option key={s} value={s} className="bg-zinc-900">
-                          {statusLabel(s)}
-                        </option>
-                      ))}
-                    </PillSelect>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Assignee</div>
-                    <PillSelect value={assigneeId} onChange={setAssigneeId} ariaLabel="Assignee" disabled={!canEditAttributes} className="mt-2">
-                      <option value="" className="bg-zinc-900">
-                        Unassigned
-                      </option>
-                      {getAssigneeOptionProfiles(assigneeId || null).map((p) => {
-                        return (
-                          <option key={p.id} value={p.id} className="bg-zinc-900">
-                            {toOptionLabel(p)}
-                          </option>
-                        );
-                      })}
-                    </PillSelect>
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Project stamp (optional)</div>
-                    <PillSelect value={projectId} onChange={setProjectId} ariaLabel="Project" disabled={!canEditAttributes} className="mt-2">
-                      <option value="" className="bg-zinc-900">
-                        None
-                      </option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id} className="bg-zinc-900">
-                          {p.name}
-                        </option>
-                      ))}
-                    </PillSelect>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Team</div>
-                    <PillSelect value={teamId} onChange={setTeamId} ariaLabel="Team" disabled={!canEditAttributes} className="mt-2">
-                      <option value="" className="bg-zinc-900">
-                        Select…
-                      </option>
-                      {teams.map((t) => (
-                        <option key={t.id} value={t.id} className="bg-zinc-900">
-                          {t.name}
-                        </option>
-                      ))}
-                    </PillSelect>
-                    {teams.length === 0 ? (
-                      <div className="mt-2 text-xs text-white/45">No teams configured yet. Ask the CMO to set them up.</div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Approver</div>
-                    <div className="mt-2 text-sm text-white/80">{approverLabel}</div>
-                    {!approverUserId ? (
-                      <div className="mt-2 text-xs text-white/45">No approver set for this team.</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Approval</div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <div className="text-sm text-white/80">{approvalLabel(approvalState)}</div>
-                      {canApprove && approvalState === "pending" ? (
-                        <AppButton
-                          intent="primary"
-                          size="sm"
-                          className="h-10 px-4"
-                          onPress={onApproveTask}
-                          isDisabled={!canComment || !canApprove || (!approverUserId && !isCmo) || taskStatus === "closed"}
-                        >
-                          Approve ticket
-                        </AppButton>
-                      ) : null}
-                    </div>
-                    {!approverUserId && !isCmo ? (
-                      <div className="mt-2 text-xs text-white/45">Approval is blocked until a team approver is assigned.</div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Due date (optional)</div>
-                    <div className="mt-2">
-                      <DayDatePicker
-                        value={dueAt}
-                        onChange={setDueAt}
-                        placeholder="Select due date"
-                        isDisabled={!canEditAttributes}
-                        showClear
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="my-2 h-px bg-white/10" />
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Contributors</div>
-                    <div className="mt-2 space-y-2 text-sm text-white/80">
-                      <div>
-                        Primary:{" "}
-                        <span className="text-white/90">
-                          {primaryContributor ? toOptionLabel(primaryContributor) : "Unassigned"}
-                        </span>
-                      </div>
-                      <div>
-                        Secondary:{" "}
-                        <span className="text-white/90">
-                          {secondaryContributors.length === 0
-                            ? "None"
-                            : secondaryContributors.map((p) => toOptionLabel(p)).join(", ")}
-                        </span>
-                      </div>
-                      <div>
-                        Approver: <span className="text-white/90">{approverLabel}</span>
-                      </div>
-                    </div>
-                    <div className="mt-2 text-xs text-white/45">
-                      Primary is the ticket assignee; secondary contributors are assigned subtasks.
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/45">Points (awarded on approval)</div>
-                    <div className="mt-2 space-y-2">
-                      {ledger.length === 0 ? (
-                        <div className="text-sm text-white/50">No points awarded yet.</div>
-                      ) : (
-                        ledger.map((l) => {
-                          const who =
-                            profiles.find((p) => p.id === l.user_id)?.full_name ||
-                            profiles.find((p) => p.id === l.user_id)?.email ||
-                            l.user_id.slice(0, 8) + "…";
-                          return (
-                            <div key={l.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-white/90">{who}</div>
-                                  <div className="mt-1 text-xs text-white/55">
-                                    Tier: {l.weight_tier} · Week: {l.week_start}
-                                  </div>
-                                </div>
-                                <div className="text-lg font-semibold text-white/90 tabular-nums">{l.points_awarded}</div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </div>
-
                 <div className="my-2 h-px bg-white/10" />
 
                 <div>
@@ -938,8 +752,182 @@ export function TaskPage({ taskId }: { taskId: string }) {
             </Surface>
 
             <Surface className="md:col-span-5">
+              <div className="text-lg font-semibold text-white/90">Properties</div>
+              <div className="mt-1 text-sm text-white/55">Notion-style fields. {canEditAttributes ? "Editable for you." : "Read-only for you."}</div>
+
+              <div className="mt-4 space-y-3">
+                <div className="grid grid-cols-[130px,1fr] items-center gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/45">Priority</div>
+                  {canEditAttributes ? (
+                    <PillSelect value={priority} onChange={(v) => setPriority(v as TaskPriority)} ariaLabel="Priority">
+                      {(["p0", "p1", "p2", "p3"] as TaskPriority[]).map((p) => (
+                        <option key={p} value={p} className="bg-zinc-900">
+                          {priorityLabel(p)}
+                        </option>
+                      ))}
+                    </PillSelect>
+                  ) : (
+                    <div className="text-sm text-white/80">{priorityLabel(priority)}</div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-center gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/45">Status</div>
+                  {canEditAttributes ? (
+                    <PillSelect value={taskStatus} onChange={(v) => onSetStatus(v as TaskStatus)} ariaLabel="Status">
+                      {[...PRIMARY_FLOW, ...SIDE_LANE].map((s) => (
+                        <option key={s} value={s} className="bg-zinc-900">
+                          {statusLabel(s)}
+                        </option>
+                      ))}
+                    </PillSelect>
+                  ) : (
+                    <div className="text-sm text-white/80">{statusLabel(taskStatus)}</div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-center gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/45">Assignee</div>
+                  {canEditAttributes ? (
+                    <PillSelect value={assigneeId} onChange={setAssigneeId} ariaLabel="Assignee">
+                      <option value="" className="bg-zinc-900">
+                        Unassigned
+                      </option>
+                      {getAssigneeOptionProfiles(assigneeId || null).map((p) => (
+                        <option key={p.id} value={p.id} className="bg-zinc-900">
+                          {toOptionLabel(p)}
+                        </option>
+                      ))}
+                    </PillSelect>
+                  ) : (
+                    <div className="text-sm text-white/80">{assignee ? toOptionLabel(assignee) : "Unassigned"}</div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-center gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/45">Project</div>
+                  {canEditAttributes ? (
+                    <PillSelect value={projectId} onChange={setProjectId} ariaLabel="Project stamp">
+                      <option value="" className="bg-zinc-900">
+                        None
+                      </option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-zinc-900">
+                          {p.name}
+                        </option>
+                      ))}
+                    </PillSelect>
+                  ) : (
+                    <div className="text-sm text-white/80">{project ? project.name : "None"}</div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-center gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/45">Team</div>
+                  {canEditAttributes ? (
+                    <PillSelect value={teamId} onChange={setTeamId} ariaLabel="Team">
+                      <option value="" className="bg-zinc-900">
+                        Select…
+                      </option>
+                      {teams.map((t) => (
+                        <option key={t.id} value={t.id} className="bg-zinc-900">
+                          {t.name}
+                        </option>
+                      ))}
+                    </PillSelect>
+                  ) : (
+                    <div className="text-sm text-white/80">{team ? team.name : "—"}</div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-center gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/45">Approver</div>
+                  <div className="text-sm text-white/80">{approverLabel}</div>
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-start gap-3">
+                  <div className="pt-1 text-xs uppercase tracking-widest text-white/45">Approval</div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-sm text-white/80">{approvalLabel(approvalState)}</div>
+                      {canApprove && approvalState === "pending" ? (
+                        <AppButton
+                          intent="primary"
+                          size="sm"
+                          className="h-9 px-4"
+                          onPress={onApproveTask}
+                          isDisabled={!canComment || !canApprove || (!approverUserId && !isCmo) || taskStatus === "closed"}
+                        >
+                          Approve
+                        </AppButton>
+                      ) : null}
+                    </div>
+                    {!approverUserId && !isCmo ? (
+                      <div className="mt-1 text-xs text-white/45">Blocked until a team approver is assigned.</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-center gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/45">Due</div>
+                  {canEditAttributes ? (
+                    <DayDatePicker value={dueAt} onChange={setDueAt} placeholder="Select due date" isDisabled={!canEditAttributes} showClear />
+                  ) : (
+                    <div className="text-sm text-white/80">{dueAt || "—"}</div>
+                  )}
+                </div>
+
+                {teams.length === 0 ? <div className="text-xs text-white/45">No teams configured yet. Ask the CMO to set them up.</div> : null}
+              </div>
+
+              <div className="my-4 h-px bg-white/10" />
+
+              <div className="text-sm font-semibold text-white/85">Contributors + points</div>
+              <div className="mt-2 space-y-2 text-sm text-white/80">
+                <div>
+                  Primary: <span className="text-white/90">{primaryContributor ? toOptionLabel(primaryContributor) : "Unassigned"}</span>
+                </div>
+                <div>
+                  Secondary:{" "}
+                  <span className="text-white/90">
+                    {secondaryContributors.length === 0 ? "None" : secondaryContributors.map((p) => toOptionLabel(p)).join(", ")}
+                  </span>
+                </div>
+                <div>
+                  Approver: <span className="text-white/90">{approverLabel}</span>
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                {ledger.length === 0 ? (
+                  <div className="text-sm text-white/50">No points awarded yet.</div>
+                ) : (
+                  ledger.map((l) => {
+                    const who =
+                      profiles.find((p) => p.id === l.user_id)?.full_name ||
+                      profiles.find((p) => p.id === l.user_id)?.email ||
+                      l.user_id.slice(0, 8) + "…";
+                    return (
+                      <div key={l.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-white/90">{who}</div>
+                            <div className="mt-1 text-xs text-white/55">
+                              Tier: {l.weight_tier} · Week: {l.week_start}
+                            </div>
+                          </div>
+                          <div className="text-lg font-semibold text-white/90 tabular-nums">{l.points_awarded}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="my-4 h-px bg-white/10" />
+
               <div className="text-lg font-semibold text-white/90">Comments</div>
               <div className="mt-1 text-sm text-white/55">Leave context for the team.</div>
+              {commentsStatus ? <div className="mt-2 text-xs text-amber-200/90">{commentsStatus}</div> : null}
 
               <div className="mt-4">
                 <textarea
