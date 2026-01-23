@@ -55,6 +55,13 @@ function toOptionLabel(p: Profile) {
   return p.full_name || p.email || p.id;
 }
 
+function getErrorMessage(err: unknown, fallback: string) {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (err && typeof (err as { message?: unknown }).message === "string") return (err as { message?: string }).message || fallback;
+  return fallback;
+}
+
 export function TaskPage({ taskId }: { taskId: string }) {
   const router = useRouter();
   const [status, setStatus] = useState("");
@@ -149,20 +156,25 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setLoadingTask(true);
     try {
       setStatus("");
-      const [t, ev, led, subs, teamRows, commentRows] = await Promise.all([
+      const [t, ev, led, subs, teamRows] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
         listTaskPointsLedgerByTaskId(taskId),
         listTaskSubtasks(taskId),
-        listTaskTeams(),
-        listTaskComments(taskId)
+        listTaskTeams()
       ]);
       setTaskState(t);
       setEvents(ev);
       setLedger(led);
       setSubtasks(subs);
       setTeams(teamRows);
-      setComments(commentRows);
+      try {
+        const commentRows = await listTaskComments(taskId);
+        setComments(commentRows);
+      } catch (e) {
+        setComments([]);
+        setStatus(getErrorMessage(e, "Comments unavailable."));
+      }
       if (t) {
         setTitle(t.title ?? "");
         setDescription(t.description ?? "");
@@ -188,7 +200,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         };
       }
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to load task");
+      setStatus(getErrorMessage(e, "Failed to load task"));
     } finally {
       setLoadingTask(false);
     }
@@ -200,8 +212,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function refreshCommentsOnly() {
-    const rows = await listTaskComments(taskId);
-    setComments(rows);
+    try {
+      const rows = await listTaskComments(taskId);
+      setComments(rows);
+    } catch (e) {
+      setStatus(getErrorMessage(e, "Failed to load comments"));
+    }
   }
 
   async function onCreateComment() {
