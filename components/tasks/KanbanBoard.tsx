@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type React from "react";
 import type { Profile, Project, Task, TaskStatus, TaskTeam } from "@/lib/dashboardDb";
@@ -27,6 +27,18 @@ export function KanbanBoard({
   const router = useRouter();
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+  const [draggingActive, setDraggingActive] = useState(false);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const [dragSize, setDragSize] = useState<{ width: number; height: number } | null>(null);
+  const dragRef = useRef<{
+    taskId: string;
+    startX: number;
+    startY: number;
+    offsetX: number;
+    offsetY: number;
+    moved: boolean;
+    originalStatus: TaskStatus;
+  } | null>(null);
 
   const byStatus = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
@@ -45,38 +57,81 @@ export function KanbanBoard({
 
   const columns = [...PRIMARY_FLOW, ...SIDE_LANE];
 
-  function onDragStart(e: React.DragEvent, t: Task) {
-    e.dataTransfer.setData("text/plain", t.id);
-    e.dataTransfer.effectAllowed = "move";
-    setDraggingTaskId(t.id);
-    setDragOverStatus(null);
-
-    // Avoid expensive ghost previews that make drag feel laggy.
-    try {
-      const img = new Image();
-      img.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; // 1x1 transparent
-      e.dataTransfer.setDragImage(img, 0, 0);
-    } catch {
-      // ignore
-    }
-  }
-
-  function onDragEnd() {
-    setDraggingTaskId(null);
-    setDragOverStatus(null);
-  }
-
-  function onDropToStatus(e: React.DragEvent, status: TaskStatus) {
+  function onPointerDown(e: React.PointerEvent, t: Task) {
+    if (e.button !== 0) return;
     e.preventDefault();
-    const taskId = e.dataTransfer.getData("text/plain");
-    if (!taskId) return;
-    const t = tasks.find((x) => x.id === taskId);
-    if (!t) return;
-    const chk = canMoveToStatus(t, status);
-    if (!chk.ok) return;
-    if (t.status === status) return;
-    void onMoveTask(t, status);
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    dragRef.current = {
+      taskId: t.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      moved: false,
+      originalStatus: t.status
+    };
+    setDraggingTaskId(t.id);
+    setDraggingActive(false);
+    setDragOverStatus(null);
+    setDragSize({ width: rect.width, height: rect.height });
+    setDragPosition({ x: rect.left, y: rect.top });
+
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", onPointerUp, { passive: false });
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    const state = dragRef.current;
+    if (!state) return;
+    const dx = e.clientX - state.startX;
+    const dy = e.clientY - state.startY;
+    if (!state.moved && Math.hypot(dx, dy) < 4) {
+      return;
+    }
+    if (!state.moved) {
+      state.moved = true;
+      setDraggingActive(true);
+    }
+
+    setDragPosition({ x: e.clientX - state.offsetX, y: e.clientY - state.offsetY });
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const column = el?.closest?.("[data-task-status]") as HTMLElement | null;
+    const status = (column?.dataset?.taskStatus as TaskStatus | undefined) ?? null;
+    setDragOverStatus(status);
+  }
+
+  function onPointerUp(e: PointerEvent) {
+    const state = dragRef.current;
+    dragRef.current = null;
+    document.body.style.userSelect = "";
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+
+    const taskId = state?.taskId ?? null;
+    const moved = state?.moved ?? false;
+    const t = taskId ? tasks.find((x) => x.id === taskId) ?? null : null;
+
     setDraggingTaskId(null);
+    setDraggingActive(false);
+    setDragPosition(null);
+    setDragSize(null);
+
+    if (!t || !state) {
+      setDragOverStatus(null);
+      return;
+    }
+
+    if (!moved) {
+      onOpenTask(t);
+      setDragOverStatus(null);
+      return;
+    }
+
+    if (dragOverStatus && dragOverStatus !== state.originalStatus) {
+      const chk = canMoveToStatus(t, dragOverStatus);
+      if (chk.ok) void onMoveTask(t, dragOverStatus);
+    }
     setDragOverStatus(null);
   }
 
@@ -87,7 +142,7 @@ export function KanbanBoard({
       <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
         {columns.map((s) => {
           const col = byStatus.get(s) ?? [];
-          const isOver = dragOverStatus === s;
+          const isOver = draggingActive && dragOverStatus === s;
           const canDropHere = draggingTask ? canMoveToStatus(draggingTask, s).ok : false;
           return (
             <div key={s} className="min-w-[280px] w-[280px]">
@@ -101,21 +156,7 @@ export function KanbanBoard({
                   isOver && canDropHere ? "bg-white/[0.04] ring-1 ring-white/10" : "",
                   isOver && draggingTask && !canDropHere ? "bg-red-500/[0.06] ring-1 ring-red-400/20" : ""
                 ].join(" ")}
-                onDragEnter={() => {
-                  if (!draggingTaskId) return;
-                  setDragOverStatus(s);
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (!draggingTask) {
-                    e.dataTransfer.dropEffect = "none";
-                    return;
-                  }
-                  const ok = canMoveToStatus(draggingTask, s).ok;
-                  e.dataTransfer.dropEffect = ok ? "move" : "none";
-                  setDragOverStatus(s);
-                }}
-                onDrop={(e) => onDropToStatus(e, s)}
+                data-task-status={s}
               >
                 {col.length === 0 ? (
                   <div className="glass-inset rounded-2xl border border-white/10 bg-white/[0.01] px-4 py-3 text-sm text-white/35">
@@ -125,9 +166,7 @@ export function KanbanBoard({
                   col.map((t) => (
                     <div
                       key={t.id}
-                      draggable
-                      onDragStart={(e) => onDragStart(e, t)}
-                      onDragEnd={onDragEnd}
+                      onPointerDown={(e) => onPointerDown(e, t)}
                       title={canMoveToStatus(t, s).ok ? "Drag to move" : canMoveToStatus(t, s).reason || ""}
                     >
                       <TaskCard
@@ -138,6 +177,7 @@ export function KanbanBoard({
                         onOpen={() => onOpenTask(t)}
                         onHover={() => router.prefetch(`/tasks/${t.id}`)}
                         disableOpen={draggingTaskId != null}
+                        className="cursor-grab active:cursor-grabbing"
                       />
                     </div>
                   ))
@@ -147,6 +187,29 @@ export function KanbanBoard({
           );
         })}
       </div>
+      {draggingTask && draggingActive && dragPosition && dragSize ? (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: dragPosition.x,
+            top: dragPosition.y,
+            width: dragSize.width,
+            height: dragSize.height
+          }}
+        >
+          <div className="scale-[1.02] opacity-95 shadow-2xl">
+            <TaskCard
+              task={draggingTask}
+              assignee={assigneeFor(draggingTask)}
+              project={projectFor(draggingTask)}
+              team={teamFor(draggingTask)}
+              onOpen={() => null}
+              disableOpen
+              className="cursor-grabbing"
+            />
+          </div>
+        </div>
+      ) : null}
       <div className="mt-2 text-xs text-white/40">
         Tip: scroll horizontally to move across the belt. Tap a card to update status/owner/stamp.
       </div>
