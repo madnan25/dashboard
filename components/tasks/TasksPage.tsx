@@ -195,12 +195,10 @@ export function TasksPage() {
       setStatus(chk.reason || "Move not allowed");
       return;
     }
-    const isApprover = profile?.id != null && t.approver_user_id != null && t.approver_user_id === profile.id;
-    const canApproveThis = isCmo || isApprover;
-
     const patch: Parameters<typeof updateTask>[1] = { status: next };
     if (t.approval_state !== "not_required") {
-      if (next === "approved" && canApproveThis) patch.approval_state = "approved";
+      // If you can move a ticket into Approved, you can also approve it.
+      if (next === "approved") patch.approval_state = "approved";
       if (t.status === "approved" && next !== "approved") patch.approval_state = "pending";
     }
 

@@ -45,6 +45,7 @@ export function TaskCard({
   disableOpen?: boolean;
   className?: string;
 }) {
+  const effectiveApproval: Task["approval_state"] = task.status === "approved" ? "approved" : task.approval_state;
   return (
     <button
       type="button"
@@ -78,11 +79,11 @@ export function TaskCard({
             {task.priority.toUpperCase()}
           </span>
           <span
-            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${approvalPill(task.approval_state)}`}
+            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${approvalPill(effectiveApproval)}`}
           >
-            {task.approval_state === "approved"
+            {effectiveApproval === "approved"
               ? "Approved"
-              : task.approval_state === "pending"
+              : effectiveApproval === "pending"
                 ? "Pending"
                 : "No approval"}
           </span>
