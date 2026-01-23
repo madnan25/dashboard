@@ -29,6 +29,13 @@ export function MonthYearPicker({
   const ref = useRef<HTMLDivElement | null>(null);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  // Local optimistic value so the UI updates immediately even if the parent
+  // is doing a slow URL/searchParams navigation.
+  const [shown, setShown] = useState<{ year: number; monthIndex: number }>({ year, monthIndex });
+
+  useEffect(() => {
+    setShown({ year, monthIndex });
+  }, [year, monthIndex]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -80,7 +87,7 @@ export function MonthYearPicker({
     const d = new Date();
     return { year: d.getFullYear(), monthIndex: d.getMonth() };
   }, []);
-  const isCurrent = now.year === year && now.monthIndex === monthIndex;
+  const isCurrent = now.year === shown.year && now.monthIndex === shown.monthIndex;
 
   return (
     <div className="relative" ref={ref}>
@@ -98,8 +105,8 @@ export function MonthYearPicker({
       >
         <span className="flex items-center gap-2">
           <span className="flex items-baseline gap-2">
-            <span className="font-semibold text-white/90">{MONTHS[monthIndex] ?? label}</span>
-            <span className="text-white/55">{year}</span>
+            <span className="font-semibold text-white/90">{MONTHS[shown.monthIndex] ?? label}</span>
+            <span className="text-white/55">{shown.year}</span>
           </span>
           <span className={cn("text-white/45 transition-transform", open ? "rotate-180" : "")} aria-hidden="true">
             ▾
@@ -126,9 +133,13 @@ export function MonthYearPicker({
                     key={m}
                     type="button"
                     className={`rounded-lg px-2 py-2 text-xs ${
-                      idx === monthIndex ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5"
+                      idx === shown.monthIndex ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5"
                     }`}
-                    onClick={() => onChange({ monthIndex: idx, year })}
+                    onClick={() => {
+                      const next = { monthIndex: idx, year: shown.year };
+                      setShown(next);
+                      onChange(next);
+                    }}
                   >
                     {m}
                   </button>
@@ -145,9 +156,13 @@ export function MonthYearPicker({
                     key={y}
                     type="button"
                     className={`rounded-lg px-2 py-2 text-xs ${
-                      y === year ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5"
+                      y === shown.year ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5"
                     }`}
-                    onClick={() => onChange({ monthIndex, year: y })}
+                    onClick={() => {
+                      const next = { monthIndex: shown.monthIndex, year: y };
+                      setShown(next);
+                      onChange(next);
+                    }}
                   >
                     {y}
                   </button>
@@ -163,7 +178,9 @@ export function MonthYearPicker({
                     isDisabled={isCurrent}
                     title="Jump to current month"
                     onPress={() => {
-                      onChange({ monthIndex: now.monthIndex, year: now.year });
+                      const next = { monthIndex: now.monthIndex, year: now.year };
+                      setShown(next);
+                      onChange(next);
                       setOpen(false);
                     }}
                   >

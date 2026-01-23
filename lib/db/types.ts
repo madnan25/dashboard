@@ -165,6 +165,15 @@ export type Task = {
   updated_at: string;
 };
 
+export type TaskComment = {
+  id: string;
+  task_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TaskWeightConfig = {
   id: "global";
   small_points: number;

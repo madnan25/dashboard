@@ -10,7 +10,7 @@ import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
 import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, listTaskTeams, updateTask } from "@/lib/dashboardDb";
-import { endOfWeek, isoDate, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
+import { endOfWeek, isoDate, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
 
@@ -56,7 +56,7 @@ export function TasksPage() {
 
   const isCmo = profile?.role === "cmo";
   const canEdit = profile != null;
-  const assignableProfiles = useMemo(() => profiles, [profiles]);
+  const assignableProfiles = useMemo(() => profiles.filter(isMarketingTeamProfile), [profiles]);
 
   function getAssigneeFilterOptionProfiles(selected: string) {
     if (!selected || selected === "__me__" || selected === "__none__") return assignableProfiles;

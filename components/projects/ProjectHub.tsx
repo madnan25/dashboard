@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
@@ -49,6 +49,7 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
   const initial = props.initial;
   const router = useRouter();
   const pathname = usePathname();
+  const [, startTransition] = useTransition();
 
   const [selectedYear, setSelectedYear] = useState(initial?.year ?? new Date().getFullYear());
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(initial?.monthIndex ?? new Date().getMonth());
@@ -149,7 +150,10 @@ export function ProjectHub(props: { projectId: string; initial?: ProjectHubIniti
                 const qs = new URLSearchParams();
                 qs.set("year", String(next.year));
                 qs.set("monthIndex", String(next.monthIndex));
-                router.replace(`${pathname}?${qs.toString()}`);
+                const href = `${pathname}?${qs.toString()}`;
+                startTransition(() => {
+                  router.replace(href, { scroll: false });
+                });
               }}
             />
           }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -14,7 +14,7 @@ import type {
   Project,
   Task,
   TaskApprovalState,
-  TaskContribution,
+  TaskComment,
   TaskEvent,
   TaskPointsLedgerEntry,
   TaskPriority,
@@ -25,25 +25,28 @@ import type {
 import {
   createTaskSubtask,
   deleteTask,
-  deleteTaskContributionByRole,
   deleteTaskSubtask,
+  deleteTaskComment,
+  createTaskComment,
   getCurrentProfile,
   getTask,
   listProfiles,
   listProjects,
-  listTaskContributions,
+  listTaskComments,
   listTaskEvents,
   listTaskPointsLedgerByTaskId,
   listTaskTeams,
   listTaskSubtasks,
   updateTask,
-  updateTaskSubtask,
-  upsertTaskContributions
+  updateTaskComment,
+  updateTaskSubtask
 } from "@/lib/dashboardDb";
 import {
   PRIMARY_FLOW,
   SIDE_LANE,
   approvalLabel,
+  isMarketingManagerProfile,
+  isMarketingTeamProfile,
   priorityLabel,
   statusLabel
 } from "@/components/tasks/taskModel";
@@ -63,12 +66,18 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [task, setTaskState] = useState<Task | null>(null);
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [ledger, setLedger] = useState<TaskPointsLedgerEntry[]>([]);
-  const [contributions, setContributions] = useState<TaskContribution[]>([]);
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
+  const [comments, setComments] = useState<TaskComment[]>([]);
   const [loadingTask, setLoadingTask] = useState(true);
 
   const isCmo = profile?.role === "cmo";
-  const canEdit = profile != null;
+  const isCreator = profile?.id != null && task?.created_by != null && task.created_by === profile.id;
+  const isManager = isMarketingManagerProfile(profile) || isCmo;
+  const canEditDetails = isCreator;
+  const canEditAttributes = isCreator || isManager;
+  const canEditTask = canEditDetails || canEditAttributes;
+  const canComment = profile != null;
+  const canModerateComments = isManager;
   const canDelete = isCmo;
 
   const [title, setTitle] = useState("");
@@ -81,10 +90,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [projectId, setProjectId] = useState<string>("");
   const [dueAt, setDueAt] = useState<string>("");
-  const [primaryUserId, setPrimaryUserId] = useState<string>("");
-  const [secondaryUserId, setSecondaryUserId] = useState<string>("");
-  const [coordinatorUserId, setCoordinatorUserId] = useState<string>("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState<string>("");
+  const [commentBody, setCommentBody] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string>("");
+  const [editingBody, setEditingBody] = useState("");
+  const [savingComment, setSavingComment] = useState(false);
 
   const lastSavedRef = useRef<{
     title: string;
@@ -102,7 +112,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
-  const assignableProfiles = useMemo(() => profiles, [profiles]);
+  const assignableProfiles = useMemo(() => profiles.filter(isMarketingTeamProfile), [profiles]);
   const team = useMemo(() => teams.find((t) => t.id === teamId) ?? null, [teamId, teams]);
   const approverProfile = useMemo(() => profiles.find((p) => p.id === approverUserId) ?? null, [approverUserId, profiles]);
   const approverLabel = useMemo(() => {
@@ -111,6 +121,23 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }, [approverProfile, approverUserId]);
   const isApprover = profile?.id != null && approverUserId != null && approverUserId === profile.id;
   const canApprove = isCmo || isApprover;
+  const primaryContributor = useMemo(() => {
+    const primaryId = assigneeId || task?.created_by || "";
+    if (!primaryId) return null;
+    return profiles.find((p) => p.id === primaryId) ?? null;
+  }, [assigneeId, profiles, task?.created_by]);
+  const secondaryContributors = useMemo(() => {
+    const primaryId = assigneeId || task?.created_by || "";
+    const ids = new Set<string>();
+    for (const s of subtasks) {
+      if (s.assignee_id && s.assignee_id !== primaryId && s.status !== "dropped") {
+        ids.add(s.assignee_id);
+      }
+    }
+    return Array.from(ids)
+      .map((id) => profiles.find((p) => p.id === id) ?? null)
+      .filter((p): p is Profile => Boolean(p));
+  }, [assigneeId, profiles, subtasks, task?.created_by]);
   function getAssigneeOptionProfiles(selectedId: string | null) {
     if (!selectedId) return assignableProfiles;
     if (assignableProfiles.some((p) => p.id === selectedId)) return assignableProfiles;
@@ -118,31 +145,24 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return current ? [current, ...assignableProfiles] : assignableProfiles;
   }
 
-  function getContributorOptionProfiles(selectedId: string | null) {
-    if (!selectedId) return assignableProfiles;
-    if (assignableProfiles.some((p) => p.id === selectedId)) return assignableProfiles;
-    const current = profiles.find((p) => p.id === selectedId) ?? null;
-    return current ? [current, ...assignableProfiles] : assignableProfiles;
-  }
-
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoadingTask(true);
     try {
       setStatus("");
-      const [t, ev, led, subs, contribs, teamRows] = await Promise.all([
+      const [t, ev, led, subs, teamRows, commentRows] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
         listTaskPointsLedgerByTaskId(taskId),
         listTaskSubtasks(taskId),
-        listTaskContributions(taskId),
-        listTaskTeams()
+        listTaskTeams(),
+        listTaskComments(taskId)
       ]);
       setTaskState(t);
       setEvents(ev);
       setLedger(led);
       setSubtasks(subs);
-      setContributions(contribs);
       setTeams(teamRows);
+      setComments(commentRows);
       if (t) {
         setTitle(t.title ?? "");
         setDescription(t.description ?? "");
@@ -166,24 +186,89 @@ export function TaskPage({ taskId }: { taskId: string }) {
           project_id: t.project_id ?? null,
           due_at: t.due_at ?? null
         };
-
-        const primary = contribs.find((c) => c.role === "primary")?.user_id ?? "";
-        const secondary = contribs.find((c) => c.role === "secondary")?.user_id ?? "";
-        const coord = contribs.find((c) => c.role === "coordinator")?.user_id ?? "";
-        setPrimaryUserId(primary || t.assignee_id || t.created_by || "");
-        setSecondaryUserId(secondary);
-        setCoordinatorUserId(coord);
       }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to load task");
     } finally {
       setLoadingTask(false);
     }
-  }
+  }, [taskId]);
 
   async function refreshSubtasksOnly() {
     const subs = await listTaskSubtasks(taskId);
     setSubtasks(subs);
+  }
+
+  async function refreshCommentsOnly() {
+    const rows = await listTaskComments(taskId);
+    setComments(rows);
+  }
+
+  async function onCreateComment() {
+    if (!canComment) return;
+    const body = commentBody.trim();
+    if (!body) return;
+    setSavingComment(true);
+    setStatus("Posting comment…");
+    try {
+      const created = await createTaskComment({ task_id: taskId, body });
+      setCommentBody("");
+      setComments((prev) => [...prev, created]);
+      setStatus("Comment added.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to add comment");
+      await refreshCommentsOnly().catch(() => null);
+    } finally {
+      setSavingComment(false);
+    }
+  }
+
+  function onEditComment(comment: TaskComment) {
+    if (!canModerateComments) return;
+    setEditingCommentId(comment.id);
+    setEditingBody(comment.body);
+  }
+
+  function onCancelEditComment() {
+    setEditingCommentId("");
+    setEditingBody("");
+  }
+
+  async function onSaveCommentEdit(id: string) {
+    if (!canModerateComments) return;
+    const body = editingBody.trim();
+    if (!body) return;
+    setSavingComment(true);
+    setStatus("Saving comment…");
+    try {
+      await updateTaskComment(id, { body });
+      setComments((prev) => prev.map((c) => (c.id === id ? { ...c, body } : c)));
+      setEditingCommentId("");
+      setEditingBody("");
+      setStatus("Comment updated.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to update comment");
+      await refreshCommentsOnly().catch(() => null);
+    } finally {
+      setSavingComment(false);
+    }
+  }
+
+  async function onDeleteComment(id: string) {
+    if (!canModerateComments) return;
+    if (!confirm("Delete this comment?")) return;
+    setSavingComment(true);
+    setStatus("Deleting comment…");
+    try {
+      await deleteTaskComment(id);
+      setComments((prev) => prev.filter((c) => c.id !== id));
+      setStatus("Comment deleted.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to delete comment");
+      await refreshCommentsOnly().catch(() => null);
+    } finally {
+      setSavingComment(false);
+    }
   }
 
   useEffect(() => {
@@ -208,8 +293,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   useEffect(() => {
     refresh().catch(() => null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskId]);
+  }, [refresh]);
 
   useEffect(() => {
     if (!teamId) {
@@ -224,7 +308,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }, [approverUserId, teamId, teams]);
 
   useEffect(() => {
-    if (!canEdit) return;
+    if (!canEditTask) return;
     if (loadingTask) return;
     if (!task) return;
     if (!lastSavedRef.current) return;
@@ -284,7 +368,22 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [approvalState, assigneeId, canEdit, description, dueAt, loadingTask, priority, projectId, task, taskId, taskStatus, title, teamId]);
+  }, [
+    approvalState,
+    assigneeId,
+    canEditTask,
+    description,
+    dueAt,
+    loadingTask,
+    priority,
+    projectId,
+    refresh,
+    task,
+    taskId,
+    taskStatus,
+    title,
+    teamId
+  ]);
 
   async function onDelete() {
     if (!canDelete) return;
@@ -298,43 +397,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
-  async function onSaveContributions() {
-    if (!canEdit) return;
-    if (!task) return;
-    setStatus("Saving contributions…");
-    try {
-      const deletes: Array<"primary" | "secondary" | "coordinator"> = [];
-      const upserts: Array<{ role: "primary" | "secondary" | "coordinator"; user_id: string }> = [];
-
-      const next = {
-        primary: primaryUserId.trim(),
-        secondary: secondaryUserId.trim(),
-        coordinator: coordinatorUserId.trim()
-      };
-
-      (["primary", "secondary", "coordinator"] as const).forEach((role) => {
-        const val = next[role];
-        if (!val) deletes.push(role);
-        else upserts.push({ role, user_id: val });
-      });
-
-      for (const role of deletes) {
-        await deleteTaskContributionByRole(taskId, role);
-      }
-      if (upserts.length > 0) {
-        await upsertTaskContributions(taskId, upserts);
-      }
-
-      setStatus("Contributions saved.");
-      const nextContributions = await listTaskContributions(taskId);
-      setContributions(nextContributions);
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to save contributions");
-    }
-  }
-
   async function onCreateSubtask() {
-    if (!canEdit) return;
+    if (!canEditAttributes) return;
     const t = newSubtaskTitle.trim();
     if (!t) return;
     setStatus("Creating subtask…");
@@ -349,7 +413,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onUpdateSubtask(id: string, patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "due_at" | "effort_points">>) {
-    if (!canEdit) return;
+    if (!canEditAttributes) return;
     setStatus("Saving subtask…");
     const snapshot = subtasks;
     setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -364,7 +428,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onRemoveSubtask(id: string) {
-    if (!canEdit) return;
+    if (!canEditAttributes) return;
     if (!confirm("Delete this subtask?")) return;
     setStatus("Deleting subtask…");
     const snapshot = subtasks;
@@ -380,7 +444,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onApproveTask() {
-    if (!canEdit || !task) return;
+    if (!canComment || !task) return;
     if (approvalState !== "pending") return;
     if (!canApprove) {
       setStatus("Only the assigned approver can approve this ticket.");
@@ -399,7 +463,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onSetStatus(next: TaskStatus) {
-    if (!canEdit) return;
+    if (!canEditAttributes) return;
     const prevStatus = taskStatus;
     const prevApproval = approvalState;
     setTaskStatus(next);
@@ -511,7 +575,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {taskStatus !== "closed" ? (
-                  <AppButton intent="secondary" size="sm" className="h-10 px-4" onPress={() => onSetStatus("in_progress")} isDisabled={!canEdit}>
+                  <AppButton
+                    intent="secondary"
+                    size="sm"
+                    className="h-10 px-4"
+                    onPress={() => onSetStatus("in_progress")}
+                    isDisabled={!canEditAttributes}
+                  >
                     Start work
                   </AppButton>
                 ) : null}
@@ -520,7 +590,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   size="sm"
                   className="h-10 px-4"
                   onPress={() => onSetStatus("submitted")}
-                  isDisabled={!canEdit || taskStatus === "closed" || !teamId || !approverUserId}
+                  isDisabled={!canEditAttributes || taskStatus === "closed" || !teamId || !approverUserId}
                 >
                   Submit for approval
                 </AppButton>
@@ -531,7 +601,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         size="sm"
                         className="h-10 px-4"
                         onPress={() => onSetStatus("in_progress")}
-                        isDisabled={!canEdit}
+                        isDisabled={!canEditAttributes}
                       >
                         Reopen ticket
                       </AppButton>
@@ -541,7 +611,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         size="sm"
                         className="h-10 px-4"
                         onPress={() => onSetStatus("closed")}
-                        isDisabled={!canEdit || approvalState !== "approved"}
+                        isDisabled={!canEditAttributes || approvalState !== "approved"}
                       >
                         Close ticket
                       </AppButton>
@@ -552,7 +622,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
               <div className="mt-4 space-y-4">
                 <div>
                   <div className="text-xs uppercase tracking-widest text-white/45">Title</div>
-                  <AppInput value={title} onValueChange={setTitle} isDisabled={!canEdit} />
+                  <AppInput value={title} onValueChange={setTitle} isDisabled={!canEditDetails} />
                 </div>
 
                 <div>
@@ -560,17 +630,32 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    disabled={!canEdit}
+                    disabled={!canEditDetails}
                     rows={4}
                     className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
                     placeholder="No long explanations. Just enough context."
                   />
                 </div>
 
+                {!canEditDetails ? (
+                  <div className="text-xs text-white/45">Only the creator can edit the title and description.</div>
+                ) : null}
+                {!canEditAttributes ? (
+                  <div className="text-xs text-white/45">
+                    Only the creator, marketing managers, or the CMO can edit priority, status, assignments, or due dates.
+                  </div>
+                ) : null}
+
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Priority</div>
-                    <PillSelect value={priority} onChange={(v) => setPriority(v as TaskPriority)} ariaLabel="Priority" disabled={!canEdit} className="mt-2">
+                    <PillSelect
+                      value={priority}
+                      onChange={(v) => setPriority(v as TaskPriority)}
+                      ariaLabel="Priority"
+                      disabled={!canEditAttributes}
+                      className="mt-2"
+                    >
                       {(["p0", "p1", "p2", "p3"] as TaskPriority[]).map((p) => (
                         <option key={p} value={p} className="bg-zinc-900">
                           {priorityLabel(p)}
@@ -580,7 +665,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Status</div>
-                    <PillSelect value={taskStatus} onChange={(v) => setTaskStatus(v as TaskStatus)} ariaLabel="Status" disabled={!canEdit} className="mt-2">
+                    <PillSelect
+                      value={taskStatus}
+                      onChange={(v) => setTaskStatus(v as TaskStatus)}
+                      ariaLabel="Status"
+                      disabled={!canEditAttributes}
+                      className="mt-2"
+                    >
                       {[...PRIMARY_FLOW, ...SIDE_LANE].map((s) => (
                         <option key={s} value={s} className="bg-zinc-900">
                           {statusLabel(s)}
@@ -593,7 +684,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Assignee</div>
-                    <PillSelect value={assigneeId} onChange={setAssigneeId} ariaLabel="Assignee" disabled={!canEdit} className="mt-2">
+                    <PillSelect value={assigneeId} onChange={setAssigneeId} ariaLabel="Assignee" disabled={!canEditAttributes} className="mt-2">
                       <option value="" className="bg-zinc-900">
                         Unassigned
                       </option>
@@ -608,7 +699,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Project stamp (optional)</div>
-                    <PillSelect value={projectId} onChange={setProjectId} ariaLabel="Project" disabled={!canEdit} className="mt-2">
+                    <PillSelect value={projectId} onChange={setProjectId} ariaLabel="Project" disabled={!canEditAttributes} className="mt-2">
                       <option value="" className="bg-zinc-900">
                         None
                       </option>
@@ -624,7 +715,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <div className="text-xs uppercase tracking-widest text-white/45">Team</div>
-                    <PillSelect value={teamId} onChange={setTeamId} ariaLabel="Team" disabled={!canEdit} className="mt-2">
+                    <PillSelect value={teamId} onChange={setTeamId} ariaLabel="Team" disabled={!canEditAttributes} className="mt-2">
                       <option value="" className="bg-zinc-900">
                         Select…
                       </option>
@@ -658,7 +749,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           size="sm"
                           className="h-10 px-4"
                           onPress={onApproveTask}
-                          isDisabled={!canEdit || !canApprove || (!approverUserId && !isCmo) || taskStatus === "closed"}
+                          isDisabled={!canComment || !canApprove || (!approverUserId && !isCmo) || taskStatus === "closed"}
                         >
                           Approve ticket
                         </AppButton>
@@ -675,104 +766,71 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         value={dueAt}
                         onChange={setDueAt}
                         placeholder="Select due date"
-                        isDisabled={!canEdit}
+                        isDisabled={!canEditAttributes}
                         showClear
                       />
                     </div>
                   </div>
                 </div>
 
-                {isCmo ? (
-                  <>
-                    <div className="my-2 h-px bg-white/10" />
+                <div className="my-2 h-px bg-white/10" />
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-xs uppercase tracking-widest text-white/45">Contributors</div>
+                    <div className="mt-2 space-y-2 text-sm text-white/80">
                       <div>
-                        <div className="text-xs uppercase tracking-widest text-white/45">Contribution split</div>
-                        <div className="mt-2 grid gap-2">
-                          <div className="grid gap-2 md:grid-cols-2">
-                            <div className="text-xs text-white/45 pt-2">Primary (65% / 90%)</div>
-                            <PillSelect value={primaryUserId} onChange={setPrimaryUserId} ariaLabel="Primary contributor" disabled={!canEdit}>
-                              <option value="" className="bg-zinc-900">
-                                Select…
-                              </option>
-                              {getContributorOptionProfiles(primaryUserId || null).map((p) => {
-                                return (
-                                  <option key={p.id} value={p.id} className="bg-zinc-900">
-                                    {toOptionLabel(p)}
-                                  </option>
-                                );
-                              })}
-                            </PillSelect>
-                          </div>
-                          <div className="grid gap-2 md:grid-cols-2">
-                            <div className="text-xs text-white/45 pt-2">Secondary (25%)</div>
-                            <PillSelect value={secondaryUserId} onChange={setSecondaryUserId} ariaLabel="Secondary contributor" disabled={!canEdit}>
-                              <option value="" className="bg-zinc-900">
-                                None
-                              </option>
-                              {getContributorOptionProfiles(secondaryUserId || null).map((p) => {
-                                return (
-                                  <option key={p.id} value={p.id} className="bg-zinc-900">
-                                    {toOptionLabel(p)}
-                                  </option>
-                                );
-                              })}
-                            </PillSelect>
-                          </div>
-                          <div className="grid gap-2 md:grid-cols-2">
-                            <div className="text-xs text-white/45 pt-2">Coordinator (10%)</div>
-                            <PillSelect value={coordinatorUserId} onChange={setCoordinatorUserId} ariaLabel="Coordinator" disabled={!canEdit}>
-                              <option value="" className="bg-zinc-900">
-                                None
-                              </option>
-                              {getContributorOptionProfiles(coordinatorUserId || null).map((p) => (
-                                <option key={p.id} value={p.id} className="bg-zinc-900">
-                                  {toOptionLabel(p)}
-                                </option>
-                              ))}
-                            </PillSelect>
-                          </div>
-
-                          <div className="flex justify-end">
-                            <AppButton intent="secondary" className="h-10 px-4" onPress={onSaveContributions} isDisabled={!canEdit}>
-                              Save split
-                            </AppButton>
-                          </div>
-                        </div>
+                        Primary:{" "}
+                        <span className="text-white/90">
+                          {primaryContributor ? toOptionLabel(primaryContributor) : "Unassigned"}
+                        </span>
                       </div>
-
                       <div>
-                        <div className="text-xs uppercase tracking-widest text-white/45">Points (awarded on approval)</div>
-                        <div className="mt-2 space-y-2">
-                          {ledger.length === 0 ? (
-                            <div className="text-sm text-white/50">No points awarded yet.</div>
-                          ) : (
-                            ledger.map((l) => {
-                              const who =
-                                profiles.find((p) => p.id === l.user_id)?.full_name ||
-                                profiles.find((p) => p.id === l.user_id)?.email ||
-                                l.user_id.slice(0, 8) + "…";
-                              return (
-                                <div key={l.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <div className="text-sm font-semibold text-white/90">{who}</div>
-                                      <div className="mt-1 text-xs text-white/55">
-                                        Tier: {l.weight_tier} · Week: {l.week_start}
-                                      </div>
-                                    </div>
-                                    <div className="text-lg font-semibold text-white/90 tabular-nums">{l.points_awarded}</div>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
+                        Secondary:{" "}
+                        <span className="text-white/90">
+                          {secondaryContributors.length === 0
+                            ? "None"
+                            : secondaryContributors.map((p) => toOptionLabel(p)).join(", ")}
+                        </span>
+                      </div>
+                      <div>
+                        Approver: <span className="text-white/90">{approverLabel}</span>
                       </div>
                     </div>
-                  </>
-                ) : null}
+                    <div className="mt-2 text-xs text-white/45">
+                      Primary is the ticket assignee; secondary contributors are assigned subtasks.
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-xs uppercase tracking-widest text-white/45">Points (awarded on approval)</div>
+                    <div className="mt-2 space-y-2">
+                      {ledger.length === 0 ? (
+                        <div className="text-sm text-white/50">No points awarded yet.</div>
+                      ) : (
+                        ledger.map((l) => {
+                          const who =
+                            profiles.find((p) => p.id === l.user_id)?.full_name ||
+                            profiles.find((p) => p.id === l.user_id)?.email ||
+                            l.user_id.slice(0, 8) + "…";
+                          return (
+                            <div key={l.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-white/90">{who}</div>
+                                  <div className="mt-1 text-xs text-white/55">
+                                    Tier: {l.weight_tier} · Week: {l.week_start}
+                                  </div>
+                                </div>
+                                <div className="text-lg font-semibold text-white/90 tabular-nums">{l.points_awarded}</div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
 
                 <div className="my-2 h-px bg-white/10" />
 
@@ -783,12 +841,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       <input
                         value={newSubtaskTitle}
                         onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                        disabled={!canEdit}
+                        disabled={!canEditAttributes}
                         placeholder="Add a subtask…"
                         className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
                       />
                     </div>
-                    <AppButton intent="secondary" className="h-11 px-6" onPress={onCreateSubtask} isDisabled={!canEdit || !newSubtaskTitle.trim()}>
+                    <AppButton
+                      intent="secondary"
+                      className="h-11 px-6"
+                      onPress={onCreateSubtask}
+                      isDisabled={!canEditAttributes || !newSubtaskTitle.trim()}
+                    >
                       Add
                     </AppButton>
                   </div>
@@ -809,7 +872,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               value={s.status}
                               onChange={(v) => onUpdateSubtask(s.id, { status: v as TaskSubtask["status"] })}
                               ariaLabel="Subtask status"
-                              disabled={!canEdit}
+                              disabled={!canEditAttributes}
                             >
                               {[...PRIMARY_FLOW, ...SIDE_LANE].map((st) => (
                                 <option key={st} value={st} className="bg-zinc-900">
@@ -821,7 +884,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               value={s.assignee_id ?? ""}
                               onChange={(v) => onUpdateSubtask(s.id, { assignee_id: v || null })}
                               ariaLabel="Subtask assignee"
-                              disabled={!canEdit}
+                              disabled={!canEditAttributes}
                             >
                               <option value="" className="bg-zinc-900">
                                 Unassigned
@@ -834,7 +897,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 );
                               })}
                             </PillSelect>
-                            <AppButton intent="danger" size="sm" className="h-10 px-4" onPress={() => onRemoveSubtask(s.id)} isDisabled={!canEdit}>
+                            <AppButton
+                              intent="danger"
+                              size="sm"
+                              className="h-10 px-4"
+                              onPress={() => onRemoveSubtask(s.id)}
+                              isDisabled={!canEditAttributes}
+                            >
                               Delete
                             </AppButton>
                           </div>
@@ -853,6 +922,95 @@ export function TaskPage({ taskId }: { taskId: string }) {
             </Surface>
 
             <Surface className="md:col-span-5">
+              <div className="text-lg font-semibold text-white/90">Comments</div>
+              <div className="mt-1 text-sm text-white/55">Leave context for the team.</div>
+
+              <div className="mt-4">
+                <textarea
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  disabled={!canComment || savingComment}
+                  rows={3}
+                  className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
+                  placeholder="Add a comment…"
+                />
+                <div className="mt-2 flex justify-end">
+                  <AppButton
+                    intent="primary"
+                    className="h-10 px-4"
+                    onPress={onCreateComment}
+                    isDisabled={!canComment || savingComment || !commentBody.trim()}
+                  >
+                    {savingComment ? "Posting…" : "Post comment"}
+                  </AppButton>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {comments.length === 0 ? (
+                  <div className="text-sm text-white/45">No comments yet.</div>
+                ) : (
+                  comments.map((c) => {
+                    const author =
+                      profiles.find((p) => p.id === c.author_id)?.full_name ||
+                      profiles.find((p) => p.id === c.author_id)?.email ||
+                      "Someone";
+                    const when = new Date(c.created_at).toLocaleString();
+                    const isEditing = editingCommentId === c.id;
+                    return (
+                      <div key={c.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="text-sm text-white/80">
+                            <span className="font-semibold text-white/90">{author}</span> · <span className="text-white/50">{when}</span>
+                          </div>
+                          {canModerateComments ? (
+                            <div className="flex items-center gap-2">
+                              {isEditing ? null : (
+                                <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onEditComment(c)}>
+                                  Edit
+                                </button>
+                              )}
+                              <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onDeleteComment(c.id)}>
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {isEditing ? (
+                          <div className="mt-2 space-y-2">
+                            <textarea
+                              value={editingBody}
+                              onChange={(e) => setEditingBody(e.target.value)}
+                              rows={3}
+                              disabled={savingComment}
+                              className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 outline-none focus:border-white/20"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <AppButton intent="secondary" className="h-9 px-4" onPress={onCancelEditComment} isDisabled={savingComment}>
+                                Cancel
+                              </AppButton>
+                              <AppButton
+                                intent="primary"
+                                className="h-9 px-4"
+                                onPress={() => onSaveCommentEdit(c.id)}
+                                isDisabled={savingComment || !editingBody.trim()}
+                              >
+                                Save
+                              </AppButton>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">{c.body}</div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="my-4 h-px bg-white/10" />
+
               <div className="text-lg font-semibold text-white/90">Activity</div>
               <div className="mt-1 text-sm text-white/55">What changed, and where it stopped.</div>
 
@@ -861,7 +1019,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   <div className="text-sm text-white/45">No activity yet.</div>
                 ) : (
                   events.map((e) => {
-                    const who = profiles.find((p) => p.id === e.actor_id)?.full_name || profiles.find((p) => p.id === e.actor_id)?.email || "Someone";
+                    const who =
+                      profiles.find((p) => p.id === e.actor_id)?.full_name ||
+                      profiles.find((p) => p.id === e.actor_id)?.email ||
+                      "Someone";
                     const when = new Date(e.created_at).toLocaleString();
                     const from = e.from_value ? ` ${e.from_value} →` : "";
                     const to = e.to_value ? ` ${e.to_value}` : "";

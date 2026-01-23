@@ -23,6 +23,7 @@ export type {
   TaskTeam,
   Task,
   TaskApprovalState,
+  TaskComment,
   TaskContribution,
   TaskContributionRole,
   TaskEvent,
@@ -54,6 +55,7 @@ import type {
   ProjectTargets,
   TaskTeam,
   Task,
+  TaskComment,
   TaskContribution,
   TaskContributionRole,
   TaskEvent,
@@ -257,6 +259,22 @@ export async function deleteTask(taskId: string): Promise<void> {
 
 export async function listTaskEvents(taskId: string): Promise<TaskEvent[]> {
   return await repo().listTaskEvents(taskId);
+}
+
+export async function listTaskComments(taskId: string): Promise<TaskComment[]> {
+  return await repo().listTaskComments(taskId);
+}
+
+export async function createTaskComment(input: { task_id: string; body: string }): Promise<TaskComment> {
+  return await repo().createTaskComment(input);
+}
+
+export async function updateTaskComment(id: string, patch: { body?: string }): Promise<void> {
+  return await repo().updateTaskComment(id, patch);
+}
+
+export async function deleteTaskComment(id: string): Promise<void> {
+  return await repo().deleteTaskComment(id);
 }
 
 export async function listTaskTeams(): Promise<TaskTeam[]> {

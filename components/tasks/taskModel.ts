@@ -1,4 +1,4 @@
-import type { Task, TaskApprovalState, TaskPriority, TaskStatus } from "@/lib/dashboardDb";
+import type { Profile, Task, TaskApprovalState, TaskPriority, TaskStatus } from "@/lib/dashboardDb";
 
 export const TASK_STATUSES: TaskStatus[] = [
   "queued",
@@ -52,6 +52,16 @@ export function approvalLabel(a: TaskApprovalState) {
 
 export function taskIsOpen(t: Task) {
   return t.status !== "closed" && t.status !== "dropped";
+}
+
+export function isMarketingTeamProfile(p: Profile | null | undefined): p is Profile {
+  return Boolean(p && p.is_marketing_team === true && p.role !== "sales_ops" && p.role !== "viewer");
+}
+
+export function isMarketingManagerProfile(p: Profile | null | undefined): boolean {
+  if (!p) return false;
+  if (p.role === "cmo") return true;
+  return isMarketingTeamProfile(p) && p.is_marketing_manager === true;
 }
 
 export function isoDate(d: Date) {

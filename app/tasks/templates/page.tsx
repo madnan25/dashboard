@@ -6,6 +6,7 @@ import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
 import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
+import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
 import type { Profile, TaskTeam } from "@/lib/dashboardDb";
 import { createTaskTeam, deleteTaskTeam, getCurrentProfile, listProfiles, listTaskTeams, updateTaskTeam } from "@/lib/dashboardDb";
 
@@ -34,6 +35,14 @@ export default function TaskTeamsPage() {
 
   const canManage = me?.role === "cmo";
   const selectedTeam = useMemo(() => teams.find((t) => t.id === selectedId) ?? null, [selectedId, teams]);
+  const approverProfiles = useMemo(() => profiles.filter(isMarketingTeamProfile), [profiles]);
+
+  function getApproverOptionProfiles(selected: string) {
+    if (!selected) return approverProfiles;
+    if (approverProfiles.some((p) => p.id === selected)) return approverProfiles;
+    const current = profiles.find((p) => p.id === selected) ?? null;
+    return current ? [current, ...approverProfiles] : approverProfiles;
+  }
 
   async function refresh() {
     const [teamRows, profileRows] = await Promise.all([listTaskTeams(), listProfiles()]);
@@ -165,7 +174,7 @@ export default function TaskTeamsPage() {
                   <option value="" className="bg-zinc-900">
                     Select approver (optional)
                   </option>
-                  {profiles.map((p) => (
+                  {getApproverOptionProfiles(newApproverId).map((p) => (
                     <option key={p.id} value={p.id} className="bg-zinc-900">
                       {labelForProfile(p)}
                     </option>
@@ -231,7 +240,7 @@ export default function TaskTeamsPage() {
                   <option value="" className="bg-zinc-900">
                     Select approver (optional)
                   </option>
-                  {profiles.map((p) => (
+                  {getApproverOptionProfiles(editApproverId).map((p) => (
                     <option key={p.id} value={p.id} className="bg-zinc-900">
                       {labelForProfile(p)}
                     </option>

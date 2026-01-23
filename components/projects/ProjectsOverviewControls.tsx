@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { PillSelect } from "@/components/ds/PillSelect";
@@ -11,18 +12,38 @@ export function ProjectsOverviewControls(props: { year: number; monthIndex: numb
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
+  const [, startTransition] = useTransition();
+
+  // Keep UI snappy even when router.replace triggers a server refresh.
+  const [local, setLocal] = useState<{ year: number; monthIndex: number; mode: OverviewMode }>({
+    year,
+    monthIndex,
+    mode
+  });
+
+  useEffect(() => {
+    setLocal({ year, monthIndex, mode });
+  }, [year, monthIndex, mode]);
 
   function setQs(next: { year: number; monthIndex: number; mode: OverviewMode }) {
+    setLocal(next);
     const qs = new URLSearchParams(sp ? sp.toString() : "");
     qs.set("year", String(next.year));
     qs.set("monthIndex", String(next.monthIndex));
     qs.set("mode", next.mode);
-    router.replace(`${pathname}?${qs.toString()}`);
+    const href = `${pathname}?${qs.toString()}`;
+    startTransition(() => {
+      router.replace(href, { scroll: false });
+    });
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <PillSelect value={mode} onChange={(v) => setQs({ year, monthIndex, mode: v as OverviewMode })} ariaLabel="Overview mode">
+      <PillSelect
+        value={local.mode}
+        onChange={(v) => setQs({ year: local.year, monthIndex: local.monthIndex, mode: v as OverviewMode })}
+        ariaLabel="Overview mode"
+      >
         <option value="month" className="bg-zinc-900">
           This month
         </option>
@@ -32,11 +53,11 @@ export function ProjectsOverviewControls(props: { year: number; monthIndex: numb
       </PillSelect>
 
       <MonthYearPicker
-        monthIndex={monthIndex}
-        year={year}
+        monthIndex={local.monthIndex}
+        year={local.year}
         label=" "
         showJumpToCurrent
-        onChange={(next) => setQs({ year: next.year, monthIndex: next.monthIndex, mode })}
+        onChange={(next) => setQs({ year: next.year, monthIndex: next.monthIndex, mode: local.mode })}
       />
     </div>
   );

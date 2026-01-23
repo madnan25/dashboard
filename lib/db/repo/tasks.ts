@@ -11,7 +11,8 @@ import type {
   TaskContributionRole,
   TaskSubtask,
   TaskSubtaskStatus,
-  TaskTeam
+  TaskTeam,
+  TaskComment
 } from "@/lib/db/types";
 import type { TaskFlowInstance, TaskFlowStepInstance, TaskFlowTemplate, TaskFlowTemplateStep } from "@/lib/db/types";
 
@@ -160,6 +161,43 @@ export async function listTaskEvents(supabase: SupabaseClient, taskId: string): 
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data as TaskEvent[]) ?? [];
+}
+
+export async function listTaskComments(supabase: SupabaseClient, taskId: string): Promise<TaskComment[]> {
+  const { data, error } = await supabase
+    .from("task_comments")
+    .select("id, task_id, author_id, body, created_at, updated_at")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data as TaskComment[]) ?? [];
+}
+
+export async function createTaskComment(
+  supabase: SupabaseClient,
+  input: Pick<TaskComment, "task_id" | "body">
+): Promise<TaskComment> {
+  const { data, error } = await supabase
+    .from("task_comments")
+    .insert({ task_id: input.task_id, body: input.body })
+    .select("id, task_id, author_id, body, created_at, updated_at")
+    .single();
+  if (error) throw error;
+  return data as TaskComment;
+}
+
+export async function updateTaskComment(
+  supabase: SupabaseClient,
+  id: string,
+  patch: Partial<Pick<TaskComment, "body">>
+): Promise<void> {
+  const { error } = await supabase.from("task_comments").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteTaskComment(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("task_comments").delete().eq("id", id);
+  if (error) throw error;
 }
 
 // --- Teams ---
