@@ -277,7 +277,7 @@ export async function createTaskComment(input: { task_id: string; body: string }
   return await repo().createTaskComment(input);
 }
 
-export async function updateTaskComment(id: string, patch: { body?: string }): Promise<void> {
+export async function updateTaskComment(id: string, patch: { body?: string }): Promise<TaskComment> {
   return await repo().updateTaskComment(id, patch);
 }
 

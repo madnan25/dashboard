@@ -326,8 +326,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setStatus("Saving comment…");
     try {
       setCommentsStatus("");
-      await updateTaskComment(id, { body });
-      setComments((prev) => prev.map((c) => (c.id === id ? { ...c, body } : c)));
+      const updated = await updateTaskComment(id, { body });
+      setComments((prev) => prev.map((c) => (c.id === id ? updated : c)));
       setEditingCommentId("");
       setEditingBody("");
       setStatus("Comment updated.");
@@ -861,14 +861,25 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           profiles.find((p) => p.id === c.author_id)?.full_name ||
                           profiles.find((p) => p.id === c.author_id)?.email ||
                           c.author_id.slice(0, 8) + "…";
-                        const when = new Date(c.created_at).toLocaleString();
+                        const createdAt = new Date(c.created_at);
+                        const updatedAt = new Date(c.updated_at);
+                        const edited = Number.isFinite(updatedAt.getTime()) && updatedAt.getTime() - createdAt.getTime() > 1000;
+                        const when = createdAt.toLocaleString();
                         const isEditing = editingCommentId === c.id;
                         return (
                           <div key={c.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
                             <div className="flex items-start justify-between gap-3">
                               <div className="text-sm text-white/80">
                                 <span className="font-semibold text-white/90">{author}</span> ·{" "}
-                                <span className="text-white/50">{when}</span>
+                                <span className="text-white/50">
+                                  {when}
+                                  {edited ? (
+                                    <span className="text-white/40" title={`Edited ${updatedAt.toLocaleString()}`}>
+                                      {" "}
+                                      (edited)
+                                    </span>
+                                  ) : null}
+                                </span>
                               </div>
                               {canModerateComments ? (
                                 <div className="flex items-center gap-2">

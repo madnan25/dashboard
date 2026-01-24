@@ -214,9 +214,15 @@ export async function updateTaskComment(
   supabase: SupabaseClient,
   id: string,
   patch: Partial<Pick<TaskComment, "body">>
-): Promise<void> {
-  const { error } = await supabase.from("task_comments").update(patch).eq("id", id);
+): Promise<TaskComment> {
+  const { data, error } = await supabase
+    .from("task_comments")
+    .update(patch)
+    .eq("id", id)
+    .select("id, task_id, author_id, body, created_at, updated_at")
+    .single();
   if (error) throw error;
+  return data as TaskComment;
 }
 
 export async function deleteTaskComment(supabase: SupabaseClient, id: string): Promise<void> {
