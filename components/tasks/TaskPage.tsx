@@ -214,6 +214,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return nodes;
   }
 
+  function extractTaskLinks(text: string): string[] {
+    const re = /\/tasks\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
+    const matches = (text || "").match(re) ?? [];
+    return Array.from(new Set(matches));
+  }
+
   function renderTextWithLinks(text: string) {
     const lines = (text || "").split("\n");
     return lines.map((line, i) => (
@@ -817,14 +823,31 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div>
                   <div className="text-xs uppercase tracking-widest text-white/45">Description (optional)</div>
                   {canEditDetails ? (
-                    <textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      disabled={!canEditDetails}
-                      rows={4}
-                      className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
-                      placeholder="No long explanations. Just enough context."
-                    />
+                    <>
+                      <textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        disabled={!canEditDetails}
+                        rows={4}
+                        className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
+                        placeholder="No long explanations. Just enough context."
+                      />
+                      {extractTaskLinks(description).length > 0 ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/60">
+                          <span className="text-xs uppercase tracking-widest text-white/40">Links</span>
+                          {extractTaskLinks(description).map((href) => (
+                            <button
+                              key={href}
+                              type="button"
+                              className="underline text-white/80 hover:text-white"
+                              onClick={() => router.push(href)}
+                            >
+                              {href}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
                   ) : (
                     <div className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85">
                       {description?.trim() ? (
