@@ -757,7 +757,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                           <div className="min-w-0">
                             <div className="text-sm font-semibold text-white/90">{s.title}</div>
-                            {s.description ? <div className="mt-1 text-xs text-white/60 whitespace-pre-wrap">{s.description}</div> : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             <PillSelect
