@@ -55,12 +55,20 @@ export function taskIsOpen(t: Task) {
 }
 
 export function isMarketingTeamProfile(p: Profile | null | undefined): p is Profile {
-  return Boolean(p && p.is_marketing_team === true && p.role !== "sales_ops" && p.role !== "viewer");
+  // Marketing team membership is primarily driven by role (member/brand_manager/cmo),
+  // with `is_marketing_team` used as an override for special cases (e.g. viewer read-only).
+  return Boolean(
+    p &&
+      p.role !== "sales_ops" &&
+      p.role !== "viewer" &&
+      (p.role === "cmo" || p.role === "brand_manager" || p.role === "member" || p.is_marketing_team === true)
+  );
 }
 
 export function isMarketingManagerProfile(p: Profile | null | undefined): boolean {
   if (!p) return false;
   if (p.role === "cmo") return true;
+  if (p.role === "brand_manager") return true;
   return isMarketingTeamProfile(p) && p.is_marketing_manager === true;
 }
 

@@ -87,6 +87,11 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
     onStatus("");
     try {
       onStatus("Saving manager access…");
+      // Approvers must be marketing team + marketing manager. If manager is enabled,
+      // ensure the user is also part of the marketing team so they can be selected.
+      if (next) {
+        await updateUserIsMarketingTeam(userId, true);
+      }
       await updateUserIsMarketingManager(userId, next);
       await refresh();
       onStatus("Manager access updated.");
