@@ -31,6 +31,7 @@ import {
   getCurrentProfile,
   getTask,
   listProfiles,
+  listProfilesByIds,
   listProjects,
   listTaskComments,
   listTaskEvents,
@@ -82,11 +83,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const isCreator = profile?.id != null && task?.created_by != null && task.created_by === profile.id;
   const isManager = isMarketingManagerProfile(profile) || isCmo;
   const canEditDetails = isCreator;
-  const canEditAttributes = isCreator || isManager;
+  // Updated: any marketing team member can manage properties/assignments.
+  const canEditAttributes = isCreator || isManager || isMarketingTeamProfile(profile);
   const canEditTask = canEditDetails || canEditAttributes;
   const canComment = profile != null;
   const canModerateComments = isManager;
   const canDelete = isCmo;
+  const canCreateSubtasks = profile != null; // anyone who can view the ticket can add subtasks
+  const canEditSubtasks = canEditAttributes;
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -103,6 +107,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [editingCommentId, setEditingCommentId] = useState<string>("");
   const [editingBody, setEditingBody] = useState("");
   const [savingComment, setSavingComment] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
 
   const lastSavedRef = useRef<{
     title: string;
@@ -153,6 +158,28 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return current ? [current, ...assignableProfiles] : assignableProfiles;
   }
 
+  const ensureProfilesLoaded = useCallback(
+    async (ids: Array<string | null | undefined>) => {
+      const wanted = Array.from(new Set(ids.filter((x): x is string => Boolean(x))));
+      if (wanted.length === 0) return;
+      const have = new Set(profiles.map((p) => p.id));
+      const missing = wanted.filter((id) => !have.has(id));
+      if (missing.length === 0) return;
+      try {
+        const more = await listProfilesByIds(missing);
+        if (!more || more.length === 0) return;
+        setProfiles((prev) => {
+          const map = new Map(prev.map((p) => [p.id, p]));
+          for (const p of more) map.set(p.id, p);
+          return Array.from(map.values());
+        });
+      } catch {
+        // ignore (RLS may block)
+      }
+    },
+    [profiles]
+  );
+
   const refresh = useCallback(async () => {
     setLoadingTask(true);
     try {
@@ -170,9 +197,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setLedger(led);
       setSubtasks(subs);
       setTeams(teamRows);
+      await ensureProfilesLoaded([
+        t?.created_by,
+        t?.assignee_id,
+        t?.approver_user_id,
+        ...subs.map((s) => s.assignee_id),
+        ...ev.map((e) => e.actor_id)
+      ]);
       try {
         const commentRows = await listTaskComments(taskId);
         setComments(commentRows);
+        await ensureProfilesLoaded(commentRows.map((c) => c.author_id));
       } catch (e) {
         setComments([]);
         setCommentsStatus(getErrorMessage(e, "Comments unavailable."));
@@ -206,7 +241,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     } finally {
       setLoadingTask(false);
     }
-  }, [taskId]);
+  }, [ensureProfilesLoaded, taskId]);
 
   async function refreshSubtasksOnly() {
     const subs = await listTaskSubtasks(taskId);
@@ -415,7 +450,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onCreateSubtask() {
-    if (!canEditAttributes) return;
+    if (!canCreateSubtasks) return;
     const t = newSubtaskTitle.trim();
     if (!t) return;
     setStatus("Creating subtask…");
@@ -430,7 +465,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onUpdateSubtask(id: string, patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "due_at" | "effort_points">>) {
-    if (!canEditAttributes) return;
+    if (!canEditSubtasks) return;
     setStatus("Saving subtask…");
     const snapshot = subtasks;
     setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -445,7 +480,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onRemoveSubtask(id: string) {
-    if (!canEditAttributes) return;
+    if (!canEditSubtasks) return;
     if (!confirm("Delete this subtask?")) return;
     setStatus("Deleting subtask…");
     const snapshot = subtasks;
@@ -671,7 +706,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       <input
                         value={newSubtaskTitle}
                         onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                        disabled={!canEditAttributes}
+                        disabled={!canCreateSubtasks}
                         placeholder="Add a subtask…"
                         className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
                       />
@@ -680,7 +715,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       intent="secondary"
                       className="h-11 px-6"
                       onPress={onCreateSubtask}
-                      isDisabled={!canEditAttributes || !newSubtaskTitle.trim()}
+                      isDisabled={!canCreateSubtasks || !newSubtaskTitle.trim()}
                     >
                       Add
                     </AppButton>
@@ -702,7 +737,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               value={s.status}
                               onChange={(v) => onUpdateSubtask(s.id, { status: v as TaskSubtask["status"] })}
                               ariaLabel="Subtask status"
-                              disabled={!canEditAttributes}
+                              disabled={!canEditSubtasks}
                             >
                               {[...PRIMARY_FLOW, ...SIDE_LANE].map((st) => (
                                 <option key={st} value={st} className="bg-zinc-900">
@@ -714,7 +749,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               value={s.assignee_id ?? ""}
                               onChange={(v) => onUpdateSubtask(s.id, { assignee_id: v || null })}
                               ariaLabel="Subtask assignee"
-                              disabled={!canEditAttributes}
+                              disabled={!canEditSubtasks}
                             >
                               <option value="" className="bg-zinc-900">
                                 Unassigned
@@ -732,7 +767,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               size="sm"
                               className="h-10 px-4"
                               onPress={() => onRemoveSubtask(s.id)}
-                              isDisabled={!canEditAttributes}
+                              isDisabled={!canEditSubtasks}
                             >
                               Delete
                             </AppButton>
@@ -740,6 +775,99 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div className="my-2 h-px bg-white/10" />
+
+                <div>
+                  <div className="text-xs uppercase tracking-widest text-white/45">Comments</div>
+                  <div className="mt-2 text-sm text-white/55">Leave context for the team.</div>
+                  {commentsStatus ? <div className="mt-2 text-xs text-amber-200/90">{commentsStatus}</div> : null}
+
+                  <div className="mt-3">
+                    <textarea
+                      value={commentBody}
+                      onChange={(e) => setCommentBody(e.target.value)}
+                      disabled={!canComment || savingComment}
+                      rows={3}
+                      className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
+                      placeholder="Add a comment…"
+                    />
+                    <div className="mt-2 flex justify-end">
+                      <AppButton
+                        intent="primary"
+                        className="h-10 px-4"
+                        onPress={onCreateComment}
+                        isDisabled={!canComment || savingComment || !commentBody.trim()}
+                      >
+                        {savingComment ? "Posting…" : "Post comment"}
+                      </AppButton>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {comments.length === 0 ? (
+                      <div className="text-sm text-white/45">No comments yet.</div>
+                    ) : (
+                      comments.map((c) => {
+                        const author =
+                          profiles.find((p) => p.id === c.author_id)?.full_name ||
+                          profiles.find((p) => p.id === c.author_id)?.email ||
+                          c.author_id.slice(0, 8) + "…";
+                        const when = new Date(c.created_at).toLocaleString();
+                        const isEditing = editingCommentId === c.id;
+                        return (
+                          <div key={c.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="text-sm text-white/80">
+                                <span className="font-semibold text-white/90">{author}</span> ·{" "}
+                                <span className="text-white/50">{when}</span>
+                              </div>
+                              {canModerateComments ? (
+                                <div className="flex items-center gap-2">
+                                  {isEditing ? null : (
+                                    <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onEditComment(c)}>
+                                      Edit
+                                    </button>
+                                  )}
+                                  <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onDeleteComment(c.id)}>
+                                    Delete
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+
+                            {isEditing ? (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  value={editingBody}
+                                  onChange={(e) => setEditingBody(e.target.value)}
+                                  rows={3}
+                                  disabled={savingComment}
+                                  className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 outline-none focus:border-white/20"
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <AppButton intent="secondary" className="h-9 px-4" onPress={onCancelEditComment} isDisabled={savingComment}>
+                                    Cancel
+                                  </AppButton>
+                                  <AppButton
+                                    intent="primary"
+                                    className="h-9 px-4"
+                                    onPress={() => onSaveCommentEdit(c.id)}
+                                    isDisabled={savingComment || !editingBody.trim()}
+                                  >
+                                    Save
+                                  </AppButton>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">{c.body}</div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 
@@ -925,108 +1053,27 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
               <div className="my-4 h-px bg-white/10" />
 
-              <div className="text-lg font-semibold text-white/90">Comments</div>
-              <div className="mt-1 text-sm text-white/55">Leave context for the team.</div>
-              {commentsStatus ? <div className="mt-2 text-xs text-amber-200/90">{commentsStatus}</div> : null}
-
-              <div className="mt-4">
-                <textarea
-                  value={commentBody}
-                  onChange={(e) => setCommentBody(e.target.value)}
-                  disabled={!canComment || savingComment}
-                  rows={3}
-                  className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
-                  placeholder="Add a comment…"
-                />
-                <div className="mt-2 flex justify-end">
-                  <AppButton
-                    intent="primary"
-                    className="h-10 px-4"
-                    onPress={onCreateComment}
-                    isDisabled={!canComment || savingComment || !commentBody.trim()}
-                  >
-                    {savingComment ? "Posting…" : "Post comment"}
-                  </AppButton>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-lg font-semibold text-white/90">Activity</div>
+                  <div className="mt-1 text-sm text-white/55">Latest updates. Expand when needed.</div>
                 </div>
+                {events.length > 6 ? (
+                  <button className="text-xs text-white/60 hover:text-white/80" onClick={() => setShowAllActivity((v) => !v)}>
+                    {showAllActivity ? "Show less" : `Show all (${events.length})`}
+                  </button>
+                ) : null}
               </div>
-
-              <div className="mt-4 space-y-2">
-                {comments.length === 0 ? (
-                  <div className="text-sm text-white/45">No comments yet.</div>
-                ) : (
-                  comments.map((c) => {
-                    const author =
-                      profiles.find((p) => p.id === c.author_id)?.full_name ||
-                      profiles.find((p) => p.id === c.author_id)?.email ||
-                      "Someone";
-                    const when = new Date(c.created_at).toLocaleString();
-                    const isEditing = editingCommentId === c.id;
-                    return (
-                      <div key={c.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="text-sm text-white/80">
-                            <span className="font-semibold text-white/90">{author}</span> · <span className="text-white/50">{when}</span>
-                          </div>
-                          {canModerateComments ? (
-                            <div className="flex items-center gap-2">
-                              {isEditing ? null : (
-                                <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onEditComment(c)}>
-                                  Edit
-                                </button>
-                              )}
-                              <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onDeleteComment(c.id)}>
-                                Delete
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        {isEditing ? (
-                          <div className="mt-2 space-y-2">
-                            <textarea
-                              value={editingBody}
-                              onChange={(e) => setEditingBody(e.target.value)}
-                              rows={3}
-                              disabled={savingComment}
-                              className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 outline-none focus:border-white/20"
-                            />
-                            <div className="flex justify-end gap-2">
-                              <AppButton intent="secondary" className="h-9 px-4" onPress={onCancelEditComment} isDisabled={savingComment}>
-                                Cancel
-                              </AppButton>
-                              <AppButton
-                                intent="primary"
-                                className="h-9 px-4"
-                                onPress={() => onSaveCommentEdit(c.id)}
-                                isDisabled={savingComment || !editingBody.trim()}
-                              >
-                                Save
-                              </AppButton>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">{c.body}</div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              <div className="my-4 h-px bg-white/10" />
-
-              <div className="text-lg font-semibold text-white/90">Activity</div>
-              <div className="mt-1 text-sm text-white/55">What changed, and where it stopped.</div>
 
               <div className="mt-4 space-y-2">
                 {events.length === 0 ? (
                   <div className="text-sm text-white/45">No activity yet.</div>
                 ) : (
-                  events.map((e) => {
+                  (showAllActivity ? events : events.slice(0, 6)).map((e) => {
                     const who =
                       profiles.find((p) => p.id === e.actor_id)?.full_name ||
                       profiles.find((p) => p.id === e.actor_id)?.email ||
-                      "Someone";
+                      (e.actor_id ? e.actor_id.slice(0, 8) + "…" : "Someone");
                     const when = new Date(e.created_at).toLocaleString();
                     const from = e.from_value ? ` ${e.from_value} →` : "";
                     const to = e.to_value ? ` ${e.to_value}` : "";
