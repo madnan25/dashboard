@@ -83,14 +83,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const isCreator = profile?.id != null && task?.created_by != null && task.created_by === profile.id;
   const isManager = isMarketingManagerProfile(profile) || isCmo;
   const canEditDetails = isCreator;
-  // Updated: any marketing team member can manage properties/assignments.
-  const canEditAttributes = isCreator || isManager || isMarketingTeamProfile(profile);
-  const canEditTask = canEditDetails || canEditAttributes;
+  // Properties (priority/assignee/team/project/due) are creator or marketing manager/CMO.
+  const canEditProperties = isCreator || isManager;
+  // Status is collaborative for marketing team, but approval/close still requires assigned approver/CMO.
+  const canEditStatus = Boolean(profile && isMarketingTeamProfile(profile)) || canEditProperties;
+  const canEditTask = canEditDetails || canEditProperties;
   const canComment = profile != null;
   const canModerateComments = isManager;
   const canDelete = isCmo;
   const canCreateSubtasks = profile != null; // anyone who can view the ticket can add subtasks
-  const canEditSubtasks = canEditAttributes;
+  const canEditSubtasks = Boolean(profile && isMarketingTeamProfile(profile)); // marketing team can manage subtasks
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -521,7 +523,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onSetStatus(next: TaskStatus) {
-    if (!canEditAttributes) return;
+    if (!canEditStatus) return;
     if ((next === "approved" || next === "closed") && !canApprove) {
       setStatus("Only the assigned approver can approve or close this ticket.");
       return;
@@ -538,7 +540,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
           patch.approval_state = "approved";
         }
         // Only reset approval when moving back to pre-approval stages.
-        if (next === "queued" || next === "in_progress" || next === "submitted") {
+        if (canApprove && (next === "queued" || next === "in_progress" || next === "submitted")) {
           setApprovalState("pending");
           patch.approval_state = "pending";
         }
@@ -642,7 +644,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     size="sm"
                     className="h-10 px-4"
                     onPress={() => onSetStatus("in_progress")}
-                    isDisabled={!canEditAttributes}
+                    isDisabled={!canEditStatus}
                   >
                     Start work
                   </AppButton>
@@ -652,7 +654,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   size="sm"
                   className="h-10 px-4"
                   onPress={() => onSetStatus("submitted")}
-                  isDisabled={!canEditAttributes || taskStatus === "closed" || !teamId || !approverUserId}
+                  isDisabled={!canEditStatus || taskStatus === "closed" || !teamId || !approverUserId}
                 >
                   Submit for approval
                 </AppButton>
@@ -663,7 +665,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         size="sm"
                         className="h-10 px-4"
                         onPress={() => onSetStatus("in_progress")}
-                        isDisabled={!canEditAttributes}
+                        isDisabled={!canEditStatus}
                       >
                         Reopen ticket
                       </AppButton>
@@ -673,7 +675,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         size="sm"
                         className="h-10 px-4"
                         onPress={() => onSetStatus("closed")}
-                        isDisabled={!canEditAttributes || approvalState !== "approved"}
+                        isDisabled={!canApprove || approvalState !== "approved"}
                       >
                         Close ticket
                       </AppButton>
@@ -702,7 +704,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 {!canEditDetails ? (
                   <div className="text-xs text-white/45">Only the creator can edit the title and description.</div>
                 ) : null}
-                {!canEditAttributes ? (
+                {!canEditProperties ? (
                   <div className="text-xs text-white/45">
                     Only the creator, marketing managers, or the CMO can edit priority, status, assignments, or due dates.
                   </div>
@@ -891,12 +893,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
             <Surface className="md:col-span-5">
               <div className="text-lg font-semibold text-white/90">Properties</div>
-              <div className="mt-1 text-sm text-white/55">Notion-style fields. {canEditAttributes ? "Editable for you." : "Read-only for you."}</div>
+              <div className="mt-1 text-sm text-white/55">
+                Notion-style fields. {canEditProperties ? "Editable for you." : "Read-only for you."}
+              </div>
 
               <div className="mt-4 space-y-3">
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">
                   <div className="text-xs uppercase tracking-widest text-white/45">Priority</div>
-                  {canEditAttributes ? (
+                  {canEditProperties ? (
                     <PillSelect value={priority} onChange={(v) => setPriority(v as TaskPriority)} ariaLabel="Priority">
                       {(["p0", "p1", "p2", "p3"] as TaskPriority[]).map((p) => (
                         <option key={p} value={p} className="bg-zinc-900">
@@ -911,7 +915,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">
                   <div className="text-xs uppercase tracking-widest text-white/45">Status</div>
-                  {canEditAttributes ? (
+                  {canEditStatus ? (
                     <PillSelect value={taskStatus} onChange={(v) => onSetStatus(v as TaskStatus)} ariaLabel="Status">
                       {statusOptions.map((s) => (
                         <option key={s} value={s} className="bg-zinc-900">
@@ -926,7 +930,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">
                   <div className="text-xs uppercase tracking-widest text-white/45">Assignee</div>
-                  {canEditAttributes ? (
+                  {canEditProperties ? (
                     <PillSelect value={assigneeId} onChange={setAssigneeId} ariaLabel="Assignee">
                       <option value="" className="bg-zinc-900">
                         Unassigned
@@ -944,7 +948,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">
                   <div className="text-xs uppercase tracking-widest text-white/45">Project</div>
-                  {canEditAttributes ? (
+                  {canEditProperties ? (
                     <PillSelect value={projectId} onChange={setProjectId} ariaLabel="Project stamp">
                       <option value="" className="bg-zinc-900">
                         None
@@ -962,7 +966,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">
                   <div className="text-xs uppercase tracking-widest text-white/45">Team</div>
-                  {canEditAttributes ? (
+                  {canEditProperties ? (
                     <PillSelect value={teamId} onChange={setTeamId} ariaLabel="Team">
                       <option value="" className="bg-zinc-900">
                         Select…
@@ -1008,8 +1012,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">
                   <div className="text-xs uppercase tracking-widest text-white/45">Due</div>
-                  {canEditAttributes ? (
-                    <DayDatePicker value={dueAt} onChange={setDueAt} placeholder="Select due date" isDisabled={!canEditAttributes} showClear />
+                  {canEditProperties ? (
+                    <DayDatePicker value={dueAt} onChange={setDueAt} placeholder="Select due date" isDisabled={!canEditProperties} showClear />
                   ) : (
                     <div className="text-sm text-white/80">{dueAt || "—"}</div>
                   )}
