@@ -142,6 +142,7 @@ export type TaskStatus = "queued" | "in_progress" | "submitted" | "approved" | "
 export type TaskPriority = "p0" | "p1" | "p2" | "p3";
 export type TaskApprovalState = "not_required" | "pending" | "approved";
 export type TaskWeightTier = "small" | "medium" | "large" | "critical";
+export type TaskMasterCalendarTag = "marketing" | "sales";
 
 export type Task = {
   id: string;
@@ -157,12 +158,23 @@ export type Task = {
   assignee_id: string | null;
   project_id: string | null;
   due_at: string | null; // date
+  master_calendar_tag?: TaskMasterCalendarTag | null;
   weight_tier?: TaskWeightTier;
   base_weight?: number;
   completed_at?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// View-only master calendar rows returned by RPC (keeps task table private to marketing team).
+export type MasterCalendarTask = {
+  id: string;
+  title: string;
+  due_at: string | null; // date
+  master_calendar_tag: TaskMasterCalendarTag;
+  priority: TaskPriority;
+  status: TaskStatus;
 };
 
 export type TaskComment = {

@@ -20,6 +20,7 @@ export type {
   ProjectActualsChannel,
   ProjectActualsDigitalSource,
   ProjectTargets,
+  MasterCalendarTask,
   TaskTeam,
   Task,
   TaskApprovalState,
@@ -36,6 +37,7 @@ export type {
   TaskPointsLedgerEntry,
   TaskPriority,
   TaskStatus,
+  TaskMasterCalendarTag,
   TaskSubtask,
   TaskSubtaskStatus,
   TaskWeightConfig,
@@ -47,6 +49,7 @@ import type {
   PlanChannelInputs,
   PlanStatus,
   PlanVersion,
+  MasterCalendarTask,
   Profile,
   Project,
   ProjectActuals,
@@ -65,6 +68,7 @@ import type {
   TaskFlowTemplateStep,
   TaskPointsLedgerEntry,
   TaskWeightConfig,
+  TaskMasterCalendarTag,
   TaskSubtask,
   TaskSubtaskStatus,
   UserRole
@@ -235,6 +239,10 @@ export async function deleteSalesAttributionEvent(id: string): Promise<void> {
 
 export async function listTasks(filters?: ListTasksFilters): Promise<Task[]> {
   return await repo().listTasks(filters);
+}
+
+export async function listMasterCalendarTasks(filters?: { dueFrom?: string; dueTo?: string }): Promise<MasterCalendarTask[]> {
+  return await repo().listMasterCalendarTasks(filters);
 }
 
 export async function listTasksByIds(ids: string[]): Promise<Task[]> {

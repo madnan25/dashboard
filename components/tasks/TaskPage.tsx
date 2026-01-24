@@ -21,7 +21,8 @@ import type {
   TaskStatus,
   TaskSubtask,
   TaskSubtaskStatus,
-  TaskTeam
+  TaskTeam,
+  TaskMasterCalendarTag
 } from "@/lib/dashboardDb";
 import {
   createTaskSubtask,
@@ -105,6 +106,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [projectId, setProjectId] = useState<string>("");
   const [dueAt, setDueAt] = useState<string>("");
+  const [masterCalendarTag, setMasterCalendarTag] = useState<TaskMasterCalendarTag | "">("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState<string>("");
   const [commentBody, setCommentBody] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string>("");
@@ -122,6 +124,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     assignee_id: string | null;
     project_id: string | null;
     due_at: string | null;
+    master_calendar_tag: TaskMasterCalendarTag | null;
   } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveSeqRef = useRef(0);
@@ -246,6 +249,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         setAssigneeId(t.assignee_id ?? "");
         setProjectId(t.project_id ?? "");
         setDueAt(t.due_at ?? "");
+        setMasterCalendarTag((t.master_calendar_tag as TaskMasterCalendarTag | null) ?? "");
 
         lastSavedRef.current = {
           title: t.title ?? "",
@@ -256,7 +260,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
           team_id: t.team_id ?? null,
           assignee_id: t.assignee_id ?? null,
           project_id: t.project_id ?? null,
-          due_at: t.due_at ?? null
+          due_at: t.due_at ?? null,
+          master_calendar_tag: (t.master_calendar_tag as TaskMasterCalendarTag | null) ?? null
         };
       }
     } catch (e) {
@@ -409,7 +414,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
       team_id: teamId || null,
       assignee_id: assigneeId || null,
       project_id: projectId || null,
-      due_at: dueAt || null
+      due_at: dueAt || null,
+      master_calendar_tag: masterCalendarTag || null
     };
 
     const prev = lastSavedRef.current;
@@ -422,7 +428,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
       next.team_id !== prev.team_id ||
       next.assignee_id !== prev.assignee_id ||
       next.project_id !== prev.project_id ||
-      next.due_at !== prev.due_at;
+      next.due_at !== prev.due_at ||
+      next.master_calendar_tag !== prev.master_calendar_tag;
     if (!changed) return;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     const seq = ++autosaveSeqRef.current;
@@ -449,6 +456,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     canEditTask,
     description,
     dueAt,
+    masterCalendarTag,
     loadingTask,
     priority,
     projectId,
@@ -1034,6 +1042,31 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       <div className="mt-1 text-xs text-white/45">Blocked until a team approver is assigned.</div>
                     ) : null}
                   </div>
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-center gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/45">Master</div>
+                  {canEditProperties ? (
+                    <PillSelect
+                      value={masterCalendarTag}
+                      onChange={(v) => setMasterCalendarTag(v as TaskMasterCalendarTag | "")}
+                      ariaLabel="Master calendar tag"
+                    >
+                      <option value="" className="bg-zinc-900">
+                        None
+                      </option>
+                      <option value="marketing" className="bg-zinc-900">
+                        Marketing
+                      </option>
+                      <option value="sales" className="bg-zinc-900">
+                        Sales
+                      </option>
+                    </PillSelect>
+                  ) : (
+                    <div className="text-sm text-white/80">
+                      {masterCalendarTag === "marketing" ? "Marketing" : masterCalendarTag === "sales" ? "Sales" : "None"}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">

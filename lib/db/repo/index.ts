@@ -71,6 +71,8 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     updateTask: (id: string, patch: Parameters<typeof tasks.updateTask>[2]) => tasks.updateTask(supabase, id, patch),
     getTask: (id: string) => tasks.getTask(supabase, id),
     deleteTask: (id: string) => tasks.deleteTask(supabase, id),
+    listMasterCalendarTasks: (filters?: Parameters<typeof tasks.listMasterCalendarTasks>[1]) =>
+      tasks.listMasterCalendarTasks(supabase, filters),
     listTaskEvents: (taskId: string) => tasks.listTaskEvents(supabase, taskId),
     listTaskComments: (taskId: string) => tasks.listTaskComments(supabase, taskId),
     createTaskComment: (input: Parameters<typeof tasks.createTaskComment>[1]) => tasks.createTaskComment(supabase, input),
