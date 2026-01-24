@@ -6,20 +6,25 @@ import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
 import { PillSelect } from "@/components/ds/PillSelect";
+import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
+import { TasksCalendar } from "@/components/tasks/TasksCalendar";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
 import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, listTaskTeams, updateTask } from "@/lib/dashboardDb";
 import { endOfWeek, isoDate, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
+import { MONTHS } from "@/lib/digitalSnapshot";
 
-type View = "board" | "with_me" | "blocked" | "delivery" | "impact" | "reliability" | "project";
+type View = "board" | "calendar" | "with_me" | "blocked" | "delivery" | "impact" | "reliability" | "project";
 
 function labelForView(v: View) {
   switch (v) {
     case "board":
       return "Board";
+    case "calendar":
+      return "Calendar";
     case "with_me":
       return "Approvals";
     case "blocked":
@@ -45,6 +50,8 @@ export function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   const [view, setView] = useState<View>("board");
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonthIndex, setCalMonthIndex] = useState(() => new Date().getMonth());
   const [assigneeFilter, setAssigneeFilter] = useState<string>(""); // ""=all, else user id, "__me__" handled
   const [priorityFilter, setPriorityFilter] = useState<string>(""); // ""=all
   const [projectFilter, setProjectFilter] = useState<string>(""); // ""=all
@@ -174,7 +181,15 @@ export function TasksPage() {
     });
   }, [assigneeMode, priorityFilter, projectFilter, resolvedAssigneeId, tasks, teamFilter, view, meId]);
 
-  const viewOptions: View[] = isCmo ? ["board", "with_me", "blocked", "delivery", "impact", "reliability", "project"] : ["board", "with_me", "blocked", "delivery"];
+  const viewOptions: View[] = isCmo
+    ? ["board", "calendar", "with_me", "blocked", "delivery", "impact", "reliability", "project"]
+    : ["board", "calendar", "with_me", "blocked", "delivery"];
+
+  const calendarLabel = useMemo(() => `${MONTHS[calMonthIndex]} ${calYear}`, [calMonthIndex, calYear]);
+  const calendarTasks = useMemo(() => {
+    const monthKey = `${calYear}-${String(calMonthIndex + 1).padStart(2, "0")}`;
+    return filtered.filter((t) => !t.due_at || t.due_at.startsWith(monthKey));
+  }, [calMonthIndex, calYear, filtered]);
 
   function canMoveToStatus(t: Task, next: TaskStatus): { ok: boolean; reason?: string } {
     if (!canEdit) return { ok: false, reason: "You can’t edit tickets" };
@@ -248,6 +263,18 @@ export function TasksPage() {
                   </option>
                 ))}
               </PillSelect>
+              {view === "calendar" ? (
+                <MonthYearPicker
+                  monthIndex={calMonthIndex}
+                  year={calYear}
+                  label={calendarLabel}
+                  showJumpToCurrent
+                  onChange={(next) => {
+                    setCalMonthIndex(next.monthIndex);
+                    setCalYear(next.year);
+                  }}
+                />
+              ) : null}
             </div>
           }
         />
@@ -268,6 +295,18 @@ export function TasksPage() {
                   </option>
                 ))}
               </PillSelect>
+              {view === "calendar" ? (
+                <MonthYearPicker
+                  monthIndex={calMonthIndex}
+                  year={calYear}
+                  label={calendarLabel}
+                  showJumpToCurrent
+                  onChange={(next) => {
+                    setCalMonthIndex(next.monthIndex);
+                    setCalYear(next.year);
+                  }}
+                />
+              ) : null}
             </div>
           </Surface>
         </div>
@@ -378,17 +417,28 @@ export function TasksPage() {
               </div>
             </div>
 
-            <KanbanBoard
-              tasks={filtered}
-              profiles={profiles}
-              projects={projects}
-              teams={teams}
-              onOpenTask={(t) => {
-                router.push(`/tasks/${t.id}`);
-              }}
-              canMoveToStatus={canMoveToStatus}
-              onMoveTask={onMoveTask}
-            />
+            {view === "calendar" ? (
+              <TasksCalendar
+                tasks={calendarTasks}
+                year={calYear}
+                monthIndex={calMonthIndex}
+                onOpenTask={(t) => {
+                  router.push(`/tasks/${t.id}`);
+                }}
+              />
+            ) : (
+              <KanbanBoard
+                tasks={filtered}
+                profiles={profiles}
+                projects={projects}
+                teams={teams}
+                onOpenTask={(t) => {
+                  router.push(`/tasks/${t.id}`);
+                }}
+                canMoveToStatus={canMoveToStatus}
+                onMoveTask={onMoveTask}
+              />
+            )}
           </Surface>
         )}
       </div>
