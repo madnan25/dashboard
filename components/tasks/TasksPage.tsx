@@ -12,7 +12,7 @@ import { TasksCalendar } from "@/components/tasks/TasksCalendar";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
 import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, listTaskTeams, updateTask } from "@/lib/dashboardDb";
-import { endOfWeek, isoDate, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
+import { endOfWeek, isoDate, isMarketingManagerProfile, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
 import { MONTHS } from "@/lib/digitalSnapshot";
@@ -63,6 +63,7 @@ export function TasksPage() {
 
   const isCmo = profile?.role === "cmo";
   const canEdit = profile != null;
+  const isManager = isMarketingManagerProfile(profile) || isCmo;
   const assignableProfiles = useMemo(() => profiles.filter(isMarketingTeamProfile), [profiles]);
 
   function getAssigneeFilterOptionProfiles(selected: string) {
@@ -190,6 +191,37 @@ export function TasksPage() {
     const monthKey = `${calYear}-${String(calMonthIndex + 1).padStart(2, "0")}`;
     return filtered.filter((t) => !t.due_at || t.due_at.startsWith(monthKey));
   }, [calMonthIndex, calYear, filtered]);
+
+  function canEditDueForTask(t: Task) {
+    if (isCmo) return true;
+    if (isManager) return true;
+    const me = profile?.id ?? null;
+    if (!me) return false;
+    return t.created_by === me;
+  }
+
+  async function onMoveTaskDue(taskId: string, dueAt: string | null) {
+    const prev = tasks;
+    const existing = tasks.find((t) => t.id === taskId) ?? null;
+    if (!existing) return;
+    if (!canEditDueForTask(existing)) {
+      setStatus("Only the creator or a marketing manager can change due dates.");
+      return;
+    }
+    const nextDue = dueAt || null;
+    if ((existing.due_at ?? null) === nextDue) return;
+
+    setTasks((cur) =>
+      cur.map((t) => (t.id === taskId ? { ...t, due_at: nextDue, updated_at: new Date().toISOString() } : t))
+    );
+    try {
+      await updateTask(taskId, { due_at: nextDue });
+      setStatus("");
+    } catch (e) {
+      setTasks(prev);
+      setStatus(e instanceof Error ? e.message : "Failed to move ticket");
+    }
+  }
 
   function canMoveToStatus(t: Task, next: TaskStatus): { ok: boolean; reason?: string } {
     if (!canEdit) return { ok: false, reason: "You can’t edit tickets" };
@@ -425,6 +457,8 @@ export function TasksPage() {
                 onOpenTask={(t) => {
                   router.push(`/tasks/${t.id}`);
                 }}
+                canEditDueForTask={canEditDueForTask}
+                onMoveTaskDue={onMoveTaskDue}
               />
             ) : (
               <KanbanBoard

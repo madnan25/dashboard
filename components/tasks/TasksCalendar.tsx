@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Task } from "@/lib/dashboardDb";
 import { taskIsOpen } from "@/components/tasks/taskModel";
 
@@ -36,8 +36,13 @@ export function TasksCalendar(props: {
   year: number;
   monthIndex: number; // 0-11
   onOpenTask: (task: Task) => void;
+  canEditDueForTask: (task: Task) => boolean;
+  onMoveTaskDue: (taskId: string, dueAt: string | null) => Promise<void> | void;
 }) {
-  const { tasks, year, monthIndex, onOpenTask } = props;
+  const { tasks, year, monthIndex, onOpenTask, canEditDueForTask, onMoveTaskDue } = props;
+  const [dragOverIso, setDragOverIso] = useState<string>("");
+  const [dragOverNoDue, setDragOverNoDue] = useState(false);
+  const [draggingId, setDraggingId] = useState<string>("");
 
   const daysInMonth = useMemo(() => new Date(year, monthIndex + 1, 0).getDate(), [monthIndex, year]);
   const firstDay = useMemo(() => new Date(year, monthIndex, 1), [monthIndex, year]);
@@ -83,9 +88,9 @@ export function TasksCalendar(props: {
   }, [daysInMonth, leadingBlanks, monthIndex, year]);
 
   return (
-    <div className="grid gap-4 md:grid-cols-12">
-      <div className="md:col-span-9">
-        <div className="grid grid-cols-7 gap-2 text-xs text-white/50">
+    <div className="grid gap-6 md:grid-cols-12">
+      <div className="md:col-span-10">
+        <div className="grid grid-cols-7 gap-3 text-xs text-white/50">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
             <div key={d} className="px-1">
               {d}
@@ -93,30 +98,48 @@ export function TasksCalendar(props: {
           ))}
         </div>
 
-        <div className="mt-2 grid grid-cols-7 gap-2">
+        <div className="mt-3 grid grid-cols-7 gap-3">
           {dayCells.map((cell, idx) => {
             if (!cell) {
-              return <div key={idx} className="h-32 rounded-2xl border border-white/5 bg-white/[0.01]" />;
+              return <div key={idx} className="h-40 rounded-2xl border border-white/5 bg-white/[0.01]" />;
             }
             const items = tasksByDue.get(cell.iso) ?? [];
             const isToday = cell.iso === todayIso;
-            const show = items.slice(0, 3);
+            const show = items.slice(0, 4);
             const more = items.length - show.length;
+            const isDrop = dragOverIso === cell.iso;
 
             return (
               <div
                 key={cell.iso}
                 className={[
-                  "h-32 rounded-2xl border bg-white/[0.02] p-2 overflow-hidden",
-                  isToday ? "border-sky-400/30 bg-sky-500/[0.06]" : "border-white/10"
+                  "h-40 rounded-2xl border bg-white/[0.02] p-3 overflow-hidden",
+                  isDrop ? "border-emerald-400/40 bg-emerald-500/[0.06]" : isToday ? "border-sky-400/30 bg-sky-500/[0.06]" : "border-white/10"
                 ].join(" ")}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverNoDue(false);
+                  setDragOverIso(cell.iso);
+                  e.dataTransfer.dropEffect = "move";
+                }}
+                onDragLeave={() => {
+                  setDragOverIso((cur) => (cur === cell.iso ? "" : cur));
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const taskId = e.dataTransfer.getData("text/task-id");
+                  setDragOverIso("");
+                  setDraggingId("");
+                  if (!taskId) return;
+                  void onMoveTaskDue(taskId, cell.iso);
+                }}
               >
                 <div className="flex items-center justify-between">
                   <div className={["text-xs font-semibold", isToday ? "text-sky-200" : "text-white/70"].join(" ")}>{cell.day}</div>
                   {items.length > 0 ? <div className="text-[11px] text-white/45">{items.length}</div> : null}
                 </div>
 
-                <div className="mt-2 space-y-1">
+                <div className="mt-3 space-y-1.5">
                   {show.map((t) => (
                     <button
                       key={t.id}
@@ -125,8 +148,21 @@ export function TasksCalendar(props: {
                       onClick={() => onOpenTask(t)}
                       className={[
                         "w-full text-left truncate rounded-xl border px-2 py-1 text-[12px] transition",
+                        draggingId === t.id ? "opacity-50" : "",
                         priorityClass(t.priority)
                       ].join(" ")}
+                      draggable={canEditDueForTask(t)}
+                      onDragStart={(e) => {
+                        if (!canEditDueForTask(t)) return;
+                        setDraggingId(t.id);
+                        e.dataTransfer.setData("text/task-id", t.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragEnd={() => {
+                        setDraggingId("");
+                        setDragOverIso("");
+                        setDragOverNoDue(false);
+                      }}
                     >
                       {t.title}
                     </button>
@@ -139,7 +175,27 @@ export function TasksCalendar(props: {
         </div>
       </div>
 
-      <div className="md:col-span-3">
+      <div
+        className={[
+          "md:col-span-2",
+          dragOverNoDue ? "rounded-2xl border border-emerald-400/30 bg-emerald-500/[0.05] p-3" : ""
+        ].join(" ")}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOverIso("");
+          setDragOverNoDue(true);
+          e.dataTransfer.dropEffect = "move";
+        }}
+        onDragLeave={() => setDragOverNoDue(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          const taskId = e.dataTransfer.getData("text/task-id");
+          setDragOverNoDue(false);
+          setDraggingId("");
+          if (!taskId) return;
+          void onMoveTaskDue(taskId, null);
+        }}
+      >
         <div className="text-xs uppercase tracking-widest text-white/45">No due date</div>
         <div className="mt-2 space-y-2">
           {noDue.length === 0 ? <div className="text-sm text-white/45">Nothing open.</div> : null}
@@ -149,6 +205,18 @@ export function TasksCalendar(props: {
               type="button"
               onClick={() => onOpenTask(t)}
               className="w-full text-left glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/85 hover:bg-white/[0.04]"
+              draggable={canEditDueForTask(t)}
+              onDragStart={(e) => {
+                if (!canEditDueForTask(t)) return;
+                setDraggingId(t.id);
+                e.dataTransfer.setData("text/task-id", t.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragEnd={() => {
+                setDraggingId("");
+                setDragOverIso("");
+                setDragOverNoDue(false);
+              }}
             >
               <div className="truncate font-semibold text-white/90">{t.title}</div>
               <div className="mt-0.5 text-xs text-white/50">Priority {t.priority.toUpperCase()}</div>
