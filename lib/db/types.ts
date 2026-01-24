@@ -142,7 +142,7 @@ export type TaskStatus = "queued" | "in_progress" | "submitted" | "approved" | "
 export type TaskPriority = "p0" | "p1" | "p2" | "p3";
 export type TaskApprovalState = "not_required" | "pending" | "approved";
 export type TaskWeightTier = "small" | "medium" | "large" | "critical";
-export type TaskMasterCalendarTag = "marketing" | "sales";
+export type TaskMasterCalendarTag = "marketing" | "sales" | "design";
 
 export type Task = {
   id: string;

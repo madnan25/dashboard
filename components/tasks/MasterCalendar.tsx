@@ -21,6 +21,8 @@ function tagClass(tag: MasterCalendarTask["master_calendar_tag"]) {
   switch (tag) {
     case "sales":
       return "bg-amber-500/15 text-amber-200 border-amber-500/20 hover:bg-amber-500/20";
+    case "design":
+      return "bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-500/20 hover:bg-fuchsia-500/20";
     case "marketing":
     default:
       return "bg-sky-500/15 text-sky-200 border-sky-500/20 hover:bg-sky-500/20";
@@ -55,7 +57,7 @@ export function MasterCalendar(props: {
     // Stable sort: tag first, then priority, then title.
     for (const [k, arr] of map) {
       arr.sort((a, b) => {
-        const tagRank = (x: MasterCalendarTask["master_calendar_tag"]) => (x === "sales" ? 0 : 1);
+        const tagRank = (x: MasterCalendarTask["master_calendar_tag"]) => (x === "sales" ? 0 : x === "marketing" ? 1 : 2);
         const dt = tagRank(a.master_calendar_tag) - tagRank(b.master_calendar_tag);
         if (dt !== 0) return dt;
         const p = (x: MasterCalendarTask["priority"]) => (x === "p0" ? 0 : x === "p1" ? 1 : x === "p2" ? 2 : 3);
@@ -87,6 +89,10 @@ export function MasterCalendar(props: {
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1">
           <span className="inline-block h-2 w-2 rounded-full bg-amber-400/70" />
           Sales
+        </div>
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1">
+          <span className="inline-block h-2 w-2 rounded-full bg-fuchsia-400/70" />
+          Design &amp; production
         </div>
       </div>
 
