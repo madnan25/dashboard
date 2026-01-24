@@ -173,6 +173,56 @@ export function TaskPage({ taskId }: { taskId: string }) {
       s.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] ?? null;
     return uuid ? uuid.toLowerCase() : null;
   }
+
+  function renderInlineLinks(text: string): React.ReactNode[] {
+    const nodes: React.ReactNode[] = [];
+    const re = /(https?:\/\/[^\s]+|\/tasks\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const before = text.slice(last, m.index);
+      if (before) nodes.push(before);
+      const token = m[0];
+      if (token.startsWith("/tasks/")) {
+        nodes.push(
+          <button
+            key={`${m.index}-${token}`}
+            type="button"
+            className="underline text-white/85 hover:text-white"
+            onClick={() => router.push(token)}
+          >
+            {token}
+          </button>
+        );
+      } else {
+        nodes.push(
+          <a
+            key={`${m.index}-${token}`}
+            href={token}
+            target="_blank"
+            rel="noreferrer"
+            className="underline text-white/85 hover:text-white"
+          >
+            {token}
+          </a>
+        );
+      }
+      last = m.index + token.length;
+    }
+    const rest = text.slice(last);
+    if (rest) nodes.push(rest);
+    return nodes;
+  }
+
+  function renderTextWithLinks(text: string) {
+    const lines = (text || "").split("\n");
+    return lines.map((line, i) => (
+      <span key={i}>
+        {renderInlineLinks(line)}
+        {i < lines.length - 1 ? <br /> : null}
+      </span>
+    ));
+  }
   function subtaskStatusLabel(s: TaskSubtaskStatus) {
     switch (s) {
       case "not_done":
@@ -551,6 +601,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
         title: `Design: ${subtask.title}`,
         description: `Design work for: ${title}\nParent ticket: /tasks/${taskId}\nSubtask: ${subtask.title}`,
         team_id: designTeam.id,
+        // Route initial work to design approver (triage), and team-based approval stays on the Design team.
+        assignee_id: designTeam.approver_user_id ?? null,
         due_at: (subtask.due_at ?? dueAt ?? null) || null
       });
       await onUpdateSubtask(subtask.id, { linked_task_id: created.id });
@@ -764,14 +816,24 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div>
                   <div className="text-xs uppercase tracking-widest text-white/45">Description (optional)</div>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    disabled={!canEditDetails}
-                    rows={4}
-                    className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
-                    placeholder="No long explanations. Just enough context."
-                  />
+                  {canEditDetails ? (
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      disabled={!canEditDetails}
+                      rows={4}
+                      className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
+                      placeholder="No long explanations. Just enough context."
+                    />
+                  ) : (
+                    <div className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85">
+                      {description?.trim() ? (
+                        <div className="whitespace-pre-wrap">{renderTextWithLinks(description)}</div>
+                      ) : (
+                        <div className="text-white/35">No description.</div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {!canEditDetails ? (
