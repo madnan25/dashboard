@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
@@ -32,6 +32,8 @@ export default function TaskTeamsPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editApproverId, setEditApproverId] = useState("");
   const [saving, setSaving] = useState(false);
+  const lastSavedRef = useRef<{ name: string; description: string | null; approver_user_id: string } | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canManage = me?.role === "cmo";
   const selectedTeam = useMemo(() => teams.find((t) => t.id === selectedId) ?? null, [selectedId, teams]);
@@ -76,11 +78,17 @@ export default function TaskTeamsPage() {
       setEditName("");
       setEditDesc("");
       setEditApproverId("");
+      lastSavedRef.current = null;
       return;
     }
     setEditName(selectedTeam.name);
     setEditDesc(selectedTeam.description ?? "");
     setEditApproverId(selectedTeam.approver_user_id ?? "");
+    lastSavedRef.current = {
+      name: selectedTeam.name,
+      description: selectedTeam.description ?? null,
+      approver_user_id: selectedTeam.approver_user_id ?? ""
+    };
   }, [selectedTeam]);
 
   async function onCreateTeam() {
@@ -112,30 +120,46 @@ export default function TaskTeamsPage() {
     }
   }
 
-  async function onSaveTeam() {
-    if (!canManage || !selectedTeam) return;
+  // Autosave team edits (Notion-style). Debounced to avoid chatty updates.
+  useEffect(() => {
+    if (!canManage) return;
+    if (!selectedTeam) return;
+    if (!lastSavedRef.current) return;
+
     const name = editName.trim();
+    const description = editDesc.trim() ? editDesc.trim() : null;
+    const approver_user_id = editApproverId;
+
+    // Don't persist invalid state; let user keep typing/choosing.
     if (!name) return;
-    if (!editApproverId) {
-      setStatus("Approver is required.");
-      return;
-    }
-    setSaving(true);
-    setStatus("");
-    try {
-      await updateTaskTeam(selectedTeam.id, {
-        name,
-        description: editDesc.trim() ? editDesc.trim() : null,
-        approver_user_id: editApproverId
-      });
-      await refresh();
-      setStatus("Team updated.");
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to update team");
-    } finally {
-      setSaving(false);
-    }
-  }
+    if (!approver_user_id) return;
+
+    const prev = lastSavedRef.current;
+    const changed =
+      name !== prev.name || description !== prev.description || approver_user_id !== prev.approver_user_id;
+    if (!changed) return;
+
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(async () => {
+      setSaving(true);
+      setStatus("Saving…");
+      try {
+        await updateTaskTeam(selectedTeam.id, { name, description, approver_user_id });
+        lastSavedRef.current = { name, description, approver_user_id };
+        setStatus("Team updated.");
+        // Best-effort refresh so list/selection stays in sync.
+        await refresh().catch(() => null);
+      } catch (e) {
+        setStatus(e instanceof Error ? e.message : "Failed to update team");
+      } finally {
+        setSaving(false);
+      }
+    }, 650);
+
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [canManage, editApproverId, editDesc, editName, selectedTeam]);
 
   async function onDeleteTeam() {
     if (!canManage || !selectedTeam) return;
@@ -230,12 +254,6 @@ export default function TaskTeamsPage() {
               </PillSelect>
               {selectedTeam?.description ? <div className="mt-2 text-xs text-white/55">{selectedTeam.description}</div> : null}
             </div>
-
-            <div className="flex items-end justify-end gap-2">
-              <AppButton intent="primary" className="h-10 px-4" onPress={onSaveTeam} isDisabled={!selectedTeam || saving}>
-                {saving ? "Saving…" : "Save changes"}
-              </AppButton>
-            </div>
           </div>
 
           {selectedTeam ? (
@@ -260,6 +278,8 @@ export default function TaskTeamsPage() {
                     </option>
                   ))}
                 </PillSelect>
+                {!editName.trim() ? <div className="mt-2 text-xs text-white/45">Team name is required.</div> : null}
+                {!editApproverId ? <div className="mt-1 text-xs text-white/45">Approver is required.</div> : null}
               </div>
             </div>
           ) : (
