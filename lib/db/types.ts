@@ -218,13 +218,14 @@ export type TaskContribution = {
   updated_at: string;
 };
 
-// Subtasks use the same status model as tasks.
-export type TaskSubtaskStatus = TaskStatus;
+// Subtasks have a simplified 4-stage model.
+export type TaskSubtaskStatus = "not_done" | "done" | "blocked" | "on_hold";
 
 export type TaskSubtask = {
   id: string;
   task_id: string;
   title: string;
+  description: string | null;
   status: TaskSubtaskStatus;
   assignee_id: string | null;
   due_at: string | null; // date

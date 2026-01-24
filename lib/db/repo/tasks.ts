@@ -274,7 +274,7 @@ export async function deleteTaskContributionByRole(
 export async function listTaskSubtasks(supabase: SupabaseClient, taskId: string): Promise<TaskSubtask[]> {
   const { data, error } = await supabase
     .from("task_subtasks")
-    .select("id, task_id, title, status, assignee_id, due_at, effort_points, created_at, updated_at")
+    .select("id, task_id, title, description, status, assignee_id, due_at, effort_points, created_at, updated_at")
     .eq("task_id", taskId)
     .order("created_at", { ascending: true });
   if (error) throw error;
@@ -284,6 +284,7 @@ export async function listTaskSubtasks(supabase: SupabaseClient, taskId: string)
 export type CreateTaskSubtaskInput = {
   task_id: string;
   title: string;
+  description?: string | null;
   status?: TaskSubtaskStatus;
   assignee_id?: string | null;
   due_at?: string | null;
@@ -296,12 +297,13 @@ export async function createTaskSubtask(supabase: SupabaseClient, input: CreateT
     .insert({
       task_id: input.task_id,
       title: input.title,
-      status: input.status ?? "queued",
+      description: input.description ?? null,
+      status: input.status ?? "not_done",
       assignee_id: input.assignee_id ?? null,
       due_at: input.due_at ?? null,
       effort_points: Math.max(0, Math.trunc(input.effort_points ?? 0))
     })
-    .select("id, task_id, title, status, assignee_id, due_at, effort_points, created_at, updated_at")
+    .select("id, task_id, title, description, status, assignee_id, due_at, effort_points, created_at, updated_at")
     .single();
   if (error) throw error;
   return data as TaskSubtask;
@@ -310,7 +312,7 @@ export async function createTaskSubtask(supabase: SupabaseClient, input: CreateT
 export async function updateTaskSubtask(
   supabase: SupabaseClient,
   id: string,
-  patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "due_at" | "effort_points">>
+  patch: Partial<Pick<TaskSubtask, "title" | "description" | "status" | "assignee_id" | "due_at" | "effort_points">>
 ): Promise<void> {
   const { error } = await supabase.from("task_subtasks").update(patch).eq("id", id);
   if (error) throw error;

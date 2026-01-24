@@ -20,6 +20,7 @@ import type {
   TaskPriority,
   TaskStatus,
   TaskSubtask,
+  TaskSubtaskStatus,
   TaskTeam
 } from "@/lib/dashboardDb";
 import {
@@ -151,7 +152,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     const primaryId = assigneeId || task?.created_by || "";
     const ids = new Set<string>();
     for (const s of subtasks) {
-      if (s.assignee_id && s.assignee_id !== primaryId && s.status !== "dropped") {
+      if (s.assignee_id && s.assignee_id !== primaryId) {
         ids.add(s.assignee_id);
       }
     }
@@ -159,6 +160,20 @@ export function TaskPage({ taskId }: { taskId: string }) {
       .map((id) => profiles.find((p) => p.id === id) ?? null)
       .filter((p): p is Profile => Boolean(p));
   }, [assigneeId, profiles, subtasks, task?.created_by]);
+
+  const SUBTASK_STATUSES: TaskSubtaskStatus[] = ["not_done", "done", "blocked", "on_hold"];
+  function subtaskStatusLabel(s: TaskSubtaskStatus) {
+    switch (s) {
+      case "not_done":
+        return "Not done";
+      case "done":
+        return "Done";
+      case "blocked":
+        return "Blocked";
+      case "on_hold":
+        return "On hold";
+    }
+  }
   function getAssigneeOptionProfiles(selectedId: string | null) {
     if (!selectedId) return assignableProfiles;
     if (assignableProfiles.some((p) => p.id === selectedId)) return assignableProfiles;
@@ -472,7 +487,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
-  async function onUpdateSubtask(id: string, patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "due_at" | "effort_points">>) {
+  async function onUpdateSubtask(
+    id: string,
+    patch: Partial<Pick<TaskSubtask, "title" | "description" | "status" | "assignee_id" | "due_at" | "effort_points">>
+  ) {
     if (!canEditSubtasks) return;
     setStatus("Saving subtask…");
     const snapshot = subtasks;
@@ -739,21 +757,18 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                           <div className="min-w-0">
                             <div className="text-sm font-semibold text-white/90">{s.title}</div>
-                            <div className="mt-1 text-xs text-white/55">
-                              Status: {s.status}
-                              {s.due_at ? <span className="text-white/40"> · Due {s.due_at}</span> : null}
-                            </div>
+                            {s.description ? <div className="mt-1 text-xs text-white/60 whitespace-pre-wrap">{s.description}</div> : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             <PillSelect
                               value={s.status}
-                              onChange={(v) => onUpdateSubtask(s.id, { status: v as TaskSubtask["status"] })}
+                              onChange={(v) => onUpdateSubtask(s.id, { status: v as TaskSubtaskStatus })}
                               ariaLabel="Subtask status"
                               disabled={!canEditSubtasks}
                             >
-                              {[...PRIMARY_FLOW, ...SIDE_LANE].map((st) => (
+                              {SUBTASK_STATUSES.map((st) => (
                                 <option key={st} value={st} className="bg-zinc-900">
-                                  {statusLabel(st)}
+                                  {subtaskStatusLabel(st)}
                                 </option>
                               ))}
                             </PillSelect>
@@ -784,6 +799,18 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               Delete
                             </AppButton>
                           </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <div className="text-[11px] uppercase tracking-widest text-white/40">Description</div>
+                          <textarea
+                            value={s.description ?? ""}
+                            onChange={(e) => onUpdateSubtask(s.id, { description: e.target.value })}
+                            disabled={!canEditSubtasks}
+                            rows={2}
+                            className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-white/20"
+                            placeholder="What is this subtask?"
+                          />
                         </div>
                       </div>
                     ))}
