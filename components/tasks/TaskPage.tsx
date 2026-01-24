@@ -134,6 +134,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }, [approverProfile, approverUserId]);
   const isApprover = profile?.id != null && approverUserId != null && approverUserId === profile.id;
   const canApprove = isCmo || isApprover;
+  const statusOptions = useMemo<TaskStatus[]>(() => {
+    // Only the assigned approver (or CMO) can set Approved/Closed.
+    const all = [...PRIMARY_FLOW, ...SIDE_LANE] as TaskStatus[];
+    if (canApprove) return all;
+    return all.filter((s) => s !== "approved" && s !== "closed");
+  }, [canApprove]);
   const primaryContributor = useMemo(() => {
     const primaryId = assigneeId || task?.created_by || "";
     if (!primaryId) return null;
@@ -516,6 +522,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   async function onSetStatus(next: TaskStatus) {
     if (!canEditAttributes) return;
+    if ((next === "approved" || next === "closed") && !canApprove) {
+      setStatus("Only the assigned approver can approve or close this ticket.");
+      return;
+    }
     const prevStatus = taskStatus;
     const prevApproval = approvalState;
     setTaskStatus(next);
@@ -903,7 +913,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   <div className="text-xs uppercase tracking-widest text-white/45">Status</div>
                   {canEditAttributes ? (
                     <PillSelect value={taskStatus} onChange={(v) => onSetStatus(v as TaskStatus)} ariaLabel="Status">
-                      {[...PRIMARY_FLOW, ...SIDE_LANE].map((s) => (
+                      {statusOptions.map((s) => (
                         <option key={s} value={s} className="bg-zinc-900">
                           {statusLabel(s)}
                         </option>

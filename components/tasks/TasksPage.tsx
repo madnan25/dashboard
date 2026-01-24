@@ -181,11 +181,10 @@ export function TasksPage() {
     const isApprover = profile?.id != null && t.approver_user_id != null && t.approver_user_id === profile.id;
     if (isCmo || isApprover) return { ok: true };
 
-    // Non-approvers: can move only within early workflow and into holds
-    const allowed: TaskStatus[] = ["queued", "in_progress", "submitted", "blocked", "on_hold"];
-    const terminalForNonManagers: TaskStatus[] = ["submitted", "blocked", "on_hold"];
-    if (!allowed.includes(next)) return { ok: false, reason: "Only approvers can move to that stage" };
-    if (terminalForNonManagers.includes(t.status) && next !== t.status) return { ok: false, reason: "Only approvers can move tickets after this stage" };
+    // Non-approvers: can work tickets, but cannot approve or close.
+    // Important: allow moving back from Submitted to In Progress if approval fails.
+    const allowedNext: TaskStatus[] = ["queued", "in_progress", "submitted", "blocked", "on_hold", "dropped"];
+    if (!allowedNext.includes(next)) return { ok: false, reason: "Only the assigned approver can move to that stage" };
     return { ok: true };
   }
 
@@ -195,10 +194,12 @@ export function TasksPage() {
       setStatus(chk.reason || "Move not allowed");
       return;
     }
+    const isApprover = profile?.id != null && t.approver_user_id != null && t.approver_user_id === profile.id;
+    const canApprove = isCmo || isApprover;
     const patch: Parameters<typeof updateTask>[1] = { status: next };
     if (t.approval_state !== "not_required") {
       // If you can move a ticket into Approved, you can also approve it.
-      if (next === "approved") patch.approval_state = "approved";
+      if (next === "approved" && canApprove) patch.approval_state = "approved";
       // Only reset approval when moving back to pre-approval stages.
       if (next === "queued" || next === "in_progress" || next === "submitted") patch.approval_state = "pending";
     }
