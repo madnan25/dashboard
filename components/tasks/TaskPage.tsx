@@ -91,7 +91,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const canEditStatus = Boolean(profile && isMarketingTeamProfile(profile)) || canEditProperties;
   const canEditTask = canEditDetails || canEditProperties;
   const canComment = profile != null;
-  const canModerateComments = isManager;
   const canDelete = isCmo;
   const canCreateSubtasks = profile != null; // anyone who can view the ticket can add subtasks
   const canEditSubtasks = Boolean(profile && isMarketingTeamProfile(profile)); // marketing team can manage subtasks
@@ -308,7 +307,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   function onEditComment(comment: TaskComment) {
-    if (!canModerateComments) return;
+    if (!profile) return;
+    if (comment.author_id !== profile.id) return;
     setEditingCommentId(comment.id);
     setEditingBody(comment.body);
   }
@@ -319,7 +319,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onSaveCommentEdit(id: string) {
-    if (!canModerateComments) return;
+    if (!profile) return;
+    const existing = comments.find((c) => c.id === id) ?? null;
+    if (!existing || existing.author_id !== profile.id) return;
     const body = editingBody.trim();
     if (!body) return;
     setSavingComment(true);
@@ -340,7 +342,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   async function onDeleteComment(id: string) {
-    if (!canModerateComments) return;
+    if (!profile) return;
+    const existing = comments.find((c) => c.id === id) ?? null;
+    if (!existing || existing.author_id !== profile.id) return;
     if (!confirm("Delete this comment?")) return;
     setSavingComment(true);
     setStatus("Deleting comment…");
@@ -866,6 +870,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         const edited = Number.isFinite(updatedAt.getTime()) && updatedAt.getTime() - createdAt.getTime() > 1000;
                         const when = createdAt.toLocaleString();
                         const isEditing = editingCommentId === c.id;
+                        const canEditThisComment = profile?.id != null && c.author_id === profile.id;
                         return (
                           <div key={c.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
                             <div className="flex items-start justify-between gap-3">
@@ -881,7 +886,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                   ) : null}
                                 </span>
                               </div>
-                              {canModerateComments ? (
+                              {canEditThisComment ? (
                                 <div className="flex items-center gap-2">
                                   {isEditing ? null : (
                                     <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onEditComment(c)}>
