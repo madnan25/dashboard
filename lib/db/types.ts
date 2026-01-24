@@ -240,6 +240,7 @@ export type TaskSubtask = {
   description: string | null;
   status: TaskSubtaskStatus;
   assignee_id: string | null;
+  linked_task_id?: string | null;
   due_at: string | null; // date
   effort_points: number;
   created_at: string;

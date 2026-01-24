@@ -352,7 +352,7 @@ export async function createTaskSubtask(input: {
 
 export async function updateTaskSubtask(
   id: string,
-  patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "due_at" | "effort_points">>
+  patch: Partial<Pick<TaskSubtask, "title" | "status" | "assignee_id" | "linked_task_id" | "due_at" | "effort_points">>
 ): Promise<void> {
   return await repo().updateTaskSubtask(id, patch);
 }
