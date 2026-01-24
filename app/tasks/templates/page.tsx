@@ -6,7 +6,7 @@ import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
 import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
-import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
+import { isMarketingManagerProfile } from "@/components/tasks/taskModel";
 import type { Profile, TaskTeam } from "@/lib/dashboardDb";
 import { createTaskTeam, deleteTaskTeam, getCurrentProfile, listProfiles, listTaskTeams, updateTaskTeam } from "@/lib/dashboardDb";
 
@@ -35,7 +35,8 @@ export default function TaskTeamsPage() {
 
   const canManage = me?.role === "cmo";
   const selectedTeam = useMemo(() => teams.find((t) => t.id === selectedId) ?? null, [selectedId, teams]);
-  const approverProfiles = useMemo(() => profiles.filter(isMarketingTeamProfile), [profiles]);
+  // Approver must be a marketing manager (CMO counts).
+  const approverProfiles = useMemo(() => profiles.filter(isMarketingManagerProfile), [profiles]);
 
   function getApproverOptionProfiles(selected: string) {
     if (!selected) return approverProfiles;
@@ -86,13 +87,17 @@ export default function TaskTeamsPage() {
     if (!canManage) return;
     const name = newName.trim();
     if (!name) return;
+    if (!newApproverId) {
+      setStatus("Select an approver (required) before creating a team.");
+      return;
+    }
     setCreating(true);
     setStatus("");
     try {
       const created = await createTaskTeam({
         name,
         description: newDesc.trim() ? newDesc.trim() : null,
-        approver_user_id: newApproverId || null
+        approver_user_id: newApproverId
       });
       setNewName("");
       setNewDesc("");
@@ -111,13 +116,17 @@ export default function TaskTeamsPage() {
     if (!canManage || !selectedTeam) return;
     const name = editName.trim();
     if (!name) return;
+    if (!editApproverId) {
+      setStatus("Approver is required.");
+      return;
+    }
     setSaving(true);
     setStatus("");
     try {
       await updateTaskTeam(selectedTeam.id, {
         name,
         description: editDesc.trim() ? editDesc.trim() : null,
-        approver_user_id: editApproverId || null
+        approver_user_id: editApproverId
       });
       await refresh();
       setStatus("Team updated.");
@@ -172,7 +181,7 @@ export default function TaskTeamsPage() {
               <div className="mt-2">
                 <PillSelect value={newApproverId} onChange={setNewApproverId} ariaLabel="Approver" disabled={creating}>
                   <option value="" className="bg-zinc-900">
-                    Select approver (optional)
+                    Select approver (required)
                   </option>
                   {getApproverOptionProfiles(newApproverId).map((p) => (
                     <option key={p.id} value={p.id} className="bg-zinc-900">
@@ -182,7 +191,12 @@ export default function TaskTeamsPage() {
                 </PillSelect>
               </div>
             </div>
-            <AppButton intent="primary" className="h-11 px-6" onPress={onCreateTeam} isDisabled={creating || !newName.trim()}>
+            <AppButton
+              intent="primary"
+              className="h-11 px-6"
+              onPress={onCreateTeam}
+              isDisabled={creating || !newName.trim() || !newApproverId}
+            >
               {creating ? "Creating…" : "Create team"}
             </AppButton>
           </div>
@@ -238,7 +252,7 @@ export default function TaskTeamsPage() {
                 <div className="text-xs uppercase tracking-widest text-white/45">Approver</div>
                 <PillSelect value={editApproverId} onChange={setEditApproverId} ariaLabel="Approver" disabled={saving} className="mt-2">
                   <option value="" className="bg-zinc-900">
-                    Select approver (optional)
+                    Select approver (required)
                   </option>
                   {getApproverOptionProfiles(editApproverId).map((p) => (
                     <option key={p.id} value={p.id} className="bg-zinc-900">
