@@ -388,9 +388,15 @@ export function TasksPage() {
 
             <div className="my-5 h-px bg-white/10" />
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div
+              className={
+                view === "calendar"
+                  ? "flex flex-col gap-3"
+                  : "flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+              }
+            >
               <div className="text-sm text-white/60">{status || " "}</div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className={view === "calendar" ? "flex flex-wrap items-center gap-2 w-full" : "flex flex-wrap items-center gap-2"}>
                 <PillSelect value={assigneeFilter} onChange={setAssigneeFilter} ariaLabel="Assignee filter">
                   <option value="" className="bg-zinc-900">
                     All assignees
@@ -449,30 +455,32 @@ export function TasksPage() {
               </div>
             </div>
 
-            {view === "calendar" ? (
-              <TasksCalendar
-                tasks={calendarTasks}
-                year={calYear}
-                monthIndex={calMonthIndex}
-                onOpenTask={(t) => {
-                  router.push(`/tasks/${t.id}`);
-                }}
-                canEditDueForTask={canEditDueForTask}
-                onMoveTaskDue={onMoveTaskDue}
-              />
-            ) : (
-              <KanbanBoard
-                tasks={filtered}
-                profiles={profiles}
-                projects={projects}
-                teams={teams}
-                onOpenTask={(t) => {
-                  router.push(`/tasks/${t.id}`);
-                }}
-                canMoveToStatus={canMoveToStatus}
-                onMoveTask={onMoveTask}
-              />
-            )}
+            <div className="mt-4">
+              {view === "calendar" ? (
+                <TasksCalendar
+                  tasks={calendarTasks}
+                  year={calYear}
+                  monthIndex={calMonthIndex}
+                  onOpenTask={(t) => {
+                    router.push(`/tasks/${t.id}`);
+                  }}
+                  canEditDueForTask={canEditDueForTask}
+                  onMoveTaskDue={onMoveTaskDue}
+                />
+              ) : (
+                <KanbanBoard
+                  tasks={filtered}
+                  profiles={profiles}
+                  projects={projects}
+                  teams={teams}
+                  onOpenTask={(t) => {
+                    router.push(`/tasks/${t.id}`);
+                  }}
+                  canMoveToStatus={canMoveToStatus}
+                  onMoveTask={onMoveTask}
+                />
+              )}
+            </div>
           </Surface>
         )}
       </div>
