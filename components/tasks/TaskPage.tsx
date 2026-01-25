@@ -122,6 +122,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [linkedTaskTitles, setLinkedTaskTitles] = useState<Record<string, string>>({});
   const [subtaskLinkAction, setSubtaskLinkAction] = useState<Record<string, "" | "existing" | "design">>({});
+  const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, { description?: string }>>({});
 
   const lastSavedRef = useRef<{
     title: string;
@@ -137,6 +138,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveSeqRef = useRef(0);
+  const subtaskAutosaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
+  const subtaskAutosaveSeqRef = useRef<Record<string, number>>({});
+  const subtaskDraftsRef = useRef<Record<string, { description?: string }>>({});
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
@@ -685,6 +689,42 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
+  function onUpdateSubtaskDescriptionDraft(id: string, nextDescription: string) {
+    if (!canEditSubtasks) return;
+    // Update UI immediately.
+    setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, description: nextDescription } : s)));
+    setSubtaskDrafts((prev) => {
+      const next = { ...prev, [id]: { ...(prev[id] ?? {}), description: nextDescription } };
+      subtaskDraftsRef.current = next;
+      return next;
+    });
+
+    // Debounce network saves to avoid input jitter from out-of-order responses.
+    const prevTimer = subtaskAutosaveTimersRef.current[id];
+    if (prevTimer) clearTimeout(prevTimer);
+    const seq = (subtaskAutosaveSeqRef.current[id] ?? 0) + 1;
+    subtaskAutosaveSeqRef.current[id] = seq;
+    subtaskAutosaveTimersRef.current[id] = setTimeout(async () => {
+      const draft = subtaskDraftsRef.current[id]?.description ?? nextDescription;
+      try {
+        // Keep the status subtle; don't spam on every keystroke.
+        const updated = await updateTaskSubtask(id, { description: draft });
+        if (subtaskAutosaveSeqRef.current[id] !== seq) return; // superseded
+        setSubtasks((prev) => prev.map((s) => (s.id === id ? updated : s)));
+        setSubtaskDrafts((prev) => {
+          const copy = { ...prev };
+          delete copy[id];
+          subtaskDraftsRef.current = copy;
+          return copy;
+        });
+      } catch (e) {
+        if (subtaskAutosaveSeqRef.current[id] !== seq) return;
+        setStatus(getErrorMessage(e, "Failed to save subtask"));
+        await refreshSubtasksOnly().catch(() => null);
+      }
+    }, 450);
+  }
+
   async function onUpdateSubtaskLink(subtask: TaskSubtask, nextLinkedId: string | null) {
     if (!profile || !isMarketingTeamProfile(profile)) return;
     if (!canManageSubtaskLinks(subtask)) return;
@@ -1138,8 +1178,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         <div className="mt-3">
                           <div className="text-[11px] uppercase tracking-widest text-white/40">Description</div>
                           <textarea
-                            value={s.description ?? ""}
-                            onChange={(e) => onUpdateSubtask(s.id, { description: e.target.value })}
+                            value={subtaskDrafts[s.id]?.description ?? s.description ?? ""}
+                            onChange={(e) => onUpdateSubtaskDescriptionDraft(s.id, e.target.value)}
                             disabled={!canEditSubtasks}
                             rows={2}
                             className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-white/20"
