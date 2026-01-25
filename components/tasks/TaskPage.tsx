@@ -707,7 +707,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     subtaskAutosaveTimersRef.current[id] = setTimeout(async () => {
       const draft = subtaskDraftsRef.current[id]?.description ?? nextDescription;
       try {
-        // Keep the status subtle; don't spam on every keystroke.
+        setStatus("Saving subtask…");
         const updated = await updateTaskSubtask(id, { description: draft });
         if (subtaskAutosaveSeqRef.current[id] !== seq) return; // superseded
         setSubtasks((prev) => prev.map((s) => (s.id === id ? updated : s)));
@@ -717,6 +717,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
           subtaskDraftsRef.current = copy;
           return copy;
         });
+        setStatus("Subtask saved.");
       } catch (e) {
         if (subtaskAutosaveSeqRef.current[id] !== seq) return;
         setStatus(getErrorMessage(e, "Failed to save subtask"));

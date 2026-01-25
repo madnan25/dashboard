@@ -344,13 +344,16 @@ export async function updateTaskSubtask(
   id: string,
   patch: Partial<Pick<TaskSubtask, "title" | "description" | "status" | "assignee_id" | "linked_task_id" | "due_at" | "effort_points">>
 ): Promise<TaskSubtask> {
-  const { data, error } = await supabase
-    .from("task_subtasks")
-    .update(patch)
-    .eq("id", id)
-    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
-    .single();
+  const { error } = await supabase.from("task_subtasks").update(patch).eq("id", id);
   if (error) throw error;
+
+  // Fetch after UPDATE to reflect any trigger-driven follow-up updates.
+  const { data, error: readError } = await supabase
+    .from("task_subtasks")
+    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .eq("id", id)
+    .single();
+  if (readError) throw readError;
   return data as TaskSubtask;
 }
 
