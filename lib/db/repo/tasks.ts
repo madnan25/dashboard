@@ -343,9 +343,15 @@ export async function updateTaskSubtask(
   supabase: SupabaseClient,
   id: string,
   patch: Partial<Pick<TaskSubtask, "title" | "description" | "status" | "assignee_id" | "linked_task_id" | "due_at" | "effort_points">>
-): Promise<void> {
-  const { error } = await supabase.from("task_subtasks").update(patch).eq("id", id);
+): Promise<TaskSubtask> {
+  const { data, error } = await supabase
+    .from("task_subtasks")
+    .update(patch)
+    .eq("id", id)
+    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .single();
   if (error) throw error;
+  return data as TaskSubtask;
 }
 
 export async function deleteTaskSubtask(supabase: SupabaseClient, id: string): Promise<void> {

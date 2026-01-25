@@ -174,6 +174,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }, [assigneeId, profiles, subtasks, task?.created_by]);
 
   const SUBTASK_STATUSES: TaskSubtaskStatus[] = ["not_done", "done", "blocked", "on_hold"];
+  const TASK_LINK_CLASS =
+    "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-blue-400/60 text-blue-300 hover:text-violet-200 hover:decoration-violet-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/30 rounded-sm";
+  const EXTERNAL_LINK_CLASS =
+    "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-sky-400/60 text-sky-300 hover:text-sky-200 hover:decoration-sky-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/30 rounded-sm";
+
   function extractTaskId(raw: string): string | null {
     const s = (raw || "").trim();
     if (!s) return null;
@@ -181,6 +186,23 @@ export function TaskPage({ taskId }: { taskId: string }) {
     const uuid =
       s.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] ?? null;
     return uuid ? uuid.toLowerCase() : null;
+  }
+
+  function stripDashboardLinkedSubtaskMarkers(text: string) {
+    // Hide legacy system markers from the UI (do not auto-mutate stored content).
+    return (text || "")
+      .replace(/^\s*<!--dashboard:linked-subtask-->\s*\n?/gim, "")
+      .replace(/^\s*<!--dashboard:linked-subtask-end-->\s*\n?/gim, "");
+  }
+
+  function extractTaskIdsFromText(text: string) {
+    const re = /\/tasks\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
+    const ids = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text || "")) !== null) {
+      ids.add(m[1].toLowerCase());
+    }
+    return Array.from(ids);
   }
 
   function renderInlineLinks(text: string): React.ReactNode[] {
@@ -193,13 +215,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
       if (before) nodes.push(before);
       const token = m[0];
       if (token.startsWith("/tasks/")) {
-        const id = token.slice("/tasks/".length);
+        const id = token.slice("/tasks/".length).toLowerCase();
         const label = linkedTaskTitles[id] || `${id.slice(0, 8)}…`;
         nodes.push(
           <button
             key={`${m.index}-${token}`}
             type="button"
-            className="underline text-white/85 hover:text-white"
+            className={TASK_LINK_CLASS}
             onClick={(e) => {
               e.stopPropagation();
               router.push(token);
@@ -216,7 +238,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
             href={token}
             target="_blank"
             rel="noreferrer"
-            className="underline text-white/85 hover:text-white"
+            className={EXTERNAL_LINK_CLASS}
             onClick={(e) => e.stopPropagation()}
           >
             {token}
@@ -244,22 +266,18 @@ export function TaskPage({ taskId }: { taskId: string }) {
   useEffect(() => {
     let cancelled = false;
     async function hydrateTitles() {
-      const re = /\/tasks\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
-      const ids = new Set<string>();
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(description || "")) !== null) {
-        ids.add(m[1].toLowerCase());
-      }
-      if (ids.size === 0) return;
+      const ids = extractTaskIdsFromText(description || "");
+      if (ids.length === 0) return;
 
       // We always know the current ticket title.
       setLinkedTaskTitles((prev) => {
         const next = { ...prev };
-        next[taskId] = title || next[taskId] || `${taskId.slice(0, 8)}…`;
+        const k = taskId.toLowerCase();
+        next[k] = title || next[k] || `${k.slice(0, 8)}…`;
         return next;
       });
 
-      const missing = Array.from(ids).filter((id) => !(id in linkedTaskTitles));
+      const missing = ids.filter((id) => !(id in linkedTaskTitles));
       if (missing.length === 0) return;
 
       try {
@@ -269,7 +287,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
         setLinkedTaskTitles((prev) => {
           const next = { ...prev };
           for (const t of rows) {
-            next[t.id] = t.title || `${t.id.slice(0, 8)}…`;
+            const k = t.id.toLowerCase();
+            next[k] = t.title || `${k.slice(0, 8)}…`;
           }
           return next;
         });
@@ -286,7 +305,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   const ensureTaskTitlesLoaded = useCallback(
     async (ids: Array<string | null | undefined>) => {
-      const wanted = Array.from(new Set(ids.filter((x): x is string => Boolean(x))));
+      const wanted = Array.from(new Set(ids.filter((x): x is string => Boolean(x)).map((x) => x.toLowerCase())));
       if (wanted.length === 0) return;
       const missing = wanted.filter((id) => !(id in linkedTaskTitles));
       if (missing.length === 0) return;
@@ -296,7 +315,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
         setLinkedTaskTitles((prev) => {
           const next = { ...prev };
           for (const t of rows) {
-            next[t.id] = t.title || `${t.id.slice(0, 8)}…`;
+            const k = t.id.toLowerCase();
+            next[k] = t.title || `${k.slice(0, 8)}…`;
           }
           return next;
         });
@@ -364,7 +384,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setLedger(led);
       setSubtasks(subs);
       setTeams(teamRows);
-      await ensureTaskTitlesLoaded([...(subs.map((s) => s.linked_task_id ?? null) ?? [])]);
+      await ensureTaskTitlesLoaded([
+        ...(subs.map((s) => s.linked_task_id ?? null) ?? []),
+        ...extractTaskIdsFromText(t?.description ?? "")
+      ]);
       await ensureProfilesLoaded([
         t?.created_by,
         t?.assignee_id,
@@ -652,7 +675,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
     const snapshot = subtasks;
     setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
     try {
-      await updateTaskSubtask(id, patch);
+      const updated = await updateTaskSubtask(id, patch);
+      setSubtasks((prev) => prev.map((s) => (s.id === id ? updated : s)));
       setStatus("Subtask saved.");
     } catch (e) {
       setSubtasks(snapshot);
@@ -668,8 +692,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
     const snapshot = subtasks;
     setSubtasks((prev) => prev.map((s) => (s.id === subtask.id ? { ...s, linked_task_id: nextLinkedId } : s)));
     try {
-      await updateTaskSubtask(subtask.id, { linked_task_id: nextLinkedId });
-      await ensureTaskTitlesLoaded([nextLinkedId]);
+      const updated = await updateTaskSubtask(subtask.id, { linked_task_id: nextLinkedId });
+      setSubtasks((prev) => prev.map((s) => (s.id === subtask.id ? updated : s)));
+      await ensureTaskTitlesLoaded([updated.linked_task_id]);
       setStatus(nextLinkedId ? "Ticket linked." : "Ticket unlinked.");
     } catch (e) {
       setSubtasks(snapshot);
@@ -702,14 +727,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setStatus("Creating design ticket…");
     try {
       const block = [
-        "<!--dashboard:linked-subtask-->",
         `Design work for: ${title || "—"}`,
         `Parent ticket: /tasks/${taskId}`,
         `Subtask: ${subtask.title}`,
+        "",
         "Subtask details:",
         subtask.description || "",
-        "<!--dashboard:linked-subtask-end-->"
-      ].join("\n");
+      ]
+        .join("\n")
+        .trimEnd();
       const created = await createTask({
         title: `Design: ${subtask.title}`,
         description: block,
@@ -718,6 +744,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
         assignee_id: designTeam.approver_user_id ?? null,
         due_at: (subtask.due_at ?? dueAt ?? null) || null
       });
+      // Make the next click feel instant + avoid a "missing title" flash.
+      router.prefetch(`/tasks/${created.id}`);
+      setLinkedTaskTitles((prev) => ({
+        ...prev,
+        [created.id.toLowerCase()]: created.title || `Design: ${subtask.title}`
+      }));
       await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Design ticket created.");
     } catch (e) {
@@ -952,7 +984,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       }}
                     >
                       {description?.trim() ? (
-                        <div className="whitespace-pre-wrap">{renderTextWithLinks(description)}</div>
+                        <div className="whitespace-pre-wrap">
+                          {renderTextWithLinks(stripDashboardLinkedSubtaskMarkers(description))}
+                        </div>
                       ) : (
                         <div className="text-white/35">{canEditDetails ? "Click to add a description…" : "No description."}</div>
                       )}
@@ -1047,10 +1081,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             <>
                               <button
                                 type="button"
-                                className="text-sm text-white/80 underline hover:text-white"
+                                className={TASK_LINK_CLASS}
                                 onClick={() => router.push(`/tasks/${s.linked_task_id}`)}
                               >
-                                {linkedTaskTitles[s.linked_task_id] || `${s.linked_task_id.slice(0, 8)}…`}
+                                {linkedTaskTitles[s.linked_task_id.toLowerCase()] || `${s.linked_task_id.slice(0, 8)}…`}
                               </button>
                               <div className="text-xs text-white/45">Status + assignee sync from linked ticket.</div>
                               {canManageSubtaskLinks(s) ? (
