@@ -730,7 +730,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
         `Design work for: ${title || "—"}`,
         `Parent ticket: /tasks/${taskId}`,
         `Subtask: ${subtask.title}`,
-        "",
         "Subtask details:",
         subtask.description || "",
       ]
