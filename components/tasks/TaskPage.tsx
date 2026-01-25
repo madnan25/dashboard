@@ -96,6 +96,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const canDelete = isCmo;
   const canCreateSubtasks = profile != null; // anyone who can view the ticket can add subtasks
   const canEditSubtasks = Boolean(profile && isMarketingTeamProfile(profile)); // marketing team can manage subtasks
+  function canManageSubtaskLinks(s: TaskSubtask) {
+    if (!profile) return false;
+    if (isManager) return true;
+    return s.created_by != null && s.created_by === profile.id;
+  }
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -966,7 +971,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               value={s.assignee_id ?? ""}
                               onChange={(v) => onUpdateSubtask(s.id, { assignee_id: v || null })}
                               ariaLabel="Subtask assignee"
-                              disabled={!canEditSubtasks}
+                              disabled={!canEditSubtasks || Boolean(s.linked_task_id)}
                             >
                               <option value="" className="bg-zinc-900">
                                 Unassigned
@@ -1002,38 +1007,44 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               >
                                 {s.linked_task_id.slice(0, 8)}…
                               </button>
-                              <div className="text-xs text-white/45">Status syncs from linked ticket.</div>
+                              <div className="text-xs text-white/45">Status + assignee sync from linked ticket.</div>
                               <AppButton
                                 intent="secondary"
                                 size="sm"
                                 className="h-9 px-4"
                                 onPress={() => onUpdateSubtask(s.id, { linked_task_id: null })}
-                                isDisabled={!canEditSubtasks}
+                                isDisabled={!canManageSubtaskLinks(s)}
                               >
                                 Unlink
                               </AppButton>
                             </>
                           ) : (
-                            <>
-                              <AppButton
-                                intent="secondary"
-                                size="sm"
-                                className="h-9 px-4"
-                                onPress={() => onLinkExistingTicketForSubtask(s.id)}
-                                isDisabled={!canEditSubtasks}
-                              >
-                                Link existing
-                              </AppButton>
-                              <AppButton
-                                intent="secondary"
-                                size="sm"
-                                className="h-9 px-4"
-                                onPress={() => onCreateDesignTicketForSubtask(s)}
-                                isDisabled={!canEditSubtasks}
-                              >
-                                Create design ticket
-                              </AppButton>
-                            </>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {canManageSubtaskLinks(s) ? (
+                                <>
+                                  <AppButton
+                                    intent="secondary"
+                                    size="sm"
+                                    className="h-9 px-4"
+                                    onPress={() => onLinkExistingTicketForSubtask(s.id)}
+                                    isDisabled={!canEditSubtasks}
+                                  >
+                                    Link existing
+                                  </AppButton>
+                                  <AppButton
+                                    intent="secondary"
+                                    size="sm"
+                                    className="h-9 px-4"
+                                    onPress={() => onCreateDesignTicketForSubtask(s)}
+                                    isDisabled={!canEditSubtasks}
+                                  >
+                                    Create design ticket
+                                  </AppButton>
+                                </>
+                              ) : (
+                                <div className="text-xs text-white/40">Linking is restricted to the subtask author or managers.</div>
+                              )}
+                            </div>
                           )}
                         </div>
 

@@ -236,6 +236,7 @@ export type TaskSubtaskStatus = "not_done" | "done" | "blocked" | "on_hold";
 export type TaskSubtask = {
   id: string;
   task_id: string;
+  created_by?: string | null;
   title: string;
   description: string | null;
   status: TaskSubtaskStatus;
