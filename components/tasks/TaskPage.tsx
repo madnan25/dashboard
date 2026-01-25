@@ -651,9 +651,18 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
     setStatus("Creating design ticket…");
     try {
+      const block = [
+        "<!--dashboard:linked-subtask-->",
+        `Design work for: ${title || "—"}`,
+        `Parent ticket: /tasks/${taskId}`,
+        `Subtask: ${subtask.title}`,
+        "Subtask details:",
+        subtask.description || "",
+        "<!--dashboard:linked-subtask-end-->"
+      ].join("\n");
       const created = await createTask({
         title: `Design: ${subtask.title}`,
-        description: `Design work for: ${title}\nParent ticket: /tasks/${taskId}\nSubtask: ${subtask.title}`,
+        description: block,
         team_id: designTeam.id,
         // Route initial work to design approver (triage), and team-based approval stays on the Design team.
         assignee_id: designTeam.approver_user_id ?? null,
@@ -945,7 +954,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               value={s.status}
                               onChange={(v) => onUpdateSubtask(s.id, { status: v as TaskSubtaskStatus })}
                               ariaLabel="Subtask status"
-                              disabled={!canEditSubtasks}
+                              disabled={!canEditSubtasks || Boolean(s.linked_task_id)}
                             >
                               {SUBTASK_STATUSES.map((st) => (
                                 <option key={st} value={st} className="bg-zinc-900">
@@ -993,6 +1002,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               >
                                 {s.linked_task_id.slice(0, 8)}…
                               </button>
+                              <div className="text-xs text-white/45">Status syncs from linked ticket.</div>
                               <AppButton
                                 intent="secondary"
                                 size="sm"
