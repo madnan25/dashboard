@@ -121,6 +121,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [savingComment, setSavingComment] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [linkedTaskTitles, setLinkedTaskTitles] = useState<Record<string, string>>({});
+  const [subtaskLinkAction, setSubtaskLinkAction] = useState<Record<string, "" | "existing" | "design">>({});
 
   const lastSavedRef = useRef<{
     title: string;
@@ -282,6 +283,29 @@ export function TaskPage({ taskId }: { taskId: string }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [description, taskId]);
+
+  const ensureTaskTitlesLoaded = useCallback(
+    async (ids: Array<string | null | undefined>) => {
+      const wanted = Array.from(new Set(ids.filter((x): x is string => Boolean(x))));
+      if (wanted.length === 0) return;
+      const missing = wanted.filter((id) => !(id in linkedTaskTitles));
+      if (missing.length === 0) return;
+      try {
+        const rows = await listTasksByIds(missing);
+        if (!rows || rows.length === 0) return;
+        setLinkedTaskTitles((prev) => {
+          const next = { ...prev };
+          for (const t of rows) {
+            next[t.id] = t.title || `${t.id.slice(0, 8)}…`;
+          }
+          return next;
+        });
+      } catch {
+        // ignore (RLS may block; links still work)
+      }
+    },
+    [linkedTaskTitles]
+  );
   function subtaskStatusLabel(s: TaskSubtaskStatus) {
     switch (s) {
       case "not_done":
@@ -340,6 +364,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setLedger(led);
       setSubtasks(subs);
       setTeams(teamRows);
+      await ensureTaskTitlesLoaded([...(subs.map((s) => s.linked_task_id ?? null) ?? [])]);
       await ensureProfilesLoaded([
         t?.created_by,
         t?.assignee_id,
@@ -386,11 +411,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
     } finally {
       setLoadingTask(false);
     }
-  }, [ensureProfilesLoaded, taskId]);
+  }, [ensureProfilesLoaded, ensureTaskTitlesLoaded, taskId]);
 
   async function refreshSubtasksOnly() {
     const subs = await listTaskSubtasks(taskId);
     setSubtasks(subs);
+    await ensureTaskTitlesLoaded([...(subs.map((s) => s.linked_task_id ?? null) ?? [])]);
   }
 
   async function refreshCommentsOnly() {
@@ -635,8 +661,26 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
-  async function onLinkExistingTicketForSubtask(subtaskId: string) {
-    if (!canEditSubtasks) return;
+  async function onUpdateSubtaskLink(subtask: TaskSubtask, nextLinkedId: string | null) {
+    if (!profile || !isMarketingTeamProfile(profile)) return;
+    if (!canManageSubtaskLinks(subtask)) return;
+    setStatus("Linking ticket…");
+    const snapshot = subtasks;
+    setSubtasks((prev) => prev.map((s) => (s.id === subtask.id ? { ...s, linked_task_id: nextLinkedId } : s)));
+    try {
+      await updateTaskSubtask(subtask.id, { linked_task_id: nextLinkedId });
+      await ensureTaskTitlesLoaded([nextLinkedId]);
+      setStatus(nextLinkedId ? "Ticket linked." : "Ticket unlinked.");
+    } catch (e) {
+      setSubtasks(snapshot);
+      await refreshSubtasksOnly().catch(() => null);
+      setStatus(getErrorMessage(e, "Failed to link ticket"));
+    }
+  }
+
+  async function onLinkExistingTicketForSubtask(subtask: TaskSubtask) {
+    if (!profile || !isMarketingTeamProfile(profile)) return;
+    if (!canManageSubtaskLinks(subtask)) return;
     const raw = prompt("Paste the ticket URL or ID to link to this subtask:");
     if (!raw) return;
     const linkedId = extractTaskId(raw);
@@ -644,11 +688,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setStatus("Could not detect a ticket ID. Paste a /tasks/<id> link or UUID.");
       return;
     }
-    await onUpdateSubtask(subtaskId, { linked_task_id: linkedId });
+    await onUpdateSubtaskLink(subtask, linkedId);
   }
 
   async function onCreateDesignTicketForSubtask(subtask: TaskSubtask) {
-    if (!canEditSubtasks) return;
+    if (!profile || !isMarketingTeamProfile(profile)) return;
+    if (!canManageSubtaskLinks(subtask)) return;
     const designTeam = teams.find((t) => t.name.toLowerCase().includes("design")) ?? null;
     if (!designTeam) {
       setStatus("No Design team found. Create a Team named “Design” (or similar) first.");
@@ -673,7 +718,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         assignee_id: designTeam.approver_user_id ?? null,
         due_at: (subtask.due_at ?? dueAt ?? null) || null
       });
-      await onUpdateSubtask(subtask.id, { linked_task_id: created.id });
+      await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Design ticket created.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to create design ticket");
@@ -1005,45 +1050,54 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 className="text-sm text-white/80 underline hover:text-white"
                                 onClick={() => router.push(`/tasks/${s.linked_task_id}`)}
                               >
-                                {s.linked_task_id.slice(0, 8)}…
+                                {linkedTaskTitles[s.linked_task_id] || `${s.linked_task_id.slice(0, 8)}…`}
                               </button>
                               <div className="text-xs text-white/45">Status + assignee sync from linked ticket.</div>
-                              <AppButton
-                                intent="secondary"
-                                size="sm"
-                                className="h-9 px-4"
-                                onPress={() => onUpdateSubtask(s.id, { linked_task_id: null })}
-                                isDisabled={!canManageSubtaskLinks(s)}
-                              >
-                                Unlink
-                              </AppButton>
+                              {canManageSubtaskLinks(s) ? (
+                                <AppButton
+                                  intent="secondary"
+                                  size="sm"
+                                  className="h-9 px-4"
+                                  onPress={() => void onUpdateSubtaskLink(s, null)}
+                                >
+                                  Unlink
+                                </AppButton>
+                              ) : null}
                             </>
                           ) : (
                             <div className="flex flex-wrap items-center gap-2">
                               {canManageSubtaskLinks(s) ? (
                                 <>
-                                  <AppButton
-                                    intent="secondary"
-                                    size="sm"
-                                    className="h-9 px-4"
-                                    onPress={() => onLinkExistingTicketForSubtask(s.id)}
-                                    isDisabled={!canEditSubtasks}
+                                  <PillSelect
+                                    value={subtaskLinkAction[s.id] ?? ""}
+                                    onChange={(v) => {
+                                      const next = (v as "" | "existing" | "design") ?? "";
+                                      setSubtaskLinkAction((prev) => ({ ...prev, [s.id]: next }));
+                                      if (next === "existing") {
+                                        void onLinkExistingTicketForSubtask(s).finally(() =>
+                                          setSubtaskLinkAction((prev) => ({ ...prev, [s.id]: "" }))
+                                        );
+                                      } else if (next === "design") {
+                                        void onCreateDesignTicketForSubtask(s).finally(() =>
+                                          setSubtaskLinkAction((prev) => ({ ...prev, [s.id]: "" }))
+                                        );
+                                      }
+                                    }}
+                                    ariaLabel="Linked ticket actions"
+                                    disabled={!profile || !isMarketingTeamProfile(profile)}
                                   >
-                                    Link existing
-                                  </AppButton>
-                                  <AppButton
-                                    intent="secondary"
-                                    size="sm"
-                                    className="h-9 px-4"
-                                    onPress={() => onCreateDesignTicketForSubtask(s)}
-                                    isDisabled={!canEditSubtasks}
-                                  >
-                                    Create design ticket
-                                  </AppButton>
+                                    <option value="" className="bg-zinc-900">
+                                      Link…
+                                    </option>
+                                    <option value="existing" className="bg-zinc-900">
+                                      Link existing ticket
+                                    </option>
+                                    <option value="design" className="bg-zinc-900">
+                                      Create design ticket
+                                    </option>
+                                  </PillSelect>
                                 </>
-                              ) : (
-                                <div className="text-xs text-white/40">Linking is restricted to the subtask author or managers.</div>
-                              )}
+                              ) : null}
                             </div>
                           )}
                         </div>

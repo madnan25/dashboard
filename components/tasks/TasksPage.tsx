@@ -48,6 +48,7 @@ export function TasksPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<TaskTeam[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [view, setView] = useState<View>("board");
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
@@ -75,12 +76,15 @@ export function TasksPage() {
 
   async function refresh() {
     try {
+      setLoading(true);
       setStatus("");
       const [rows, teamRows] = await Promise.all([listTasks(), listTaskTeams()]);
       setTasks(rows);
       setTeams(teamRows);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to load tasks");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -93,11 +97,12 @@ export function TasksPage() {
       return;
     }
     setCreating(true);
-    setStatus("");
+    setStatus("Creating task…");
     try {
       const created = await createTask({ title: t, team_id: newTeamId });
       setNewTitle("");
       setNewTeamId("");
+      setStatus("Opening task…");
       router.push(`/tasks/${created.id}`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to create task");
@@ -110,6 +115,7 @@ export function TasksPage() {
     let cancelled = false;
     async function boot() {
       try {
+        setLoading(true);
         setStatus("");
         const [me, ps, projs, ts, teamRows] = await Promise.all([
           getCurrentProfile(),
@@ -127,6 +133,8 @@ export function TasksPage() {
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load tasks");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
     boot();
@@ -356,13 +364,13 @@ export function TasksPage() {
                 <input
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  disabled={!canEdit || creating}
+                  disabled={!canEdit || creating || loading}
                   placeholder="e.g. V3 Reel – Construction Speed"
                   className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
                 />
               </div>
               <div className="w-full md:w-64">
-                <PillSelect value={newTeamId} onChange={setNewTeamId} ariaLabel="Team" disabled={!canEdit || creating}>
+                <PillSelect value={newTeamId} onChange={setNewTeamId} ariaLabel="Team" disabled={!canEdit || creating || loading}>
                   <option value="" className="bg-zinc-900">
                     Select team…
                   </option>
@@ -377,7 +385,7 @@ export function TasksPage() {
                 intent="primary"
                 className="h-11 px-6"
                 onPress={onQuickCreate}
-                isDisabled={!canEdit || creating || !newTitle.trim() || !newTeamId}
+                isDisabled={!canEdit || creating || loading || !newTitle.trim() || !newTeamId}
               >
                 {creating ? "Creating…" : "Create task"}
               </AppButton>
@@ -456,7 +464,15 @@ export function TasksPage() {
             </div>
 
             <div className="mt-4">
-              {view === "calendar" ? (
+              {loading ? (
+                <div className="grid gap-3">
+                  <div className="h-10 rounded-2xl bg-white/5 animate-pulse" />
+                  <div className="h-10 rounded-2xl bg-white/5 animate-pulse" />
+                  <div className="h-10 rounded-2xl bg-white/5 animate-pulse" />
+                  <div className="h-10 rounded-2xl bg-white/5 animate-pulse" />
+                  <div className="h-10 rounded-2xl bg-white/5 animate-pulse" />
+                </div>
+              ) : view === "calendar" ? (
                 <TasksCalendar
                   tasks={calendarTasks}
                   year={calYear}
