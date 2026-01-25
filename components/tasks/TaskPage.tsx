@@ -768,7 +768,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setStatus("Creating design ticket…");
     try {
       const block = [
-        `Design work for: ${title || "—"}`,
         `Parent ticket: /tasks/${taskId}`,
         `Subtask: ${subtask.title}`,
         "Subtask details:",
