@@ -36,6 +36,7 @@ import {
   listProfiles,
   listProfilesByIds,
   listProjects,
+  listTasksByIds,
   listTaskComments,
   listTaskEvents,
   listTaskPointsLedgerByTaskId,
@@ -109,10 +110,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [masterCalendarTag, setMasterCalendarTag] = useState<TaskMasterCalendarTag | "">("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState<string>("");
   const [commentBody, setCommentBody] = useState("");
+  const [editingDescription, setEditingDescription] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string>("");
   const [editingBody, setEditingBody] = useState("");
   const [savingComment, setSavingComment] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const [linkedTaskTitles, setLinkedTaskTitles] = useState<Record<string, string>>({});
 
   const lastSavedRef = useRef<{
     title: string;
@@ -184,14 +187,20 @@ export function TaskPage({ taskId }: { taskId: string }) {
       if (before) nodes.push(before);
       const token = m[0];
       if (token.startsWith("/tasks/")) {
+        const id = token.slice("/tasks/".length);
+        const label = linkedTaskTitles[id] || `${id.slice(0, 8)}…`;
         nodes.push(
           <button
             key={`${m.index}-${token}`}
             type="button"
             className="underline text-white/85 hover:text-white"
-            onClick={() => router.push(token)}
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(token);
+            }}
+            title={token}
           >
-            {token}
+            {label}
           </button>
         );
       } else {
@@ -202,6 +211,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
             target="_blank"
             rel="noreferrer"
             className="underline text-white/85 hover:text-white"
+            onClick={(e) => e.stopPropagation()}
           >
             {token}
           </a>
@@ -214,12 +224,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return nodes;
   }
 
-  function extractTaskLinks(text: string): string[] {
-    const re = /\/tasks\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
-    const matches = (text || "").match(re) ?? [];
-    return Array.from(new Set(matches));
-  }
-
   function renderTextWithLinks(text: string) {
     const lines = (text || "").split("\n");
     return lines.map((line, i) => (
@@ -229,6 +233,50 @@ export function TaskPage({ taskId }: { taskId: string }) {
       </span>
     ));
   }
+
+  // Best-effort: replace /tasks/<id> display with ticket title.
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrateTitles() {
+      const re = /\/tasks\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
+      const ids = new Set<string>();
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(description || "")) !== null) {
+        ids.add(m[1].toLowerCase());
+      }
+      if (ids.size === 0) return;
+
+      // We always know the current ticket title.
+      setLinkedTaskTitles((prev) => {
+        const next = { ...prev };
+        next[taskId] = title || next[taskId] || `${taskId.slice(0, 8)}…`;
+        return next;
+      });
+
+      const missing = Array.from(ids).filter((id) => !(id in linkedTaskTitles));
+      if (missing.length === 0) return;
+
+      try {
+        const rows = await listTasksByIds(missing);
+        if (cancelled) return;
+        if (!rows || rows.length === 0) return;
+        setLinkedTaskTitles((prev) => {
+          const next = { ...prev };
+          for (const t of rows) {
+            next[t.id] = t.title || `${t.id.slice(0, 8)}…`;
+          }
+          return next;
+        });
+      } catch {
+        // ignore (RLS may block; links still work)
+      }
+    }
+    hydrateTitles();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description, taskId]);
   function subtaskStatusLabel(s: TaskSubtaskStatus) {
     switch (s) {
       case "not_done":
@@ -822,38 +870,32 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div>
                   <div className="text-xs uppercase tracking-widest text-white/45">Description (optional)</div>
-                  {canEditDetails ? (
-                    <>
-                      <textarea
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        disabled={!canEditDetails}
-                        rows={4}
-                        className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
-                        placeholder="No long explanations. Just enough context."
-                      />
-                      {extractTaskLinks(description).length > 0 ? (
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/60">
-                          <span className="text-xs uppercase tracking-widest text-white/40">Links</span>
-                          {extractTaskLinks(description).map((href) => (
-                            <button
-                              key={href}
-                              type="button"
-                              className="underline text-white/80 hover:text-white"
-                              onClick={() => router.push(href)}
-                            >
-                              {href}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </>
+                  {canEditDetails && editingDescription ? (
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      disabled={!canEditDetails}
+                      rows={4}
+                      className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
+                      placeholder="No long explanations. Just enough context."
+                      onBlur={() => setEditingDescription(false)}
+                      autoFocus
+                    />
                   ) : (
-                    <div className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85">
+                    <div
+                      className={[
+                        "mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85",
+                        canEditDetails ? "cursor-text" : ""
+                      ].join(" ")}
+                      onClick={() => {
+                        if (!canEditDetails) return;
+                        setEditingDescription(true);
+                      }}
+                    >
                       {description?.trim() ? (
                         <div className="whitespace-pre-wrap">{renderTextWithLinks(description)}</div>
                       ) : (
-                        <div className="text-white/35">No description.</div>
+                        <div className="text-white/35">{canEditDetails ? "Click to add a description…" : "No description."}</div>
                       )}
                     </div>
                   )}
