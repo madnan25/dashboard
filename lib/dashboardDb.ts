@@ -261,6 +261,10 @@ export async function nextProductionTicketNumber(): Promise<number> {
   return await repo().nextProductionTicketNumber();
 }
 
+export async function nextTeamTicketNumber(prefix: string): Promise<number> {
+  return await repo().nextTeamTicketNumber(prefix);
+}
+
 export async function updateTask(taskId: string, patch: UpdateTaskPatch): Promise<void> {
   return await repo().updateTask(taskId, patch);
 }

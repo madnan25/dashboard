@@ -114,6 +114,14 @@ export async function nextProductionTicketNumber(supabase: SupabaseClient): Prom
   return value;
 }
 
+export async function nextTeamTicketNumber(supabase: SupabaseClient, prefix: string): Promise<number> {
+  const { data, error } = await supabase.rpc("next_team_ticket_number", { p_prefix: prefix });
+  if (error) throw error;
+  const value = typeof data === "number" ? data : Number(data);
+  if (!Number.isFinite(value)) throw new Error(`Invalid ticket number for prefix ${prefix}`);
+  return value;
+}
+
 export type UpdateTaskPatch = Partial<
   Pick<
     Task,

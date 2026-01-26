@@ -20,9 +20,10 @@ import {
   listTaskTeams,
   nextDesignTicketNumber,
   nextProductionTicketNumber,
+  nextTeamTicketNumber,
   updateTask
 } from "@/lib/dashboardDb";
-import { endOfWeek, isoDate, isMarketingManagerProfile, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
+import { endOfWeek, getTeamPrefix, isoDate, isMarketingManagerProfile, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
 import { MONTHS } from "@/lib/digitalSnapshot";
@@ -64,6 +65,10 @@ function isProductionTeam(team: TaskTeam | null) {
 
 function formatProductionTicketTitle(number: number, label: string) {
   return `PROD-${number}: ${label}`;
+}
+
+function formatTicketTitle(prefix: string, number: number, label: string) {
+  return `${prefix}-${number}: ${label}`;
 }
 
 export function TasksPage() {
@@ -127,10 +132,10 @@ export function TasksPage() {
     try {
       const selectedTeam = teams.find((team) => team.id === newTeamId) ?? null;
       let nextTitle = t;
-      if (isDesignTeam(selectedTeam)) {
-        nextTitle = formatDesignTicketTitle(await nextDesignTicketNumber(), t);
-      } else if (isProductionTeam(selectedTeam)) {
-        nextTitle = formatProductionTicketTitle(await nextProductionTicketNumber(), t);
+      if (selectedTeam) {
+        const prefix = getTeamPrefix(selectedTeam.name);
+        const ticketNumber = await nextTeamTicketNumber(prefix);
+        nextTitle = formatTicketTitle(prefix, ticketNumber, t);
       }
       const created = await createTask({ title: nextTitle, team_id: newTeamId });
       setNewTitle("");

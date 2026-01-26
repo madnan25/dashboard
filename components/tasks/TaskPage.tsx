@@ -34,6 +34,7 @@ import {
   getLinkedParentSubtask,
   nextDesignTicketNumber,
   nextProductionTicketNumber,
+  nextTeamTicketNumber,
   getCurrentProfile,
   getTask,
   listProfiles,
@@ -53,6 +54,7 @@ import {
   PRIMARY_FLOW,
   SIDE_LANE,
   approvalLabel,
+  getTeamPrefix,
   isMarketingManagerProfile,
   isMarketingTeamProfile,
   priorityLabel,
@@ -76,6 +78,10 @@ function formatDesignTicketTitle(number: number, label: string) {
 
 function formatProductionTicketTitle(number: number, label: string) {
   return `PROD-${number}: ${label}`;
+}
+
+function formatTicketTitle(prefix: string, number: number, label: string) {
+  return `${prefix}-${number}: ${label}`;
 }
 
 export function TaskPage({ taskId }: { taskId: string }) {
@@ -691,8 +697,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
       ]
         .join("\n")
         .trimEnd();
-      const ticketNumber = await nextDesignTicketNumber();
-      const designTitle = formatDesignTicketTitle(ticketNumber, subtask.title);
+      const prefix = getTeamPrefix(designTeam.name);
+      const ticketNumber = await nextTeamTicketNumber(prefix);
+      const designTitle = formatTicketTitle(prefix, ticketNumber, subtask.title);
       const created = await createTask({
         title: designTitle,
         description: block,
@@ -736,8 +743,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
       ]
         .join("\n")
         .trimEnd();
-      const ticketNumber = await nextProductionTicketNumber();
-      const productionTitle = formatProductionTicketTitle(ticketNumber, subtask.title);
+      const prefix = getTeamPrefix(productionTeam.name);
+      const ticketNumber = await nextTeamTicketNumber(prefix);
+      const productionTitle = formatTicketTitle(prefix, ticketNumber, subtask.title);
       const created = await createTask({
         title: productionTitle,
         description: block,

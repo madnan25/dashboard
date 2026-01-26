@@ -93,3 +93,29 @@ export function endOfWeek(d: Date) {
   return e;
 }
 
+/**
+ * Generates a team prefix from a team name.
+ * Uses the first word if multiple words, or first 3-4 letters if single word.
+ * Examples: "Graphic Vision" -> "GV", "Design" -> "DES", "Production" -> "PROD"
+ */
+export function getTeamPrefix(teamName: string): string {
+  const trimmed = teamName.trim();
+  if (!trimmed) return "TKT";
+  
+  const words = trimmed.split(/\s+/);
+  if (words.length > 1) {
+    // Multiple words: use first letter of each word (up to 4 words)
+    return words
+      .slice(0, 4)
+      .map((w) => w.charAt(0).toUpperCase())
+      .join("");
+  } else {
+    // Single word: use first 3-4 letters
+    const firstWord = words[0];
+    if (firstWord.length <= 4) {
+      return firstWord.toUpperCase();
+    }
+    return firstWord.substring(0, 4).toUpperCase();
+  }
+}
+

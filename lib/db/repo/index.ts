@@ -70,6 +70,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     createTask: (input: Parameters<typeof tasks.createTask>[1]) => tasks.createTask(supabase, input),
     nextDesignTicketNumber: () => tasks.nextDesignTicketNumber(supabase),
     nextProductionTicketNumber: () => tasks.nextProductionTicketNumber(supabase),
+    nextTeamTicketNumber: (prefix: string) => tasks.nextTeamTicketNumber(supabase, prefix),
     updateTask: (id: string, patch: Parameters<typeof tasks.updateTask>[2]) => tasks.updateTask(supabase, id, patch),
     getTask: (id: string) => tasks.getTask(supabase, id),
     deleteTask: (id: string) => tasks.deleteTask(supabase, id),
