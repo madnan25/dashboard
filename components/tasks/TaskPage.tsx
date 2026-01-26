@@ -1188,57 +1188,60 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       const isEditingTitle = editingSubtaskTitleId === s.id;
                       const titleValue = subtaskDrafts[s.id]?.title ?? s.title ?? "";
                       return (
-                        <div key={s.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                            <div className="min-w-0 flex-1">
-                              {isEditingTitle && canEditTitle ? (
-                                <input
-                                  type="text"
-                                  value={titleValue}
-                                  onChange={(e) => onUpdateSubtaskTitleDraft(s.id, e.target.value)}
-                                  onBlur={() => {
-                                    // Save on blur if changed
-                                    const draft = subtaskDrafts[s.id]?.title;
-                                    if (draft !== undefined && draft !== s.title && draft.trim()) {
-                                      // The autosave will handle it, but we can close editing
-                                    }
+                        <div key={s.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4">
+                          {/* Title Section - Full Width */}
+                          <div className="mb-4">
+                            {isEditingTitle && canEditTitle ? (
+                              <input
+                                type="text"
+                                value={titleValue}
+                                onChange={(e) => onUpdateSubtaskTitleDraft(s.id, e.target.value)}
+                                onBlur={() => {
+                                  // Save on blur if changed
+                                  const draft = subtaskDrafts[s.id]?.title;
+                                  if (draft !== undefined && draft !== s.title && draft.trim()) {
+                                    // The autosave will handle it, but we can close editing
+                                  }
+                                  setEditingSubtaskTitleId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.currentTarget.blur();
+                                  } else if (e.key === "Escape") {
+                                    setSubtaskDrafts((prev) => {
+                                      const copy = { ...prev };
+                                      delete copy[s.id];
+                                      subtaskDraftsRef.current = copy;
+                                      return copy;
+                                    });
                                     setEditingSubtaskTitleId(null);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.currentTarget.blur();
-                                    } else if (e.key === "Escape") {
-                                      setSubtaskDrafts((prev) => {
-                                        const copy = { ...prev };
-                                        delete copy[s.id];
-                                        subtaskDraftsRef.current = copy;
-                                        return copy;
-                                      });
-                                      setEditingSubtaskTitleId(null);
-                                    }
-                                  }}
-                                  autoFocus
-                                  className="w-full glass-inset rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-semibold text-white/90 outline-none focus:border-white/20"
-                                />
-                              ) : (
-                                <div
-                                  className={[
-                                    "text-sm font-semibold text-white/90 break-words",
-                                    canEditTitle ? "cursor-text hover:text-white" : ""
-                                  ].join(" ")}
-                                  onClick={() => {
-                                    if (canEditTitle) {
-                                      setEditingSubtaskTitleId(s.id);
-                                    }
-                                  }}
-                                  title={canEditTitle ? "Click to edit" : ""}
-                                >
-                                  {s.title || "Untitled subtask"}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-                            <div className="min-w-[150px] flex-1 md:flex-none">
+                                  }
+                                }}
+                                autoFocus
+                                className="w-full glass-inset rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-base font-semibold text-white/90 outline-none focus:border-white/20 focus:bg-white/[0.04] transition-colors"
+                                placeholder="Subtask title…"
+                              />
+                            ) : (
+                              <div
+                                className={[
+                                  "text-base font-semibold text-white/90 leading-relaxed",
+                                  canEditTitle ? "cursor-text hover:text-white transition-colors" : ""
+                                ].join(" ")}
+                                onClick={() => {
+                                  if (canEditTitle) {
+                                    setEditingSubtaskTitleId(s.id);
+                                  }
+                                }}
+                                title={canEditTitle ? "Click to edit" : ""}
+                              >
+                                {s.title || "Untitled subtask"}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Controls Row */}
+                          <div className="flex flex-wrap items-center gap-3">
+                            <div className="min-w-[140px] flex-1 md:flex-none">
                               <PillSelect
                                 value={s.status}
                                 onChange={(v) => onUpdateSubtask(s.id, { status: v as TaskSubtaskStatus })}
@@ -1252,7 +1255,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 ))}
                               </PillSelect>
                             </div>
-                            <div className="min-w-[180px] flex-1 md:flex-none">
+                            <div className="min-w-[160px] flex-1 md:flex-none">
                               <PillSelect
                                 value={s.assignee_id ?? ""}
                                 onChange={(v) => onUpdateSubtask(s.id, { assignee_id: v || null })}
@@ -1281,10 +1284,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               Delete
                             </AppButton>
                           </div>
-                        </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <div className="text-[11px] uppercase tracking-widest text-white/40">Linked ticket</div>
+                          <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <div className="text-[11px] uppercase tracking-widest text-white/40">Linked ticket</div>
                           {s.linked_task_id ? (
                             <>
                               {(() => {
@@ -1363,10 +1365,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               ) : null}
                             </div>
                           )}
-                        </div>
+                          </div>
 
-                        <div className="mt-3">
-                          <div className="text-[11px] uppercase tracking-widest text-white/40">Due</div>
+                          <div className="mt-4">
+                            <div className="text-[11px] uppercase tracking-widest text-white/40">Due</div>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <div className="w-full md:max-w-[260px]">
                               <DayDatePicker
@@ -1383,10 +1385,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             </div>
                             {s.linked_task_id ? <div className="text-xs text-white/45">Synced from linked ticket.</div> : null}
                           </div>
-                        </div>
+                          </div>
 
-                        <div className="mt-3">
-                          <div className="text-[11px] uppercase tracking-widest text-white/40">Description</div>
+                          <div className="mt-4">
+                            <div className="text-[11px] uppercase tracking-widest text-white/40">Description</div>
                           <textarea
                             value={subtaskDrafts[s.id]?.description ?? s.description ?? ""}
                             onChange={(e) => {
@@ -1405,7 +1407,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           />
                         </div>
                       </div>
-                      );
+                    );
                     })}
                   </div>
                 </div>
