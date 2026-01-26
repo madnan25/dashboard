@@ -116,8 +116,6 @@ export function MasterCalendarPage() {
       .filter((t) => !t.due_at || t.due_at.startsWith(monthKey));
   }, [marketingTasks, monthIndex, year]);
 
-  const marketingOutOfSyncCount = useMemo(() => marketingOutOfSyncIds.size, [marketingOutOfSyncIds]);
-
   function canEditDueForTask(t: Task) {
     if (isCmo) return true;
     if (isManager) return true; // marketing managers can move tickets
@@ -219,18 +217,6 @@ export function MasterCalendarPage() {
         {status ? (
           <Surface>
             <div className="text-sm text-amber-200/90">{status}</div>
-          </Surface>
-        ) : null}
-
-        {mode === "marketing" && marketingOutOfSyncCount > 0 ? (
-          <Surface>
-            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-200/90">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-500/20 text-[11px] font-bold text-rose-200">
-                !
-              </span>{" "}
-              <span className="font-semibold">{marketingOutOfSyncCount} ticket(s)</span> need due date correction (child due date is after parent ticket due
-              date). Open the ticket(s) to adjust the child due date.
-            </div>
           </Surface>
         ) : null}
 
