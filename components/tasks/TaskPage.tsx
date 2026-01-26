@@ -141,6 +141,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [savingComment, setSavingComment] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [linkedTaskTitles, setLinkedTaskTitles] = useState<Record<string, string>>({});
+  const [linkedTaskDueAt, setLinkedTaskDueAt] = useState<Record<string, string | null>>({});
   const [subtaskLinkAction, setSubtaskLinkAction] = useState<Record<string, "" | "existing" | "design" | "production">>({});
   const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, { description?: string }>>({});
   const [linkedParentSubtask, setLinkedParentSubtask] = useState<TaskSubtask | null>(null);
@@ -242,6 +243,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
           for (const t of rows) {
             const k = t.id.toLowerCase();
             next[k] = t.title || `${k.slice(0, 8)}…`;
+          }
+          return next;
+        });
+        setLinkedTaskDueAt((prev) => {
+          const next = { ...prev };
+          for (const t of rows) {
+            const k = t.id.toLowerCase();
+            next[k] = (t.due_at ?? null) as string | null;
           }
           return next;
         });
@@ -1204,11 +1213,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <div className="w-full md:max-w-[260px]">
                               <DayDatePicker
-                                value={s.due_at ?? ""}
+                                value={
+                                  s.linked_task_id
+                                    ? (linkedTaskDueAt[s.linked_task_id.toLowerCase()] ?? "")
+                                    : (s.due_at ?? "")
+                                }
                                 onChange={(v) => onUpdateSubtask(s.id, { due_at: v || null })}
                                 placeholder="Select due date"
                                 isDisabled={!canEditSubtasks || Boolean(s.linked_task_id)}
-                                showClear
+                                showClear={!s.linked_task_id}
                               />
                             </div>
                             {s.linked_task_id ? <div className="text-xs text-white/45">Synced from linked ticket.</div> : null}
