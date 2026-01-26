@@ -70,6 +70,8 @@ export function MasterCalendar(props: {
     return map;
   }, [tasks]);
 
+  const outOfSyncCount = useMemo(() => tasks.filter((t) => Boolean(t.out_of_sync)).length, [tasks]);
+
   const dayCells = useMemo(() => {
     const cells: Array<{ iso: string; day: number } | null> = [];
     for (let i = 0; i < leadingBlanks; i++) cells.push(null);
@@ -94,6 +96,13 @@ export function MasterCalendar(props: {
           <span className="inline-block h-2 w-2 rounded-full bg-fuchsia-400/70" />
           Design &amp; production
         </div>
+        <div className="inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-rose-500/[0.06] px-3 py-1 text-rose-200/90">
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-500/20 text-[10px] font-bold text-rose-200">
+            !
+          </span>
+          Due date correction needed
+          {outOfSyncCount > 0 ? <span className="ml-1 text-rose-200/70">({outOfSyncCount})</span> : null}
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-7 gap-3 text-xs text-white/50">
@@ -109,6 +118,7 @@ export function MasterCalendar(props: {
           if (!cell) return <div key={idx} className="h-40 rounded-2xl border border-white/5 bg-white/[0.01]" />;
           const items = tasksByDue.get(cell.iso) ?? [];
           const isToday = cell.iso === todayIso;
+          const hasOutOfSync = items.some((t) => Boolean(t.out_of_sync));
           const show = items.slice(0, 4);
           const more = items.length - show.length;
           return (
@@ -121,7 +131,19 @@ export function MasterCalendar(props: {
             >
               <div className="flex items-center justify-between">
                 <div className={["text-xs font-semibold", isToday ? "text-sky-200" : "text-white/70"].join(" ")}>{cell.day}</div>
-                {items.length > 0 ? <div className="text-[11px] text-white/45">{items.length}</div> : null}
+                {items.length > 0 ? (
+                  <div className="flex items-center gap-2 text-[11px] text-white/45">
+                    {hasOutOfSync ? (
+                      <span
+                        title="Due date correction needed"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-rose-500/25 bg-rose-500/15 text-[11px] font-bold text-rose-200/90"
+                      >
+                        !
+                      </span>
+                    ) : null}
+                    <span>{items.length}</span>
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-3 space-y-1.5">
@@ -139,12 +161,22 @@ export function MasterCalendar(props: {
                       className={[
                         "w-full text-left truncate rounded-xl border px-2 py-1 text-[12px] transition",
                         clickable ? "cursor-pointer" : "cursor-default opacity-90",
-                        t.out_of_sync ? "ring-1 ring-rose-400/30" : "",
+                        t.out_of_sync ? "ring-1 ring-rose-400/40 border-rose-500/20" : "",
                         tagClass(t.master_calendar_tag)
                       ].join(" ")}
                       disabled={!clickable}
                     >
-                      {t.title}
+                      <span className="inline-flex items-center gap-1.5">
+                        {t.out_of_sync ? (
+                          <span
+                            aria-label="Due date correction needed"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-500/20 text-[10px] font-bold text-rose-200"
+                          >
+                            !
+                          </span>
+                        ) : null}
+                        <span className="truncate">{t.title}</span>
+                      </span>
                     </button>
                   );
                 })}

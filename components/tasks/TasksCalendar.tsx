@@ -79,6 +79,16 @@ export function TasksCalendar(props: {
 
   const noDue = useMemo(() => tasks.filter((t) => taskIsOpen(t) && !t.due_at), [tasks]);
 
+  const outOfSyncCount = useMemo(() => {
+    if (!outOfSyncTaskIds || outOfSyncTaskIds.size === 0) return 0;
+    let n = 0;
+    for (const t of tasks) {
+      if (!taskIsOpen(t)) continue;
+      if (isOutOfSync(t.id)) n++;
+    }
+    return n;
+  }, [outOfSyncTaskIds, tasks]);
+
   const dayCells = useMemo(() => {
     const cells: Array<{ iso: string; day: number; inMonth: boolean } | null> = [];
     for (let i = 0; i < leadingBlanks; i++) cells.push(null);
@@ -92,6 +102,15 @@ export function TasksCalendar(props: {
   return (
     <div className="grid gap-6 md:grid-cols-12">
       <div className="md:col-span-10">
+        {outOfSyncCount > 0 ? (
+          <div className="mb-3 rounded-2xl border border-rose-500/20 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-200/90">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-500/20 text-[11px] font-bold text-rose-200">
+              !
+            </span>{" "}
+            <span className="font-semibold">{outOfSyncCount} ticket(s)</span> need due date correction (child due date is after parent ticket due date).
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-7 gap-3 text-xs text-white/50">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
             <div key={d} className="px-1">
@@ -110,6 +129,7 @@ export function TasksCalendar(props: {
             const show = items.slice(0, 4);
             const more = items.length - show.length;
             const isDrop = dragOverIso === cell.iso;
+            const hasOutOfSync = items.some((t) => isOutOfSync(t.id));
 
             return (
               <div
@@ -138,7 +158,19 @@ export function TasksCalendar(props: {
               >
                 <div className="flex items-center justify-between">
                   <div className={["text-xs font-semibold", isToday ? "text-sky-200" : "text-white/70"].join(" ")}>{cell.day}</div>
-                  {items.length > 0 ? <div className="text-[11px] text-white/45">{items.length}</div> : null}
+                  {items.length > 0 ? (
+                    <div className="flex items-center gap-2 text-[11px] text-white/45">
+                      {hasOutOfSync ? (
+                        <span
+                          title="Due date correction needed"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-rose-500/25 bg-rose-500/15 text-[11px] font-bold text-rose-200/90"
+                        >
+                          !
+                        </span>
+                      ) : null}
+                      <span>{items.length}</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="mt-3 space-y-1.5">
@@ -153,7 +185,7 @@ export function TasksCalendar(props: {
                       className={[
                         "w-full text-left truncate rounded-xl border px-2 py-1 text-[12px] transition",
                         draggingId === t.id ? "opacity-50" : "",
-                        isOutOfSync(t.id) ? "ring-1 ring-rose-400/30" : "",
+                        isOutOfSync(t.id) ? "ring-1 ring-rose-400/40 border-rose-500/20" : "",
                         priorityClass(t.priority)
                       ].join(" ")}
                       draggable={canEditDueForTask(t)}
@@ -169,7 +201,17 @@ export function TasksCalendar(props: {
                         setDragOverNoDue(false);
                       }}
                     >
-                      {t.title}
+                      <span className="inline-flex items-center gap-1.5">
+                        {isOutOfSync(t.id) ? (
+                          <span
+                            aria-label="Due date correction needed"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-500/20 text-[10px] font-bold text-rose-200"
+                          >
+                            !
+                          </span>
+                        ) : null}
+                        <span className="truncate">{t.title}</span>
+                      </span>
                     </button>
                   ))}
                   {more > 0 ? <div className="text-[11px] text-white/45">+{more} more</div> : null}

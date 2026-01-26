@@ -1037,6 +1037,24 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           `${linkedParentSubtask.task_id.slice(0, 8)}…`}
                       </button>
                     </div>
+                    {(() => {
+                      const parentId = linkedParentSubtask.task_id.toLowerCase();
+                      const parentDue = linkedTaskDueAt[parentId] ?? null;
+                      const parentStatus = linkedTaskStatus[parentId] ?? null;
+                      const parentOpen = parentStatus ? parentStatus !== "closed" && parentStatus !== "dropped" : true;
+                      const childDue = dueAt || null;
+                      const outOfSync = Boolean(parentOpen && parentDue && childDue && childDue > parentDue);
+                      if (!outOfSync) return null;
+                      return (
+                        <div className="mt-2 rounded-2xl border border-rose-500/20 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-200/90">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-500/20 text-[11px] font-bold text-rose-200">
+                            !
+                          </span>{" "}
+                          <span className="font-semibold">Due date correction needed.</span> This ticket’s due date ({childDue}) is after the parent ticket due
+                          date ({parentDue}).
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : null}
 
