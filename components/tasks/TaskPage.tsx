@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -164,6 +164,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const subtaskAutosaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const subtaskAutosaveSeqRef = useRef<Record<string, number>>({});
   const subtaskDraftsRef = useRef<Record<string, { description?: string }>>({});
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
@@ -203,6 +204,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const SUBTASK_STATUSES: TaskSubtaskStatus[] = ["not_done", "done", "blocked", "on_hold"];
   const TASK_LINK_CLASS =
     "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-blue-400/60 text-blue-300 hover:text-violet-200 hover:decoration-violet-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/30 rounded-sm";
+
+  const resizeTextareaToContent = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    // Prevent "weird" giant boxes while still showing everything up to a cap.
+    const maxHeightPx = 320;
+    el.style.height = "0px";
+    const next = Math.min(el.scrollHeight, maxHeightPx);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxHeightPx ? "auto" : "hidden";
+  }, []);
 
   function extractTaskId(raw: string): string | null {
     const s = (raw || "").trim();
@@ -470,6 +481,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
   useEffect(() => {
     refresh().catch(() => null);
   }, [refresh]);
+
+  useLayoutEffect(() => {
+    if (!editingDescription) return;
+    resizeTextareaToContent(descriptionTextareaRef.current);
+  }, [description, editingDescription, resizeTextareaToContent]);
 
   useEffect(() => {
     if (!teamId) {
@@ -993,11 +1009,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   <div className="text-xs uppercase tracking-widest text-white/45">Description (optional)</div>
                   {canEditDetails && editingDescription ? (
                     <textarea
+                      ref={descriptionTextareaRef}
                       value={description}
-                      onChange={(e) => setDescription(e.target.value)}
+                      onChange={(e) => {
+                        setDescription(e.target.value);
+                        resizeTextareaToContent(e.currentTarget);
+                      }}
                       disabled={!canEditDetails}
                       rows={4}
-                      className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
+                      className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20 transition-[height] duration-150 ease-out"
                       placeholder="No long explanations. Just enough context."
                       onBlur={() => setEditingDescription(false)}
                       autoFocus
