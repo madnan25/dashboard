@@ -697,6 +697,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         title: designTitle,
         description: block,
         team_id: designTeam.id,
+        project_id: projectId || null,
         // Route initial work to design approver (triage), and team-based approval stays on the Design team.
         assignee_id: designTeam.approver_user_id ?? null,
         due_at: (subtask.due_at ?? dueAt ?? null) || null
@@ -741,6 +742,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         title: productionTitle,
         description: block,
         team_id: productionTeam.id,
+        project_id: projectId || null,
         // Route initial work to production approver (triage).
         assignee_id: productionTeam.approver_user_id ?? null,
         due_at: (subtask.due_at ?? dueAt ?? null) || null
