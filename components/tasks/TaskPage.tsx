@@ -33,6 +33,7 @@ import {
   createTaskComment,
   getLinkedParentSubtask,
   nextDesignTicketNumber,
+  nextProductionTicketNumber,
   getCurrentProfile,
   getTask,
   listProfiles,
@@ -71,6 +72,10 @@ function getErrorMessage(err: unknown, fallback: string) {
 
 function formatDesignTicketTitle(number: number, label: string) {
   return `DES-${number}: ${label}`;
+}
+
+function formatProductionTicketTitle(number: number, label: string) {
+  return `PROD-${number}: ${label}`;
 }
 
 export function TaskPage({ taskId }: { taskId: string }) {
@@ -128,7 +133,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [savingComment, setSavingComment] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [linkedTaskTitles, setLinkedTaskTitles] = useState<Record<string, string>>({});
-  const [subtaskLinkAction, setSubtaskLinkAction] = useState<Record<string, "" | "existing" | "design">>({});
+  const [subtaskLinkAction, setSubtaskLinkAction] = useState<Record<string, "" | "existing" | "design" | "production">>({});
   const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, { description?: string }>>({});
   const [linkedParentSubtask, setLinkedParentSubtask] = useState<TaskSubtask | null>(null);
 
@@ -709,6 +714,49 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
+  async function onCreateProductionTicketForSubtask(subtask: TaskSubtask) {
+    if (!profile || !isMarketingTeamProfile(profile)) return;
+    if (linkedParentSubtask?.task_id) {
+      setStatus("Linked tickets can only be managed from the parent ticket.");
+      return;
+    }
+    if (!canManageSubtaskLinks(subtask)) return;
+    const productionTeam = teams.find((t) => t.name.toLowerCase().includes("production")) ?? null;
+    if (!productionTeam) {
+      setStatus("No Production team found. Create a Team named “Production” (or similar) first.");
+      return;
+    }
+    setStatus("Creating production ticket…");
+    try {
+      const block = [
+        `Subtask: ${subtask.title}`,
+        "Subtask details:",
+        subtask.description || "",
+      ]
+        .join("\n")
+        .trimEnd();
+      const ticketNumber = await nextProductionTicketNumber();
+      const productionTitle = formatProductionTicketTitle(ticketNumber, subtask.title);
+      const created = await createTask({
+        title: productionTitle,
+        description: block,
+        team_id: productionTeam.id,
+        // Route initial work to production approver (triage).
+        assignee_id: productionTeam.approver_user_id ?? null,
+        due_at: (subtask.due_at ?? dueAt ?? null) || null
+      });
+      router.prefetch(`/tasks/${created.id}`);
+      setLinkedTaskTitles((prev) => ({
+        ...prev,
+        [created.id.toLowerCase()]: created.title || productionTitle
+      }));
+      await onUpdateSubtaskLink(subtask, created.id);
+      setStatus("Production ticket created.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Failed to create production ticket");
+    }
+  }
+
   async function onRemoveSubtask(id: string) {
     if (!canEditSubtasks) return;
     if (!confirm("Delete this subtask?")) return;
@@ -1071,7 +1119,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                   <PillSelect
                                     value={subtaskLinkAction[s.id] ?? ""}
                                     onChange={(v) => {
-                                      const next = (v as "" | "existing" | "design") ?? "";
+                                      const next = (v as "" | "existing" | "design" | "production") ?? "";
                                       setSubtaskLinkAction((prev) => ({ ...prev, [s.id]: next }));
                                       if (next === "existing") {
                                         void onLinkExistingTicketForSubtask(s).finally(() =>
@@ -1079,6 +1127,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                         );
                                       } else if (next === "design") {
                                         void onCreateDesignTicketForSubtask(s).finally(() =>
+                                          setSubtaskLinkAction((prev) => ({ ...prev, [s.id]: "" }))
+                                        );
+                                      } else if (next === "production") {
+                                        void onCreateProductionTicketForSubtask(s).finally(() =>
                                           setSubtaskLinkAction((prev) => ({ ...prev, [s.id]: "" }))
                                         );
                                       }
@@ -1094,6 +1146,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                     </option>
                                     <option value="design" className="bg-zinc-900">
                                       Create design ticket
+                                    </option>
+                                    <option value="production" className="bg-zinc-900">
+                                      Create production ticket
                                     </option>
                                   </PillSelect>
                                 </>

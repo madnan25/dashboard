@@ -11,7 +11,17 @@ import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TasksCalendar } from "@/components/tasks/TasksCalendar";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
-import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, listTaskTeams, nextDesignTicketNumber, updateTask } from "@/lib/dashboardDb";
+import {
+  createTask,
+  getCurrentProfile,
+  listProfiles,
+  listProjects,
+  listTasks,
+  listTaskTeams,
+  nextDesignTicketNumber,
+  nextProductionTicketNumber,
+  updateTask
+} from "@/lib/dashboardDb";
 import { endOfWeek, isoDate, isMarketingManagerProfile, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
@@ -46,6 +56,14 @@ function isDesignTeam(team: TaskTeam | null) {
 
 function formatDesignTicketTitle(number: number, label: string) {
   return `DES-${number}: ${label}`;
+}
+
+function isProductionTeam(team: TaskTeam | null) {
+  return Boolean(team && team.name.toLowerCase().includes("production"));
+}
+
+function formatProductionTicketTitle(number: number, label: string) {
+  return `PROD-${number}: ${label}`;
 }
 
 export function TasksPage() {
@@ -108,9 +126,12 @@ export function TasksPage() {
     setStatus("Creating task…");
     try {
       const selectedTeam = teams.find((team) => team.id === newTeamId) ?? null;
-      const nextTitle = isDesignTeam(selectedTeam)
-        ? formatDesignTicketTitle(await nextDesignTicketNumber(), t)
-        : t;
+      let nextTitle = t;
+      if (isDesignTeam(selectedTeam)) {
+        nextTitle = formatDesignTicketTitle(await nextDesignTicketNumber(), t);
+      } else if (isProductionTeam(selectedTeam)) {
+        nextTitle = formatProductionTicketTitle(await nextProductionTicketNumber(), t);
+      }
       const created = await createTask({ title: nextTitle, team_id: newTeamId });
       setNewTitle("");
       setNewTeamId("");

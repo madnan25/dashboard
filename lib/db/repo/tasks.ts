@@ -106,6 +106,14 @@ export async function nextDesignTicketNumber(supabase: SupabaseClient): Promise<
   return value;
 }
 
+export async function nextProductionTicketNumber(supabase: SupabaseClient): Promise<number> {
+  const { data, error } = await supabase.rpc("next_production_ticket_number");
+  if (error) throw error;
+  const value = typeof data === "number" ? data : Number(data);
+  if (!Number.isFinite(value)) throw new Error("Invalid production ticket number");
+  return value;
+}
+
 export type UpdateTaskPatch = Partial<
   Pick<
     Task,
