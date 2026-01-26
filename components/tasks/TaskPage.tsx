@@ -142,6 +142,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [linkedTaskTitles, setLinkedTaskTitles] = useState<Record<string, string>>({});
   const [linkedTaskDueAt, setLinkedTaskDueAt] = useState<Record<string, string | null>>({});
+  const [linkedTaskStatus, setLinkedTaskStatus] = useState<Record<string, TaskStatus | null>>({});
   const [subtaskLinkAction, setSubtaskLinkAction] = useState<Record<string, "" | "existing" | "design" | "production">>({});
   const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, { description?: string }>>({});
   const [linkedParentSubtask, setLinkedParentSubtask] = useState<TaskSubtask | null>(null);
@@ -233,7 +234,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     async (ids: Array<string | null | undefined>) => {
       const wanted = Array.from(new Set(ids.filter((x): x is string => Boolean(x)).map((x) => x.toLowerCase())));
       if (wanted.length === 0) return;
-      const missing = wanted.filter((id) => !(id in linkedTaskTitles));
+      const missing = wanted.filter((id) => !(id in linkedTaskTitles) || !(id in linkedTaskDueAt) || !(id in linkedTaskStatus));
       if (missing.length === 0) return;
       try {
         const rows = await listTasksByIds(missing);
@@ -254,12 +255,29 @@ export function TaskPage({ taskId }: { taskId: string }) {
           }
           return next;
         });
+        setLinkedTaskStatus((prev) => {
+          const next = { ...prev };
+          for (const t of rows) {
+            const k = t.id.toLowerCase();
+            next[k] = (t.status ?? null) as TaskStatus | null;
+          }
+          return next;
+        });
       } catch {
         // ignore (RLS may block; links still work)
       }
     },
-    [linkedTaskTitles]
+    [linkedTaskDueAt, linkedTaskStatus, linkedTaskTitles]
   );
+
+  function formatDueGuardError(err: unknown, fallback: string) {
+    const message = getErrorMessage(err, fallback);
+    if (message.toLowerCase().includes("due date cannot be after parent ticket due date")) {
+      const date = message.match(/\((\d{4}-\d{2}-\d{2})\)/)?.[1] ?? null;
+      return date ? `Due date can’t be after the parent ticket’s due date (${date}).` : "Due date can’t be after the parent ticket’s due date.";
+    }
+    return message;
+  }
   function subtaskStatusLabel(s: TaskSubtaskStatus) {
     switch (s) {
       case "not_done":
@@ -562,7 +580,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         setStatus("Saved.");
       } catch (e) {
         if (autosaveSeqRef.current !== seq) return;
-        setStatus(e instanceof Error ? e.message : "Failed to save");
+        setStatus(formatDueGuardError(e, "Failed to save"));
       }
     }, 650);
 
@@ -748,6 +766,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
         ...prev,
         [created.id.toLowerCase()]: created.title || designTitle
       }));
+      setLinkedTaskDueAt((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.due_at ?? null) as string | null }));
+      setLinkedTaskStatus((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.status ?? null) as TaskStatus | null }));
       await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Design ticket created.");
     } catch (e) {
@@ -793,6 +813,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
         ...prev,
         [created.id.toLowerCase()]: created.title || productionTitle
       }));
+      setLinkedTaskDueAt((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.due_at ?? null) as string | null }));
+      setLinkedTaskStatus((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.status ?? null) as TaskStatus | null }));
       await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Production ticket created.");
     } catch (e) {
@@ -1144,6 +1166,20 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           <div className="text-[11px] uppercase tracking-widest text-white/40">Linked ticket</div>
                           {s.linked_task_id ? (
                             <>
+                              {(() => {
+                                const parentDue = dueAt || null;
+                                const k = s.linked_task_id.toLowerCase();
+                                const linkedDue = linkedTaskDueAt[k] ?? null;
+                                const linkedStatus = linkedTaskStatus[k] ?? null;
+                                const linkedOpen = linkedStatus ? linkedStatus !== "closed" && linkedStatus !== "dropped" : true;
+                                const outOfSync =
+                                  Boolean(parentDue && linkedDue && linkedDue > parentDue && linkedOpen);
+                                return outOfSync ? (
+                                  <div className="w-full text-xs text-rose-200/90">
+                                    Due date course-correct needed: linked ticket due date ({linkedDue}) is after parent due date ({parentDue}).
+                                  </div>
+                                ) : null;
+                              })()}
                               <button
                                 type="button"
                                 className={TASK_LINK_CLASS}

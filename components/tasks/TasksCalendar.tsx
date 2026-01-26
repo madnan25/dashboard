@@ -38,8 +38,10 @@ export function TasksCalendar(props: {
   onOpenTask: (task: Task) => void;
   canEditDueForTask: (task: Task) => boolean;
   onMoveTaskDue: (taskId: string, dueAt: string | null) => Promise<void> | void;
+  outOfSyncTaskIds?: Set<string>;
 }) {
-  const { tasks, year, monthIndex, onOpenTask, canEditDueForTask, onMoveTaskDue } = props;
+  const { tasks, year, monthIndex, onOpenTask, canEditDueForTask, onMoveTaskDue, outOfSyncTaskIds } = props;
+  const isOutOfSync = (id: string) => Boolean(outOfSyncTaskIds && outOfSyncTaskIds.has(id.toLowerCase()));
   const [dragOverIso, setDragOverIso] = useState<string>("");
   const [dragOverNoDue, setDragOverNoDue] = useState(false);
   const [draggingId, setDraggingId] = useState<string>("");
@@ -144,11 +146,14 @@ export function TasksCalendar(props: {
                     <button
                       key={t.id}
                       type="button"
-                      title={t.title}
+                      title={
+                        (isOutOfSync(t.id) ? "Due date course-correct needed (after parent ticket due date). " : "") + (t.title || "")
+                      }
                       onClick={() => onOpenTask(t)}
                       className={[
                         "w-full text-left truncate rounded-xl border px-2 py-1 text-[12px] transition",
                         draggingId === t.id ? "opacity-50" : "",
+                        isOutOfSync(t.id) ? "ring-1 ring-rose-400/30" : "",
                         priorityClass(t.priority)
                       ].join(" ")}
                       draggable={canEditDueForTask(t)}

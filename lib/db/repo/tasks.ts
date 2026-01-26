@@ -201,6 +201,19 @@ export async function listMasterCalendarTasks(
   return (data as MasterCalendarTask[]) ?? [];
 }
 
+export async function listDueDateOutOfSyncTaskIds(
+  supabase: SupabaseClient,
+  filters?: { dueFrom?: string; dueTo?: string }
+): Promise<string[]> {
+  const { data, error } = await supabase.rpc("list_due_date_out_of_sync_task_ids", {
+    p_due_from: filters?.dueFrom ?? null,
+    p_due_to: filters?.dueTo ?? null
+  });
+  if (error) throw error;
+  const rows = (data as Array<{ id: string }> | null) ?? [];
+  return rows.map((r) => r.id);
+}
+
 export async function listTaskEvents(supabase: SupabaseClient, taskId: string): Promise<TaskEvent[]> {
   const { data, error } = await supabase
     .from("task_events")

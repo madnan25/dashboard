@@ -176,6 +176,7 @@ export type MasterCalendarTask = {
   master_calendar_tag: TaskMasterCalendarTag;
   priority: TaskPriority;
   status: TaskStatus;
+  out_of_sync: boolean;
 };
 
 export type TaskComment = {

@@ -131,7 +131,7 @@ export function MasterCalendar(props: {
                     <button
                       key={t.id}
                       type="button"
-                      title={t.title}
+                      title={(t.out_of_sync ? "Due date course-correct needed (after parent ticket due date). " : "") + (t.title || "")}
                       onClick={() => {
                         if (!clickable) return;
                         onOpenTask(t.id);
@@ -139,6 +139,7 @@ export function MasterCalendar(props: {
                       className={[
                         "w-full text-left truncate rounded-xl border px-2 py-1 text-[12px] transition",
                         clickable ? "cursor-pointer" : "cursor-default opacity-90",
+                        t.out_of_sync ? "ring-1 ring-rose-400/30" : "",
                         tagClass(t.master_calendar_tag)
                       ].join(" ")}
                       disabled={!clickable}

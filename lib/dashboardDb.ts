@@ -245,6 +245,10 @@ export async function listMasterCalendarTasks(filters?: { dueFrom?: string; dueT
   return await repo().listMasterCalendarTasks(filters);
 }
 
+export async function listDueDateOutOfSyncTaskIds(filters?: { dueFrom?: string; dueTo?: string }): Promise<string[]> {
+  return await repo().listDueDateOutOfSyncTaskIds(filters);
+}
+
 export async function listTasksByIds(ids: string[]): Promise<Task[]> {
   return await repo().listTasksByIds(ids);
 }

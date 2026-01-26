@@ -9,7 +9,7 @@ import { MasterCalendar } from "@/components/tasks/MasterCalendar";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { TasksCalendar } from "@/components/tasks/TasksCalendar";
 import type { MasterCalendarTask, Profile, Task } from "@/lib/dashboardDb";
-import { getCurrentProfile, listMasterCalendarTasks, listTasks, updateTask } from "@/lib/dashboardDb";
+import { getCurrentProfile, listDueDateOutOfSyncTaskIds, listMasterCalendarTasks, listTasks, updateTask } from "@/lib/dashboardDb";
 import { MONTHS } from "@/lib/digitalSnapshot";
 import { isMarketingManagerProfile, isMarketingTeamProfile, taskIsOpen } from "@/components/tasks/taskModel";
 
@@ -33,6 +33,7 @@ export function MasterCalendarPage() {
   const [mode, setMode] = useState<CalendarMode>("master");
   const [masterTasks, setMasterTasks] = useState<MasterCalendarTask[]>([]);
   const [marketingTasks, setMarketingTasks] = useState<Task[]>([]);
+  const [marketingOutOfSyncIds, setMarketingOutOfSyncIds] = useState<Set<string>>(new Set());
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [monthIndex, setMonthIndex] = useState(() => new Date().getMonth());
 
@@ -87,12 +88,18 @@ export function MasterCalendarPage() {
       if (mode !== "marketing") return;
       try {
         setStatus("");
-        const rows = await listTasks();
+        const { from, to } = monthRange(year, monthIndex);
+        const [rows, outOfSync] = await Promise.all([
+          listTasks(),
+          listDueDateOutOfSyncTaskIds({ dueFrom: from, dueTo: to }).catch(() => [])
+        ]);
         if (cancelled) return;
         setMarketingTasks(rows);
+        setMarketingOutOfSyncIds(new Set(outOfSync.map((id) => id.toLowerCase())));
       } catch (e) {
         if (cancelled) return;
         setMarketingTasks([]);
+        setMarketingOutOfSyncIds(new Set());
         setStatus(e instanceof Error ? e.message : "Failed to load tasks");
       }
     }
@@ -100,7 +107,7 @@ export function MasterCalendarPage() {
     return () => {
       cancelled = true;
     };
-  }, [canSeeMarketingCalendar, mode]);
+  }, [canSeeMarketingCalendar, mode, monthIndex, year]);
 
   const marketingCalendarTasks = useMemo(() => {
     const monthKey = `${year}-${pad2(monthIndex + 1)}`;
@@ -136,7 +143,13 @@ export function MasterCalendarPage() {
       setStatus("");
     } catch (e) {
       setMarketingTasks(prev);
-      setStatus(e instanceof Error ? e.message : "Failed to move ticket");
+      const raw = e instanceof Error ? e.message : "Failed to move ticket";
+      if (raw.toLowerCase().includes("due date cannot be after parent ticket due date")) {
+        const date = raw.match(/\((\d{4}-\d{2}-\d{2})\)/)?.[1] ?? null;
+        setStatus(date ? `Due date can’t be after the parent ticket’s due date (${date}).` : "Due date can’t be after the parent ticket’s due date.");
+      } else {
+        setStatus(raw);
+      }
     }
   }
 
@@ -217,6 +230,7 @@ export function MasterCalendarPage() {
                 onOpenTask={(t) => router.push(`/tasks/${t.id}`)}
                 canEditDueForTask={canEditDueForTask}
                 onMoveTaskDue={onMoveTaskDue}
+                outOfSyncTaskIds={marketingOutOfSyncIds}
               />
             ) : (
               <div className="text-sm text-white/55">Marketing calendar is only available to the marketing team.</div>
