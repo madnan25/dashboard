@@ -31,6 +31,7 @@ import {
   deleteTaskSubtask,
   deleteTaskComment,
   createTaskComment,
+  getLinkedParentSubtask,
   getCurrentProfile,
   getTask,
   listProfiles,
@@ -98,6 +99,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const canEditSubtasks = Boolean(profile && isMarketingTeamProfile(profile)); // marketing team can manage subtasks
   function canManageSubtaskLinks(s: TaskSubtask) {
     if (!profile) return false;
+    if (linkedParentSubtask?.task_id) return false;
     if (isManager) return true;
     return s.created_by != null && s.created_by === profile.id;
   }
@@ -123,6 +125,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [linkedTaskTitles, setLinkedTaskTitles] = useState<Record<string, string>>({});
   const [subtaskLinkAction, setSubtaskLinkAction] = useState<Record<string, "" | "existing" | "design">>({});
   const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, { description?: string }>>({});
+  const [linkedParentSubtask, setLinkedParentSubtask] = useState<TaskSubtask | null>(null);
 
   const lastSavedRef = useRef<{
     title: string;
@@ -180,8 +183,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const SUBTASK_STATUSES: TaskSubtaskStatus[] = ["not_done", "done", "blocked", "on_hold"];
   const TASK_LINK_CLASS =
     "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-blue-400/60 text-blue-300 hover:text-violet-200 hover:decoration-violet-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/30 rounded-sm";
-  const EXTERNAL_LINK_CLASS =
-    "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-sky-400/60 text-sky-300 hover:text-sky-200 hover:decoration-sky-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/30 rounded-sm";
 
   function extractTaskId(raw: string): string | null {
     const s = (raw || "").trim();
@@ -198,114 +199,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
       .replace(/^\s*<!--dashboard:linked-subtask-->\s*\n?/gim, "")
       .replace(/^\s*<!--dashboard:linked-subtask-end-->\s*\n?/gim, "");
   }
-
-  function extractTaskIdsFromText(text: string) {
-    const re = /\/tasks\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
-    const ids = new Set<string>();
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text || "")) !== null) {
-      ids.add(m[1].toLowerCase());
-    }
-    return Array.from(ids);
-  }
-
-  function renderInlineLinks(text: string): React.ReactNode[] {
-    const nodes: React.ReactNode[] = [];
-    const re = /(https?:\/\/[^\s]+|\/tasks\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) {
-      const before = text.slice(last, m.index);
-      if (before) nodes.push(before);
-      const token = m[0];
-      if (token.startsWith("/tasks/")) {
-        const id = token.slice("/tasks/".length).toLowerCase();
-        const label = linkedTaskTitles[id] || `${id.slice(0, 8)}…`;
-        nodes.push(
-          <button
-            key={`${m.index}-${token}`}
-            type="button"
-            className={TASK_LINK_CLASS}
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(token);
-            }}
-            title={token}
-          >
-            {label}
-          </button>
-        );
-      } else {
-        nodes.push(
-          <a
-            key={`${m.index}-${token}`}
-            href={token}
-            target="_blank"
-            rel="noreferrer"
-            className={EXTERNAL_LINK_CLASS}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {token}
-          </a>
-        );
-      }
-      last = m.index + token.length;
-    }
-    const rest = text.slice(last);
-    if (rest) nodes.push(rest);
-    return nodes;
-  }
-
-  function renderTextWithLinks(text: string) {
-    const lines = (text || "").split("\n");
-    return lines.map((line, i) => (
-      <span key={i}>
-        {renderInlineLinks(line)}
-        {i < lines.length - 1 ? <br /> : null}
-      </span>
-    ));
-  }
-
-  // Best-effort: replace /tasks/<id> display with ticket title.
-  useEffect(() => {
-    let cancelled = false;
-    async function hydrateTitles() {
-      const ids = extractTaskIdsFromText(description || "");
-      if (ids.length === 0) return;
-
-      // We always know the current ticket title.
-      setLinkedTaskTitles((prev) => {
-        const next = { ...prev };
-        const k = taskId.toLowerCase();
-        next[k] = title || next[k] || `${k.slice(0, 8)}…`;
-        return next;
-      });
-
-      const missing = ids.filter((id) => !(id in linkedTaskTitles));
-      if (missing.length === 0) return;
-
-      try {
-        const rows = await listTasksByIds(missing);
-        if (cancelled) return;
-        if (!rows || rows.length === 0) return;
-        setLinkedTaskTitles((prev) => {
-          const next = { ...prev };
-          for (const t of rows) {
-            const k = t.id.toLowerCase();
-            next[k] = t.title || `${k.slice(0, 8)}…`;
-          }
-          return next;
-        });
-      } catch {
-        // ignore (RLS may block; links still work)
-      }
-    }
-    hydrateTitles();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [description, taskId]);
 
   const ensureTaskTitlesLoaded = useCallback(
     async (ids: Array<string | null | undefined>) => {
@@ -376,21 +269,23 @@ export function TaskPage({ taskId }: { taskId: string }) {
     try {
       setStatus("");
       setCommentsStatus("");
-      const [t, ev, led, subs, teamRows] = await Promise.all([
+      const [t, ev, led, subs, teamRows, parentLink] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
         listTaskPointsLedgerByTaskId(taskId),
         listTaskSubtasks(taskId),
-        listTaskTeams()
+        listTaskTeams(),
+        getLinkedParentSubtask(taskId).catch(() => null)
       ]);
       setTaskState(t);
       setEvents(ev);
       setLedger(led);
       setSubtasks(subs);
       setTeams(teamRows);
+      setLinkedParentSubtask(parentLink);
       await ensureTaskTitlesLoaded([
         ...(subs.map((s) => s.linked_task_id ?? null) ?? []),
-        ...extractTaskIdsFromText(t?.description ?? "")
+        parentLink?.task_id ?? null
       ]);
       await ensureProfilesLoaded([
         t?.created_by,
@@ -728,6 +623,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   async function onUpdateSubtaskLink(subtask: TaskSubtask, nextLinkedId: string | null) {
     if (!profile || !isMarketingTeamProfile(profile)) return;
+    if (linkedParentSubtask?.task_id) {
+      setStatus("Linked tickets can only be managed from the parent ticket.");
+      return;
+    }
     if (!canManageSubtaskLinks(subtask)) return;
     setStatus("Linking ticket…");
     const snapshot = subtasks;
@@ -746,6 +645,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   async function onLinkExistingTicketForSubtask(subtask: TaskSubtask) {
     if (!profile || !isMarketingTeamProfile(profile)) return;
+    if (linkedParentSubtask?.task_id) {
+      setStatus("Linked tickets can only be managed from the parent ticket.");
+      return;
+    }
     if (!canManageSubtaskLinks(subtask)) return;
     const raw = prompt("Paste the ticket URL or ID to link to this subtask:");
     if (!raw) return;
@@ -759,6 +662,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   async function onCreateDesignTicketForSubtask(subtask: TaskSubtask) {
     if (!profile || !isMarketingTeamProfile(profile)) return;
+    if (linkedParentSubtask?.task_id) {
+      setStatus("Linked tickets can only be managed from the parent ticket.");
+      return;
+    }
     if (!canManageSubtaskLinks(subtask)) return;
     const designTeam = teams.find((t) => t.name.toLowerCase().includes("design")) ?? null;
     if (!designTeam) {
@@ -998,6 +905,22 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   <AppInput value={title} onValueChange={setTitle} isDisabled={!canEditDetails} />
                 </div>
 
+                {linkedParentSubtask?.task_id ? (
+                  <div>
+                    <div className="text-xs uppercase tracking-widest text-white/45">Linked Parent Ticket</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className={TASK_LINK_CLASS}
+                        onClick={() => router.push(`/tasks/${linkedParentSubtask.task_id}`)}
+                      >
+                        {linkedTaskTitles[linkedParentSubtask.task_id.toLowerCase()] ||
+                          `${linkedParentSubtask.task_id.slice(0, 8)}…`}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div>
                   <div className="text-xs uppercase tracking-widest text-white/45">Description (optional)</div>
                   {canEditDetails && editingDescription ? (
@@ -1023,9 +946,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       }}
                     >
                       {description?.trim() ? (
-                        <div className="whitespace-pre-wrap">
-                          {renderTextWithLinks(stripDashboardLinkedSubtaskMarkers(description))}
-                        </div>
+                        <div className="whitespace-pre-wrap">{stripDashboardLinkedSubtaskMarkers(description)}</div>
                       ) : (
                         <div className="text-white/35">{canEditDetails ? "Click to add a description…" : "No description."}</div>
                       )}

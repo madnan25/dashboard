@@ -339,6 +339,10 @@ export async function listTaskSubtasks(taskId: string): Promise<TaskSubtask[]> {
   return await repo().listTaskSubtasks(taskId);
 }
 
+export async function getLinkedParentSubtask(linkedTaskId: string): Promise<TaskSubtask | null> {
+  return await repo().getLinkedParentSubtask(linkedTaskId);
+}
+
 export async function createTaskSubtask(input: {
   task_id: string;
   title: string;

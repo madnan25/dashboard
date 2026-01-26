@@ -97,6 +97,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     deleteTaskContributionByRole: (taskId: string, role: Parameters<typeof tasks.deleteTaskContributionByRole>[2]) =>
       tasks.deleteTaskContributionByRole(supabase, taskId, role),
     listTaskSubtasks: (taskId: string) => tasks.listTaskSubtasks(supabase, taskId),
+    getLinkedParentSubtask: (linkedTaskId: string) => tasks.getLinkedParentSubtask(supabase, linkedTaskId),
     createTaskSubtask: (input: Parameters<typeof tasks.createTaskSubtask>[1]) => tasks.createTaskSubtask(supabase, input),
     updateTaskSubtask: (id: string, patch: Parameters<typeof tasks.updateTaskSubtask>[2]) => tasks.updateTaskSubtask(supabase, id, patch),
     deleteTaskSubtask: (id: string) => tasks.deleteTaskSubtask(supabase, id),
