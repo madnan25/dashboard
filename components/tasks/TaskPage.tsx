@@ -32,8 +32,6 @@ import {
   deleteTaskComment,
   createTaskComment,
   getLinkedParentSubtask,
-  nextDesignTicketNumber,
-  nextProductionTicketNumber,
   nextTeamTicketNumber,
   getCurrentProfile,
   getTask,
@@ -54,7 +52,6 @@ import {
   PRIMARY_FLOW,
   SIDE_LANE,
   approvalLabel,
-  getTeamPrefix,
   isMarketingManagerProfile,
   isMarketingTeamProfile,
   priorityLabel,
@@ -78,6 +75,13 @@ function formatDesignTicketTitle(number: number, label: string) {
 
 function formatProductionTicketTitle(number: number, label: string) {
   return `PROD-${number}: ${label}`;
+}
+
+function normalizeTicketPrefix(raw: string): string | null {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
+  if (!cleaned) return null;
+  if (!/^[A-Z0-9]{2,8}$/.test(cleaned)) return null;
+  return cleaned;
 }
 
 function formatTicketTitle(prefix: string, number: number, label: string) {
@@ -697,7 +701,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       ]
         .join("\n")
         .trimEnd();
-      const prefix = getTeamPrefix(designTeam.name);
+      const prefix = normalizeTicketPrefix(designTeam.ticket_prefix ?? "DES") ?? "DES";
       const ticketNumber = await nextTeamTicketNumber(prefix);
       const designTitle = formatTicketTitle(prefix, ticketNumber, subtask.title);
       const created = await createTask({
@@ -743,7 +747,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       ]
         .join("\n")
         .trimEnd();
-      const prefix = getTeamPrefix(productionTeam.name);
+      const prefix = normalizeTicketPrefix(productionTeam.ticket_prefix ?? "PROD") ?? "PROD";
       const ticketNumber = await nextTeamTicketNumber(prefix);
       const productionTitle = formatTicketTitle(prefix, ticketNumber, subtask.title);
       const created = await createTask({

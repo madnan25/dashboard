@@ -18,12 +18,10 @@ import {
   listProjects,
   listTasks,
   listTaskTeams,
-  nextDesignTicketNumber,
-  nextProductionTicketNumber,
   nextTeamTicketNumber,
   updateTask
 } from "@/lib/dashboardDb";
-import { endOfWeek, getTeamPrefix, isoDate, isMarketingManagerProfile, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
+import { endOfWeek, isoDate, isMarketingManagerProfile, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
 import { MONTHS } from "@/lib/digitalSnapshot";
@@ -51,20 +49,11 @@ function labelForView(v: View) {
   }
 }
 
-function isDesignTeam(team: TaskTeam | null) {
-  return Boolean(team && team.name.toLowerCase().includes("design"));
-}
-
-function formatDesignTicketTitle(number: number, label: string) {
-  return `DES-${number}: ${label}`;
-}
-
-function isProductionTeam(team: TaskTeam | null) {
-  return Boolean(team && team.name.toLowerCase().includes("production"));
-}
-
-function formatProductionTicketTitle(number: number, label: string) {
-  return `PROD-${number}: ${label}`;
+function normalizeTicketPrefix(raw: string): string | null {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
+  if (!cleaned) return null;
+  if (!/^[A-Z0-9]{2,8}$/.test(cleaned)) return null;
+  return cleaned;
 }
 
 function formatTicketTitle(prefix: string, number: number, label: string) {
@@ -132,10 +121,15 @@ export function TasksPage() {
     try {
       const selectedTeam = teams.find((team) => team.id === newTeamId) ?? null;
       let nextTitle = t;
-      if (selectedTeam) {
-        const prefix = getTeamPrefix(selectedTeam.name);
-        const ticketNumber = await nextTeamTicketNumber(prefix);
-        nextTitle = formatTicketTitle(prefix, ticketNumber, t);
+      const prefix = normalizeTicketPrefix(selectedTeam?.ticket_prefix ?? "");
+      if (prefix) {
+        try {
+          const ticketNumber = await nextTeamTicketNumber(prefix);
+          nextTitle = formatTicketTitle(prefix, ticketNumber, t);
+        } catch {
+          // Degrade gracefully if numbering RPC/migration isn't available yet.
+          nextTitle = t;
+        }
       }
       const created = await createTask({ title: nextTitle, team_id: newTeamId });
       setNewTitle("");

@@ -259,7 +259,7 @@ export async function deleteTaskComment(supabase: SupabaseClient, id: string): P
 export async function listTaskTeams(supabase: SupabaseClient): Promise<TaskTeam[]> {
   const { data, error } = await supabase
     .from("task_teams")
-    .select("id, name, description, approver_user_id, created_by, created_at, updated_at")
+    .select("id, name, ticket_prefix, description, approver_user_id, created_by, created_at, updated_at")
     .order("name", { ascending: true });
   if (error) throw error;
   return (data as TaskTeam[]) ?? [];
@@ -267,16 +267,17 @@ export async function listTaskTeams(supabase: SupabaseClient): Promise<TaskTeam[
 
 export async function createTaskTeam(
   supabase: SupabaseClient,
-  input: Pick<TaskTeam, "name"> & Partial<Pick<TaskTeam, "description" | "approver_user_id">>
+  input: Pick<TaskTeam, "name"> & Partial<Pick<TaskTeam, "ticket_prefix" | "description" | "approver_user_id">>
 ): Promise<TaskTeam> {
   const { data, error } = await supabase
     .from("task_teams")
     .insert({
       name: input.name,
+      ticket_prefix: input.ticket_prefix ?? null,
       description: input.description ?? null,
       approver_user_id: input.approver_user_id ?? null
     })
-    .select("id, name, description, approver_user_id, created_by, created_at, updated_at")
+    .select("id, name, ticket_prefix, description, approver_user_id, created_by, created_at, updated_at")
     .single();
   if (error) throw error;
   return data as TaskTeam;
@@ -285,7 +286,7 @@ export async function createTaskTeam(
 export async function updateTaskTeam(
   supabase: SupabaseClient,
   id: string,
-  patch: Partial<Pick<TaskTeam, "name" | "description" | "approver_user_id">>
+  patch: Partial<Pick<TaskTeam, "name" | "ticket_prefix" | "description" | "approver_user_id">>
 ): Promise<void> {
   const { error } = await supabase.from("task_teams").update(patch).eq("id", id);
   if (error) throw error;

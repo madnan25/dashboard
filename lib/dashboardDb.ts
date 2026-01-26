@@ -301,13 +301,18 @@ export async function listTaskTeams(): Promise<TaskTeam[]> {
   return await repo().listTaskTeams();
 }
 
-export async function createTaskTeam(input: { name: string; description?: string | null; approver_user_id?: string | null }): Promise<TaskTeam> {
+export async function createTaskTeam(input: {
+  name: string;
+  ticket_prefix?: string | null;
+  description?: string | null;
+  approver_user_id?: string | null;
+}): Promise<TaskTeam> {
   return await repo().createTaskTeam(input);
 }
 
 export async function updateTaskTeam(
   id: string,
-  patch: { name?: string; description?: string | null; approver_user_id?: string | null }
+  patch: { name?: string; ticket_prefix?: string | null; description?: string | null; approver_user_id?: string | null }
 ): Promise<void> {
   return await repo().updateTaskTeam(id, patch);
 }

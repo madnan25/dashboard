@@ -20,6 +20,7 @@ export type Project = {
 export type TaskTeam = {
   id: string;
   name: string;
+  ticket_prefix?: string | null;
   description: string | null;
   approver_user_id: string | null;
   created_by: string | null;

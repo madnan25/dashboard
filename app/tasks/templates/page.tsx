@@ -24,15 +24,22 @@ export default function TaskTeamsPage() {
   const [selectedId, setSelectedId] = useState("");
 
   const [newName, setNewName] = useState("");
+  const [newPrefix, setNewPrefix] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newApproverId, setNewApproverId] = useState("");
   const [creating, setCreating] = useState(false);
 
   const [editName, setEditName] = useState("");
+  const [editPrefix, setEditPrefix] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editApproverId, setEditApproverId] = useState("");
   const [saving, setSaving] = useState(false);
-  const lastSavedRef = useRef<{ name: string; description: string | null; approver_user_id: string } | null>(null);
+  const lastSavedRef = useRef<{
+    name: string;
+    ticket_prefix: string | null;
+    description: string | null;
+    approver_user_id: string;
+  } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canManage = me?.role === "cmo";
@@ -76,20 +83,29 @@ export default function TaskTeamsPage() {
   useEffect(() => {
     if (!selectedTeam) {
       setEditName("");
+      setEditPrefix("");
       setEditDesc("");
       setEditApproverId("");
       lastSavedRef.current = null;
       return;
     }
     setEditName(selectedTeam.name);
+    setEditPrefix(selectedTeam.ticket_prefix ?? "");
     setEditDesc(selectedTeam.description ?? "");
     setEditApproverId(selectedTeam.approver_user_id ?? "");
     lastSavedRef.current = {
       name: selectedTeam.name,
+      ticket_prefix: selectedTeam.ticket_prefix ?? null,
       description: selectedTeam.description ?? null,
       approver_user_id: selectedTeam.approver_user_id ?? ""
     };
   }, [selectedTeam]);
+
+  function normalizeTicketPrefix(raw: string): string | null {
+    const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
+    if (!cleaned) return null;
+    return cleaned;
+  }
 
   async function onCreateTeam() {
     if (!canManage) return;
@@ -99,15 +115,22 @@ export default function TaskTeamsPage() {
       setStatus("Select an approver (required) before creating a team.");
       return;
     }
+    const ticket_prefix = normalizeTicketPrefix(newPrefix);
+    if (ticket_prefix && !/^[A-Z0-9]{2,8}$/.test(ticket_prefix)) {
+      setStatus("Ticket prefix must be 2-8 letters/numbers (e.g. GV, DES, PROD).");
+      return;
+    }
     setCreating(true);
     setStatus("");
     try {
       const created = await createTaskTeam({
         name,
+        ticket_prefix,
         description: newDesc.trim() ? newDesc.trim() : null,
         approver_user_id: newApproverId
       });
       setNewName("");
+      setNewPrefix("");
       setNewDesc("");
       setNewApproverId("");
       await refresh();
@@ -127,16 +150,21 @@ export default function TaskTeamsPage() {
     if (!lastSavedRef.current) return;
 
     const name = editName.trim();
+    const ticket_prefix = normalizeTicketPrefix(editPrefix);
     const description = editDesc.trim() ? editDesc.trim() : null;
     const approver_user_id = editApproverId;
 
     // Don't persist invalid state; let user keep typing/choosing.
     if (!name) return;
     if (!approver_user_id) return;
+    if (ticket_prefix && !/^[A-Z0-9]{2,8}$/.test(ticket_prefix)) return;
 
     const prev = lastSavedRef.current;
     const changed =
-      name !== prev.name || description !== prev.description || approver_user_id !== prev.approver_user_id;
+      name !== prev.name ||
+      ticket_prefix !== prev.ticket_prefix ||
+      description !== prev.description ||
+      approver_user_id !== prev.approver_user_id;
     if (!changed) return;
 
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
@@ -144,8 +172,8 @@ export default function TaskTeamsPage() {
       setSaving(true);
       setStatus("Saving…");
       try {
-        await updateTaskTeam(selectedTeam.id, { name, description, approver_user_id });
-        lastSavedRef.current = { name, description, approver_user_id };
+        await updateTaskTeam(selectedTeam.id, { name, ticket_prefix, description, approver_user_id });
+        lastSavedRef.current = { name, ticket_prefix, description, approver_user_id };
         setStatus("Team updated.");
         // Best-effort refresh so list/selection stays in sync.
         await refresh().catch(() => null);
@@ -159,7 +187,7 @@ export default function TaskTeamsPage() {
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [canManage, editApproverId, editDesc, editName, selectedTeam]);
+  }, [canManage, editApproverId, editDesc, editName, editPrefix, selectedTeam]);
 
   async function onDeleteTeam() {
     if (!canManage || !selectedTeam) return;
@@ -201,6 +229,17 @@ export default function TaskTeamsPage() {
               <div className="mt-2 grid gap-2 md:grid-cols-2">
                 <AppInput value={newName} onValueChange={setNewName} isDisabled={creating} placeholder="Team name" />
                 <AppInput value={newDesc} onValueChange={setNewDesc} isDisabled={creating} placeholder="Description (optional)" />
+              </div>
+              <div className="mt-2">
+                <AppInput
+                  value={newPrefix}
+                  onValueChange={setNewPrefix}
+                  isDisabled={creating}
+                  placeholder="Ticket prefix (optional, e.g. GV)"
+                />
+                <div className="mt-1 text-xs text-white/45">
+                  If set, new tickets will be titled like <span className="text-white/70">GV-12: Title</span>. Use 2-8 letters/numbers.
+                </div>
               </div>
               <div className="mt-2">
                 <PillSelect value={newApproverId} onChange={setNewApproverId} ariaLabel="Approver" disabled={creating}>
@@ -265,6 +304,17 @@ export default function TaskTeamsPage() {
               <div>
                 <div className="text-xs uppercase tracking-widest text-white/45">Description</div>
                 <AppInput value={editDesc} onValueChange={setEditDesc} isDisabled={saving} placeholder="Description" />
+              </div>
+              <div className="md:col-span-2">
+                <div className="text-xs uppercase tracking-widest text-white/45">Ticket prefix</div>
+                <AppInput value={editPrefix} onValueChange={setEditPrefix} isDisabled={saving} placeholder="e.g. GV (optional)" />
+                {editPrefix.trim() && !/^[A-Z0-9]{2,8}$/.test(normalizeTicketPrefix(editPrefix) || "") ? (
+                  <div className="mt-2 text-xs text-white/45">Use 2-8 letters/numbers (no spaces). Example: GV, DES, PROD.</div>
+                ) : (
+                  <div className="mt-2 text-xs text-white/45">
+                    Leave blank to disable auto-numbering for this team.
+                  </div>
+                )}
               </div>
               <div className="md:col-span-2">
                 <div className="text-xs uppercase tracking-widest text-white/45">Approver</div>
