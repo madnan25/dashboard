@@ -121,6 +121,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
     if (isManager) return true;
     return s.created_by != null && s.created_by === profile.id;
   }
+  function canEditSubtaskTitle(s: TaskSubtask) {
+    if (!profile) return false;
+    if (isManager) return true;
+    return s.created_by != null && s.created_by === profile.id;
+  }
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -144,7 +149,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [linkedTaskDueAt, setLinkedTaskDueAt] = useState<Record<string, string | null>>({});
   const [linkedTaskStatus, setLinkedTaskStatus] = useState<Record<string, TaskStatus | null>>({});
   const [subtaskLinkAction, setSubtaskLinkAction] = useState<Record<string, "" | "existing" | "design" | "production">>({});
-  const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, { description?: string }>>({});
+  const [subtaskDrafts, setSubtaskDrafts] = useState<Record<string, { description?: string; title?: string }>>({});
+  const [editingSubtaskTitleId, setEditingSubtaskTitleId] = useState<string | null>(null);
   const [linkedParentSubtask, setLinkedParentSubtask] = useState<TaskSubtask | null>(null);
 
   const lastSavedRef = useRef<{
@@ -163,7 +169,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const autosaveSeqRef = useRef(0);
   const subtaskAutosaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const subtaskAutosaveSeqRef = useRef<Record<string, number>>({});
-  const subtaskDraftsRef = useRef<Record<string, { description?: string }>>({});
+  const subtaskDraftsRef = useRef<Record<string, { description?: string; title?: string }>>({});
   const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
@@ -688,6 +694,55 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }, 450);
   }
 
+  function onUpdateSubtaskTitleDraft(id: string, nextTitle: string) {
+    const subtask = subtasks.find((s) => s.id === id);
+    if (!subtask || !canEditSubtaskTitle(subtask)) return;
+    // Update UI immediately.
+    setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, title: nextTitle } : s)));
+    setSubtaskDrafts((prev) => {
+      const next = { ...prev, [id]: { ...(prev[id] ?? {}), title: nextTitle } };
+      subtaskDraftsRef.current = next;
+      return next;
+    });
+
+    // Debounce network saves to avoid input jitter from out-of-order responses.
+    const prevTimer = subtaskAutosaveTimersRef.current[id];
+    if (prevTimer) clearTimeout(prevTimer);
+    const seq = (subtaskAutosaveSeqRef.current[id] ?? 0) + 1;
+    subtaskAutosaveSeqRef.current[id] = seq;
+    subtaskAutosaveTimersRef.current[id] = setTimeout(async () => {
+      const draft = subtaskDraftsRef.current[id]?.title ?? nextTitle;
+      if (!draft.trim()) {
+        // Don't save empty titles
+        setSubtaskDrafts((prev) => {
+          const copy = { ...prev };
+          delete copy[id];
+          subtaskDraftsRef.current = copy;
+          return copy;
+        });
+        await refreshSubtasksOnly().catch(() => null);
+        return;
+      }
+      try {
+        setStatus("Saving subtask…");
+        const updated = await updateTaskSubtask(id, { title: draft });
+        if (subtaskAutosaveSeqRef.current[id] !== seq) return; // superseded
+        setSubtasks((prev) => prev.map((s) => (s.id === id ? updated : s)));
+        setSubtaskDrafts((prev) => {
+          const copy = { ...prev };
+          delete copy[id];
+          subtaskDraftsRef.current = copy;
+          return copy;
+        });
+        setStatus("Subtask saved.");
+      } catch (e) {
+        if (subtaskAutosaveSeqRef.current[id] !== seq) return;
+        setStatus(getErrorMessage(e, "Failed to save subtask"));
+        await refreshSubtasksOnly().catch(() => null);
+      }
+    }, 450);
+  }
+
   async function onUpdateSubtaskLink(subtask: TaskSubtask, nextLinkedId: string | null) {
     if (!profile || !isMarketingTeamProfile(profile)) return;
     if (linkedParentSubtask?.task_id) {
@@ -1128,13 +1183,61 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   </div>
                   <div className="mt-3 space-y-2">
                     {subtasks.length === 0 ? <div className="text-sm text-white/50">No subtasks yet.</div> : null}
-                    {subtasks.map((s) => (
-                      <div key={s.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                        <div className="grid gap-2 md:grid-cols-[1fr_auto] md:items-start">
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-white/90 break-words">{s.title}</div>
-                          </div>
-                          <div className="flex flex-wrap items-center justify-end gap-2">
+                    {subtasks.map((s) => {
+                      const canEditTitle = canEditSubtaskTitle(s);
+                      const isEditingTitle = editingSubtaskTitleId === s.id;
+                      const titleValue = subtaskDrafts[s.id]?.title ?? s.title ?? "";
+                      return (
+                        <div key={s.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="min-w-0 flex-1">
+                              {isEditingTitle && canEditTitle ? (
+                                <input
+                                  type="text"
+                                  value={titleValue}
+                                  onChange={(e) => onUpdateSubtaskTitleDraft(s.id, e.target.value)}
+                                  onBlur={() => {
+                                    // Save on blur if changed
+                                    const draft = subtaskDrafts[s.id]?.title;
+                                    if (draft !== undefined && draft !== s.title && draft.trim()) {
+                                      // The autosave will handle it, but we can close editing
+                                    }
+                                    setEditingSubtaskTitleId(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.currentTarget.blur();
+                                    } else if (e.key === "Escape") {
+                                      setSubtaskDrafts((prev) => {
+                                        const copy = { ...prev };
+                                        delete copy[s.id];
+                                        subtaskDraftsRef.current = copy;
+                                        return copy;
+                                      });
+                                      setEditingSubtaskTitleId(null);
+                                    }
+                                  }}
+                                  autoFocus
+                                  className="w-full glass-inset rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-semibold text-white/90 outline-none focus:border-white/20"
+                                />
+                              ) : (
+                                <div
+                                  className={[
+                                    "text-sm font-semibold text-white/90 break-words",
+                                    canEditTitle ? "cursor-text hover:text-white" : ""
+                                  ].join(" ")}
+                                  onClick={() => {
+                                    if (canEditTitle) {
+                                      setEditingSubtaskTitleId(s.id);
+                                    }
+                                  }}
+                                  title={canEditTitle ? "Click to edit" : ""}
+                                >
+                                  {s.title || "Untitled subtask"}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                             <div className="min-w-[150px] flex-1 md:flex-none">
                               <PillSelect
                                 value={s.status}
@@ -1302,7 +1405,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           />
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
