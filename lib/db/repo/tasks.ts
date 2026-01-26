@@ -256,31 +256,64 @@ export async function deleteTaskComment(supabase: SupabaseClient, id: string): P
 
 // --- Teams ---
 
+function isMissingColumnError(err: unknown, column: string): boolean {
+  if (!err || typeof err !== "object") return false;
+  const anyErr = err as { code?: string; message?: string; details?: string };
+  // Postgres undefined_column is 42703; PostgREST often forwards this.
+  if (anyErr.code === "42703" && (anyErr.message?.includes(column) || anyErr.details?.includes(column))) return true;
+  const msg = (anyErr.message || anyErr.details || "").toLowerCase();
+  return msg.includes("does not exist") && msg.includes(column.toLowerCase());
+}
+
 export async function listTaskTeams(supabase: SupabaseClient): Promise<TaskTeam[]> {
-  const { data, error } = await supabase
+  const withPrefix = await supabase
     .from("task_teams")
     .select("id, name, ticket_prefix, description, approver_user_id, created_by, created_at, updated_at")
     .order("name", { ascending: true });
-  if (error) throw error;
-  return (data as TaskTeam[]) ?? [];
+  if (!withPrefix.error) return (withPrefix.data as TaskTeam[]) ?? [];
+  if (!isMissingColumnError(withPrefix.error, "ticket_prefix")) throw withPrefix.error;
+
+  // Backwards-compatible fallback for environments where the migration hasn't been applied yet.
+  const withoutPrefix = await supabase
+    .from("task_teams")
+    .select("id, name, description, approver_user_id, created_by, created_at, updated_at")
+    .order("name", { ascending: true });
+  if (withoutPrefix.error) throw withoutPrefix.error;
+  return ((withoutPrefix.data as TaskTeam[]) ?? []).map((t) => ({ ...t, ticket_prefix: null }));
 }
 
 export async function createTaskTeam(
   supabase: SupabaseClient,
   input: Pick<TaskTeam, "name"> & Partial<Pick<TaskTeam, "ticket_prefix" | "description" | "approver_user_id">>
 ): Promise<TaskTeam> {
-  const { data, error } = await supabase
+  const payloadWithPrefix = {
+    name: input.name,
+    ticket_prefix: input.ticket_prefix ?? null,
+    description: input.description ?? null,
+    approver_user_id: input.approver_user_id ?? null
+  };
+
+  const created = await supabase
     .from("task_teams")
-    .insert({
-      name: input.name,
-      ticket_prefix: input.ticket_prefix ?? null,
-      description: input.description ?? null,
-      approver_user_id: input.approver_user_id ?? null
-    })
+    .insert(payloadWithPrefix)
     .select("id, name, ticket_prefix, description, approver_user_id, created_by, created_at, updated_at")
     .single();
-  if (error) throw error;
-  return data as TaskTeam;
+  if (!created.error) return created.data as TaskTeam;
+  if (!isMissingColumnError(created.error, "ticket_prefix")) throw created.error;
+
+  // Backwards-compatible fallback if `ticket_prefix` column isn't available yet.
+  const payloadWithoutPrefix = {
+    name: input.name,
+    description: input.description ?? null,
+    approver_user_id: input.approver_user_id ?? null
+  };
+  const createdFallback = await supabase
+    .from("task_teams")
+    .insert(payloadWithoutPrefix)
+    .select("id, name, description, approver_user_id, created_by, created_at, updated_at")
+    .single();
+  if (createdFallback.error) throw createdFallback.error;
+  return { ...(createdFallback.data as TaskTeam), ticket_prefix: null };
 }
 
 export async function updateTaskTeam(
@@ -289,7 +322,13 @@ export async function updateTaskTeam(
   patch: Partial<Pick<TaskTeam, "name" | "ticket_prefix" | "description" | "approver_user_id">>
 ): Promise<void> {
   const { error } = await supabase.from("task_teams").update(patch).eq("id", id);
-  if (error) throw error;
+  if (!error) return;
+  if (!("ticket_prefix" in patch) || !isMissingColumnError(error, "ticket_prefix")) throw error;
+
+  // Backwards-compatible fallback: retry without `ticket_prefix` if column doesn't exist yet.
+  const { ticket_prefix: _ignored, ...rest } = patch;
+  const { error: retryErr } = await supabase.from("task_teams").update(rest).eq("id", id);
+  if (retryErr) throw retryErr;
 }
 
 export async function deleteTaskTeam(supabase: SupabaseClient, id: string): Promise<void> {
