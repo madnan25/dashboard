@@ -92,6 +92,13 @@ export function MobileTabBar() {
       { key: "home", href: "/", label: "Home", icon: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" },
       // Projects: grid
       { key: "projects", href: "/projects", label: "Projects", icon: "M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" },
+      // Calendar: view-only master calendar
+      {
+        key: "calendar",
+        href: "/master-calendar",
+        label: "Calendar",
+        icon: "M7 4v2m10-2v2M6 8h12M6 20h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2Z"
+      },
       ...(profile?.role == null
         ? []
         : canAccessTasks
@@ -144,7 +151,13 @@ export function MobileTabBar() {
         <Surface className="p-2 border border-white/10" style={{ backdropFilter: "blur(18px)" }}>
           <nav
             className={`grid ${
-              tabs.length === 6 ? "grid-cols-6" : tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"
+              tabs.length >= 7
+                ? "grid-cols-7"
+                : tabs.length === 6
+                  ? "grid-cols-6"
+                  : tabs.length === 5
+                    ? "grid-cols-5"
+                    : "grid-cols-4"
             } gap-1`}
             aria-label="Primary"
           >

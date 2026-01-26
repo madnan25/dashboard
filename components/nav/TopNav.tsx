@@ -135,6 +135,14 @@ export function TopNav() {
               >
                 Projects
               </Link>
+              <Link
+                href="/master-calendar"
+                prefetch
+                onMouseEnter={() => router.prefetch("/master-calendar")}
+                className={`px-3 py-2 text-sm ${navPill} ${isActive("/master-calendar") ? navPillActive : ""}`}
+              >
+                Calendar
+              </Link>
               {profile?.role == null ? null : canAccessTasks ? (
                 <Link
                   href="/tasks"

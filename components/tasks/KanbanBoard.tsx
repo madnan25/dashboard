@@ -32,6 +32,7 @@ export function KanbanBoard({
   const [draggingActive, setDraggingActive] = useState(false);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const [dragSize, setDragSize] = useState<{ width: number; height: number } | null>(null);
+  const [closedCollapsed, setClosedCollapsed] = useState(true);
   const dragRef = useRef<{
     taskId: string;
     startX: number;
@@ -42,22 +43,26 @@ export function KanbanBoard({
     originalStatus: TaskStatus;
   } | null>(null);
 
+  const columns = useMemo(() => {
+    // Keep Closed at the very end, after the side lane.
+    const primaryNoClosed = PRIMARY_FLOW.filter((s) => s !== "closed");
+    return [...primaryNoClosed, ...SIDE_LANE, "closed"] as TaskStatus[];
+  }, []);
+
   const byStatus = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
-    for (const s of [...PRIMARY_FLOW, ...SIDE_LANE]) map.set(s, []);
+    for (const s of columns) map.set(s, []);
     for (const t of tasks) {
       const arr = map.get(t.status) ?? [];
       arr.push(t);
       map.set(t.status, arr);
     }
     return map;
-  }, [tasks]);
+  }, [columns, tasks]);
 
   const assigneeFor = (t: Task) => profiles.find((p) => p.id === t.assignee_id) ?? null;
   const projectFor = (t: Task) => projects.find((p) => p.id === t.project_id) ?? null;
   const teamFor = (t: Task) => teams.find((team) => team.id === t.team_id) ?? null;
-
-  const columns = [...PRIMARY_FLOW, ...SIDE_LANE];
 
   function onPointerDown(e: React.PointerEvent, t: Task) {
     if (e.button !== 0) return;
@@ -150,11 +155,25 @@ export function KanbanBoard({
           const col = byStatus.get(s) ?? [];
           const isOver = draggingActive && dragOverStatus === s;
           const canDropHere = draggingTask ? canMoveToStatus(draggingTask, s).ok : false;
+          const isClosed = s === "closed";
+          const isCollapsed = isClosed && closedCollapsed;
           return (
-            <div key={s} className="min-w-[280px] w-[280px]">
-              <div className="mb-2 flex items-center justify-between">
+            <div key={s} className={isCollapsed ? "min-w-[160px] w-[160px]" : "min-w-[280px] w-[280px]"}>
+              <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="text-xs uppercase tracking-widest text-white/45">{statusLabel(s)}</div>
-                <div className="text-xs text-white/45 tabular-nums">{col.length}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-xs text-white/45 tabular-nums">{col.length}</div>
+                  {isClosed ? (
+                    <button
+                      type="button"
+                      className="text-[11px] text-white/60 hover:text-white/80 underline underline-offset-2 decoration-white/20 hover:decoration-white/40"
+                      onClick={() => setClosedCollapsed((v) => !v)}
+                      title={closedCollapsed ? "Show closed tickets" : "Hide closed tickets"}
+                    >
+                      {closedCollapsed ? "Show" : "Hide"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
               <div
                 className={[
@@ -164,7 +183,12 @@ export function KanbanBoard({
                 ].join(" ")}
                 data-task-status={s}
               >
-                {col.length === 0 ? (
+                {isCollapsed ? (
+                  <div className="glass-inset rounded-2xl border border-white/10 bg-white/[0.01] px-4 py-3 text-sm text-white/45">
+                    Collapsed
+                    <div className="mt-1 text-xs text-white/40">Tap “Show” to view.</div>
+                  </div>
+                ) : col.length === 0 ? (
                   <div className="glass-inset rounded-2xl border border-white/10 bg-white/[0.01] px-4 py-3 text-sm text-white/35">
                     Empty
                   </div>
