@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Task } from "@/lib/dashboardDb";
 import { taskIsOpen } from "@/components/tasks/taskModel";
 
@@ -41,7 +41,10 @@ export function TasksCalendar(props: {
   outOfSyncTaskIds?: Set<string>;
 }) {
   const { tasks, year, monthIndex, onOpenTask, canEditDueForTask, onMoveTaskDue, outOfSyncTaskIds } = props;
-  const isOutOfSync = (id: string) => Boolean(outOfSyncTaskIds && outOfSyncTaskIds.has(id.toLowerCase()));
+  const isOutOfSync = useCallback(
+    (id: string) => Boolean(outOfSyncTaskIds && outOfSyncTaskIds.has(id.toLowerCase())),
+    [outOfSyncTaskIds]
+  );
   const [dragOverIso, setDragOverIso] = useState<string>("");
   const [dragOverNoDue, setDragOverNoDue] = useState(false);
   const [draggingId, setDraggingId] = useState<string>("");
@@ -87,7 +90,7 @@ export function TasksCalendar(props: {
       if (isOutOfSync(t.id)) n++;
     }
     return n;
-  }, [outOfSyncTaskIds, tasks]);
+  }, [isOutOfSync, outOfSyncTaskIds, tasks]);
 
   const dayCells = useMemo(() => {
     const cells: Array<{ iso: string; day: number; inMonth: boolean } | null> = [];

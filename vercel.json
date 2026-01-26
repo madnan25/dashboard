@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/intelligence-desk/cron?secret=1d1c02aa495f7d23788936a94262816a",
-      "schedule": "0 7 * * *"
-    }
-  ]
-}

@@ -104,11 +104,12 @@ export function IntelligenceDeskPage() {
     try {
       const res = await fetch(`/api/intelligence-desk/summary${force ? "?force=1" : ""}`, { cache: "no-store" });
       const body = (await res.json().catch(() => null)) as SummaryResponse | { error?: string } | null;
-      if (!res.ok || !body || "error" in body) {
+      if (!res.ok || !body || "error" in body || typeof (body as SummaryResponse).summary !== "string") {
         throw new Error(body && "error" in body ? body.error || "Failed to load summary" : "Failed to load summary");
       }
-      setSummary(body.summary || "");
-      setSummaryMeta(body);
+      const summaryBody = body as SummaryResponse;
+      setSummary(summaryBody.summary || "");
+      setSummaryMeta(summaryBody);
     } catch (e) {
       setSummaryStatus(e instanceof Error ? e.message : "Failed to load summary");
     } finally {
