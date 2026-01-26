@@ -76,16 +76,27 @@ export function TaskCard({
   assignee: Profile | null;
   project: Project | null;
   team?: TaskTeam | null;
-  subtaskAssignments?: Array<Pick<TaskSubtask, "id" | "title" | "status">>;
+  subtaskAssignments?: Array<Pick<TaskSubtask, "id" | "title" | "status" | "due_at">>;
   onOpen: () => void;
   onHover?: () => void;
   disableOpen?: boolean;
   className?: string;
 }) {
+  function earliestIsoDate(values: Array<string | null | undefined>): string | null {
+    // Dates are stored as ISO yyyy-mm-dd, so lexicographic compare works.
+    let best: string | null = null;
+    for (const v of values) {
+      if (!v) continue;
+      if (!best || v < best) best = v;
+    }
+    return best;
+  }
+
   const effectiveApproval: Task["approval_state"] = task.status === "approved" ? "approved" : task.approval_state;
   const assignedViaSubtask = subtaskAssignments && subtaskAssignments.length > 0 ? subtaskAssignments : null;
   const subtaskTone = assignedViaSubtask ? subtaskIndicatorTone(assignedViaSubtask.map((s) => s.status)) : null;
   const subtaskClasses = subtaskTone ? subtaskPillClass(subtaskTone) : null;
+  const effectiveDueAt = (assignedViaSubtask ? earliestIsoDate(assignedViaSubtask.map((s) => s.due_at)) : null) ?? task.due_at;
   return (
     <button
       type="button"
@@ -149,9 +160,9 @@ export function TaskCard({
         </div>
       </div>
 
-      {task.due_at ? (
+      {effectiveDueAt ? (
         <div className="mt-2 text-xs text-white/55">
-          Due: <span className="text-white/75 tabular-nums">{task.due_at}</span>
+          Due: <span className="text-white/75 tabular-nums">{effectiveDueAt}</span>
         </div>
       ) : null}
     </button>

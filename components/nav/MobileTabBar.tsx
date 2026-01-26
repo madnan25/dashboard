@@ -136,7 +136,17 @@ export function MobileTabBar() {
 
     if (isCmo) {
       const insertAt = 4;
-      base.splice(insertAt, 0, { key: "cmo", href: "/cmo/projects", label: "CMO", icon: "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" });
+      base.splice(
+        insertAt,
+        0,
+        { key: "cmo", href: "/cmo/projects", label: "CMO", icon: "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" },
+        {
+          key: "intelligence",
+          href: "/intelligence-desk",
+          label: "Desk",
+          icon: "M12 2l2.5 5 5 2.5-5 2.5-2.5 5-2.5-5-5-2.5 5-2.5 2.5-5Z"
+        }
+      );
     }
 
     return base;

@@ -189,6 +189,16 @@ export function TopNav() {
                   CMO Console
                 </Link>
               ) : null}
+              {isCmo ? (
+                <Link
+                  href="/intelligence-desk"
+                  prefetch
+                  onMouseEnter={() => router.prefetch("/intelligence-desk")}
+                  className={`px-3 py-2 text-sm ${navPill} ${isActive("/intelligence-desk") ? navPillActive : ""}`}
+                >
+                  Intelligence Desk
+                </Link>
+              ) : null}
               <Link
                 href="/design"
                 prefetch

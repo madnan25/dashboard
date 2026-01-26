@@ -664,7 +664,7 @@ export function TasksPage() {
                   subtaskAssignmentsByTaskId={Object.fromEntries(
                     Array.from(assigneeSubtasksByTaskId.entries()).map(([taskId, subs]) => [
                       taskId,
-                      subs.map((s) => ({ id: s.id, title: s.title, status: s.status }))
+                      subs.map((s) => ({ id: s.id, title: s.title, status: s.status, due_at: s.due_at }))
                     ])
                   )}
                   onOpenTask={(t) => {
