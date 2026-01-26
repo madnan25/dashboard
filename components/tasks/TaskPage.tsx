@@ -1142,7 +1142,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               >
                                 {linkedTaskTitles[s.linked_task_id.toLowerCase()] || `${s.linked_task_id.slice(0, 8)}…`}
                               </button>
-                              <div className="text-xs text-white/45">Status + assignee sync from linked ticket.</div>
+                              <div className="text-xs text-white/45">Status + assignee + due date sync from linked ticket.</div>
                               {canManageSubtaskLinks(s) ? (
                                 <AppButton
                                   intent="secondary"
@@ -1197,6 +1197,22 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               ) : null}
                             </div>
                           )}
+                        </div>
+
+                        <div className="mt-3">
+                          <div className="text-[11px] uppercase tracking-widest text-white/40">Due</div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <div className="w-full md:max-w-[260px]">
+                              <DayDatePicker
+                                value={s.due_at ?? ""}
+                                onChange={(v) => onUpdateSubtask(s.id, { due_at: v || null })}
+                                placeholder="Select due date"
+                                isDisabled={!canEditSubtasks || Boolean(s.linked_task_id)}
+                                showClear
+                              />
+                            </div>
+                            {s.linked_task_id ? <div className="text-xs text-white/45">Synced from linked ticket.</div> : null}
+                          </div>
                         </div>
 
                         <div className="mt-3">
