@@ -16,7 +16,6 @@ import type {
   TaskApprovalState,
   TaskComment,
   TaskEvent,
-  TaskPointsLedgerEntry,
   TaskPriority,
   TaskStatus,
   TaskSubtask,
@@ -41,7 +40,6 @@ import {
   listTasksByIds,
   listTaskComments,
   listTaskEvents,
-  listTaskPointsLedgerByTaskId,
   listTaskTeams,
   listTaskSubtasks,
   updateTask,
@@ -98,7 +96,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   const [task, setTaskState] = useState<Task | null>(null);
   const [events, setEvents] = useState<TaskEvent[]>([]);
-  const [ledger, setLedger] = useState<TaskPointsLedgerEntry[]>([]);
+  const [, setLedger] = useState<unknown[]>([]);
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [commentsStatus, setCommentsStatus] = useState<string>("");
@@ -299,17 +297,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
     try {
       setStatus("");
       setCommentsStatus("");
-      const [t, ev, led, subs, teamRows, parentLink] = await Promise.all([
+      const [t, ev, subs, teamRows, parentLink] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
-        listTaskPointsLedgerByTaskId(taskId),
         listTaskSubtasks(taskId),
         listTaskTeams(),
         getLinkedParentSubtask(taskId).catch(() => null)
       ]);
       setTaskState(t);
       setEvents(ev);
-      setLedger(led);
       setSubtasks(subs);
       setTeams(teamRows);
       setLinkedParentSubtask(parentLink);
@@ -317,12 +313,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
         ...(subs.map((s) => s.linked_task_id ?? null) ?? []),
         parentLink?.task_id ?? null
       ]);
+      // Event payloads can include profile IDs (e.g. assignee changes). Load those so the UI can show names.
+      const eventProfileIds: Array<string | null | undefined> = [];
+      for (const e of ev) {
+        eventProfileIds.push(e.actor_id);
+        if (e.type === "assignee") {
+          eventProfileIds.push(e.from_value);
+          eventProfileIds.push(e.to_value);
+        }
+      }
       await ensureProfilesLoaded([
         t?.created_by,
         t?.assignee_id,
         t?.approver_user_id,
         ...subs.map((s) => s.assignee_id),
-        ...ev.map((e) => e.actor_id)
+        ...eventProfileIds
       ]);
       try {
         const commentRows = await listTaskComments(taskId);
@@ -1498,7 +1503,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
               <div className="my-4 h-px bg-white/10" />
 
-              <div className="text-sm font-semibold text-white/85">Contributors + points</div>
+              <div className="text-sm font-semibold text-white/85">Contributors</div>
               <div className="mt-2 space-y-2 text-sm text-white/80">
                 <div>
                   Primary: <span className="text-white/90">{primaryContributor ? toOptionLabel(primaryContributor) : "Unassigned"}</span>
@@ -1512,31 +1517,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div>
                   Approver: <span className="text-white/90">{approverLabel}</span>
                 </div>
-              </div>
-              <div className="mt-3 space-y-2">
-                {ledger.length === 0 ? (
-                  <div className="text-sm text-white/50">No points awarded yet.</div>
-                ) : (
-                  ledger.map((l) => {
-                    const who =
-                      profiles.find((p) => p.id === l.user_id)?.full_name ||
-                      profiles.find((p) => p.id === l.user_id)?.email ||
-                      l.user_id.slice(0, 8) + "…";
-                    return (
-                      <div key={l.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-white/90">{who}</div>
-                            <div className="mt-1 text-xs text-white/55">
-                              Tier: {l.weight_tier} · Week: {l.week_start}
-                            </div>
-                          </div>
-                          <div className="text-lg font-semibold text-white/90 tabular-nums">{l.points_awarded}</div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
               </div>
 
               <div className="my-4 h-px bg-white/10" />
@@ -1563,17 +1543,56 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       profiles.find((p) => p.id === e.actor_id)?.email ||
                       (e.actor_id ? e.actor_id.slice(0, 8) + "…" : "Someone");
                     const when = new Date(e.created_at).toLocaleString();
-                    const from = e.from_value ? ` ${e.from_value} →` : "";
-                    const to = e.to_value ? ` ${e.to_value}` : "";
+                    const typeLabel =
+                      e.type === "created"
+                        ? "Created"
+                        : e.type === "status"
+                          ? "Status"
+                          : e.type === "assignee"
+                            ? "Assignee"
+                            : e.type === "approval"
+                              ? "Approval"
+                              : e.type === "priority"
+                                ? "Priority"
+                                : e.type === "due_at"
+                                  ? "Due"
+                                  : e.type;
+
+                    function formatEventValue(value: string | null) {
+                      if (!value) {
+                        if (e.type === "assignee") return "Unassigned";
+                        if (e.type === "due_at") return "No due date";
+                        return "—";
+                      }
+                      if (e.type === "assignee") {
+                        const p = profiles.find((x) => x.id === value) ?? null;
+                        return p ? toOptionLabel(p) : `${value.slice(0, 8)}…`;
+                      }
+                      if (e.type === "status") return statusLabel(value as TaskStatus);
+                      if (e.type === "approval") return approvalLabel(value as TaskApprovalState);
+                      if (e.type === "priority") return priorityLabel(value as TaskPriority);
+                      if (e.type === "due_at") return value;
+                      return value;
+                    }
+
+                    const fromLabel = e.from_value != null ? formatEventValue(e.from_value) : "";
+                    const toLabel = e.to_value != null ? formatEventValue(e.to_value) : "";
+                    const arrow = e.from_value != null || e.to_value != null ? " → " : "";
                     return (
                       <div key={e.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
                         <div className="text-sm text-white/80">
                           <span className="font-semibold text-white/90">{who}</span> · <span className="text-white/50">{when}</span>
                         </div>
                         <div className="mt-1 text-sm text-white/70">
-                          {e.type}
-                          {from}
-                          {to}
+                          {typeLabel}
+                          {fromLabel || toLabel ? (
+                            <>
+                              {" "}
+                              <span className="text-white/60">{fromLabel}</span>
+                              {arrow}
+                              <span className="text-white/85">{toLabel}</span>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     );
