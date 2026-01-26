@@ -78,8 +78,9 @@ export function TaskCard({
           </div>
           {assignedViaSubtask ? (
             <div className="mt-2">
-              <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] text-white/70">
-                <span className="shrink-0">Subtask</span>
+              <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-fuchsia-400/25 bg-fuchsia-500/[0.10] px-2 py-0.5 text-[11px] text-fuchsia-100 shadow-[0_0_18px_rgba(217,70,239,0.12)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-200/90 shadow-[0_0_10px_rgba(217,70,239,0.35)]" />
+                <span className="shrink-0 tracking-wide">Subtask</span>
                 <span className="text-white/40">·</span>
                 <span className="min-w-0 truncate">
                   {assignedViaSubtask.length === 1
