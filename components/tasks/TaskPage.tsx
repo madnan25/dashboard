@@ -1556,7 +1556,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         Sales
                       </option>
                       <option value="design" className="bg-zinc-900">
-                        Design & production
+                        Design & Production
                       </option>
                     </PillSelect>
                   ) : (
@@ -1566,7 +1566,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         : masterCalendarTag === "sales"
                           ? "Sales"
                           : masterCalendarTag === "design"
-                            ? "Design & production"
+                            ? "Design & Production"
                             : "None"}
                     </div>
                   )}

@@ -14,6 +14,7 @@ import type { Profile, Project, Task, TaskSubtask, TaskTeam } from "@/lib/dashbo
 import {
   createTask,
   getCurrentProfile,
+  listDueDateOutOfSyncTaskIds,
   listProfiles,
   listProjects,
   listTasks,
@@ -30,6 +31,17 @@ import { MONTHS } from "@/lib/digitalSnapshot";
 type View = "board" | "calendar" | "with_me" | "blocked" | "delivery" | "impact" | "reliability" | "project";
 
 const TASKS_FILTERS_STORAGE_KEY = "dashboard.tasks.filters.v1";
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function monthRange(year: number, monthIndex: number) {
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const from = `${year}-${pad2(monthIndex + 1)}-01`;
+  const to = `${year}-${pad2(monthIndex + 1)}-${pad2(daysInMonth)}`;
+  return { from, to };
+}
 
 function isView(x: unknown): x is View {
   return (
@@ -112,6 +124,7 @@ export function TasksPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<TaskTeam[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [calendarOutOfSyncIds, setCalendarOutOfSyncIds] = useState<Set<string>>(new Set());
   const [assigneeSubtasks, setAssigneeSubtasks] = useState<TaskSubtask[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -329,6 +342,26 @@ export function TasksPage() {
     const monthKey = `${calYear}-${String(calMonthIndex + 1).padStart(2, "0")}`;
     return filtered.filter((t) => !t.due_at || t.due_at.startsWith(monthKey));
   }, [calMonthIndex, calYear, filtered]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCalendarOutOfSync() {
+      if (view !== "calendar") return;
+      if (!profile || !isMarketingTeamProfile(profile)) return;
+      try {
+        const { from, to } = monthRange(calYear, calMonthIndex);
+        const ids = await listDueDateOutOfSyncTaskIds({ dueFrom: from, dueTo: to }).catch(() => []);
+        if (cancelled) return;
+        setCalendarOutOfSyncIds(new Set(ids.map((id) => id.toLowerCase())));
+      } catch {
+        if (!cancelled) setCalendarOutOfSyncIds(new Set());
+      }
+    }
+    loadCalendarOutOfSync();
+    return () => {
+      cancelled = true;
+    };
+  }, [calMonthIndex, calYear, profile, view]);
 
   function canEditDueForTask(t: Task) {
     if (isCmo) return true;
@@ -620,6 +653,7 @@ export function TasksPage() {
                   }}
                   canEditDueForTask={canEditDueForTask}
                   onMoveTaskDue={onMoveTaskDue}
+                  outOfSyncTaskIds={calendarOutOfSyncIds}
                 />
               ) : (
                 <KanbanBoard

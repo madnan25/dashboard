@@ -70,8 +70,6 @@ export function MasterCalendar(props: {
     return map;
   }, [tasks]);
 
-  const outOfSyncCount = useMemo(() => tasks.filter((t) => Boolean(t.out_of_sync)).length, [tasks]);
-
   const dayCells = useMemo(() => {
     const cells: Array<{ iso: string; day: number } | null> = [];
     for (let i = 0; i < leadingBlanks; i++) cells.push(null);
@@ -94,14 +92,7 @@ export function MasterCalendar(props: {
         </div>
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1">
           <span className="inline-block h-2 w-2 rounded-full bg-fuchsia-400/70" />
-          Design &amp; production
-        </div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-rose-500/[0.06] px-3 py-1 text-rose-200/90">
-          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-500/20 text-[10px] font-bold text-rose-200">
-            !
-          </span>
-          Due date correction needed
-          {outOfSyncCount > 0 ? <span className="ml-1 text-rose-200/70">({outOfSyncCount})</span> : null}
+          Design &amp; Production
         </div>
       </div>
 

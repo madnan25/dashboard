@@ -160,7 +160,7 @@ export function MasterCalendarPage() {
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <PageHeader
           title="Master Calendar"
-          subtitle="Major deadlines across Marketing + Sales + Design & production. View-only."
+          subtitle="Major deadlines across Marketing + Sales + Design & Production. View-only."
           showBack
           backHref="/"
           right={
