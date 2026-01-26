@@ -205,10 +205,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const TASK_LINK_CLASS =
     "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-blue-400/60 text-blue-300 hover:text-violet-200 hover:decoration-violet-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/30 rounded-sm";
 
-  const resizeTextareaToContent = useCallback((el: HTMLTextAreaElement | null) => {
+  const resizeTextareaToContent = useCallback((el: HTMLTextAreaElement | null, maxHeightPx = 320) => {
     if (!el) return;
     // Prevent "weird" giant boxes while still showing everything up to a cap.
-    const maxHeightPx = 320;
     el.style.height = "0px";
     const next = Math.min(el.scrollHeight, maxHeightPx);
     el.style.height = `${next}px`;
@@ -1077,44 +1076,48 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     {subtasks.length === 0 ? <div className="text-sm text-white/50">No subtasks yet.</div> : null}
                     {subtasks.map((s) => (
                       <div key={s.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div className="grid gap-2 md:grid-cols-[1fr_auto] md:items-start">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-white/90">{s.title}</div>
+                            <div className="text-sm font-semibold text-white/90 break-words">{s.title}</div>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <PillSelect
-                              value={s.status}
-                              onChange={(v) => onUpdateSubtask(s.id, { status: v as TaskSubtaskStatus })}
-                              ariaLabel="Subtask status"
-                              disabled={!canEditSubtasks || Boolean(s.linked_task_id)}
-                            >
-                              {SUBTASK_STATUSES.map((st) => (
-                                <option key={st} value={st} className="bg-zinc-900">
-                                  {subtaskStatusLabel(st)}
-                                </option>
-                              ))}
-                            </PillSelect>
-                            <PillSelect
-                              value={s.assignee_id ?? ""}
-                              onChange={(v) => onUpdateSubtask(s.id, { assignee_id: v || null })}
-                              ariaLabel="Subtask assignee"
-                              disabled={!canEditSubtasks || Boolean(s.linked_task_id)}
-                            >
-                              <option value="" className="bg-zinc-900">
-                                Unassigned
-                              </option>
-                              {getAssigneeOptionProfiles(s.assignee_id ?? null).map((p) => {
-                                return (
-                                  <option key={p.id} value={p.id} className="bg-zinc-900">
-                                    {toOptionLabel(p)}
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <div className="min-w-[150px] flex-1 md:flex-none">
+                              <PillSelect
+                                value={s.status}
+                                onChange={(v) => onUpdateSubtask(s.id, { status: v as TaskSubtaskStatus })}
+                                ariaLabel="Subtask status"
+                                disabled={!canEditSubtasks || Boolean(s.linked_task_id)}
+                              >
+                                {SUBTASK_STATUSES.map((st) => (
+                                  <option key={st} value={st} className="bg-zinc-900">
+                                    {subtaskStatusLabel(st)}
                                   </option>
-                                );
-                              })}
-                            </PillSelect>
+                                ))}
+                              </PillSelect>
+                            </div>
+                            <div className="min-w-[180px] flex-1 md:flex-none">
+                              <PillSelect
+                                value={s.assignee_id ?? ""}
+                                onChange={(v) => onUpdateSubtask(s.id, { assignee_id: v || null })}
+                                ariaLabel="Subtask assignee"
+                                disabled={!canEditSubtasks || Boolean(s.linked_task_id)}
+                              >
+                                <option value="" className="bg-zinc-900">
+                                  Unassigned
+                                </option>
+                                {getAssigneeOptionProfiles(s.assignee_id ?? null).map((p) => {
+                                  return (
+                                    <option key={p.id} value={p.id} className="bg-zinc-900">
+                                      {toOptionLabel(p)}
+                                    </option>
+                                  );
+                                })}
+                              </PillSelect>
+                            </div>
                             <AppButton
                               intent="danger"
                               size="sm"
-                              className="h-10 px-4"
+                              className="h-10 px-4 shrink-0"
                               onPress={() => onRemoveSubtask(s.id)}
                               isDisabled={!canEditSubtasks}
                             >
@@ -1195,10 +1198,18 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           <div className="text-[11px] uppercase tracking-widest text-white/40">Description</div>
                           <textarea
                             value={subtaskDrafts[s.id]?.description ?? s.description ?? ""}
-                            onChange={(e) => onUpdateSubtaskDescriptionDraft(s.id, e.target.value)}
+                            onChange={(e) => {
+                              onUpdateSubtaskDescriptionDraft(s.id, e.target.value);
+                              resizeTextareaToContent(e.currentTarget, 240);
+                            }}
                             disabled={!canEditSubtasks}
                             rows={2}
-                            className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-white/20"
+                            ref={(el) => {
+                              if (!el) return;
+                              // Ensure it sizes correctly on first render / after data loads.
+                              resizeTextareaToContent(el, 240);
+                            }}
+                            className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-white/20 transition-[height] duration-150 ease-out"
                             placeholder="What is this subtask?"
                           />
                         </div>
