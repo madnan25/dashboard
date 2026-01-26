@@ -341,6 +341,12 @@ export async function updateTaskTeam(
   }
   const { error: retryErr } = await supabase.from("task_teams").update(rest).eq("id", id);
   if (retryErr) throw retryErr;
+
+  // Important: don't silently succeed while dropping ticket_prefix.
+  // If the user attempted to update ticket_prefix but the column isn't available yet, tell them explicitly.
+  throw new Error(
+    "Team was updated, but ticket prefix wasn’t saved because the database migration hasn’t been applied yet. Apply `20260127001000_task_teams_ticket_prefix.sql` in Supabase, then retry."
+  );
 }
 
 export async function deleteTaskTeam(supabase: SupabaseClient, id: string): Promise<void> {
