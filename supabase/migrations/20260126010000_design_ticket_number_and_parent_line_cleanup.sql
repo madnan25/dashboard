@@ -12,7 +12,13 @@ BEGIN
   FROM public.tasks
   WHERE title ~ '^DES-[0-9]+:';
 
-  PERFORM setval('public.design_ticket_seq', max_val);
+  IF max_val < 1 THEN
+    -- Seed sequence so nextval() returns 1.
+    PERFORM setval('public.design_ticket_seq', 1, false);
+  ELSE
+    -- Set to current max so nextval() returns max + 1.
+    PERFORM setval('public.design_ticket_seq', max_val, true);
+  END IF;
 END;
 $$;
 
