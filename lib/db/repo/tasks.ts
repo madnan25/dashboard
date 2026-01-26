@@ -393,6 +393,16 @@ export async function listTaskSubtasks(supabase: SupabaseClient, taskId: string)
   return (data as TaskSubtask[]) ?? [];
 }
 
+export async function listTaskSubtasksByAssignee(supabase: SupabaseClient, assigneeId: string): Promise<TaskSubtask[]> {
+  const { data, error } = await supabase
+    .from("task_subtasks")
+    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .eq("assignee_id", assigneeId)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (data as TaskSubtask[]) ?? [];
+}
+
 export async function getLinkedParentSubtask(supabase: SupabaseClient, linkedTaskId: string): Promise<TaskSubtask | null> {
   const { data, error } = await supabase
     .from("task_subtasks")

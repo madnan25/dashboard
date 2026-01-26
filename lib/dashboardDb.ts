@@ -356,6 +356,10 @@ export async function listTaskSubtasks(taskId: string): Promise<TaskSubtask[]> {
   return await repo().listTaskSubtasks(taskId);
 }
 
+export async function listTaskSubtasksByAssignee(assigneeId: string): Promise<TaskSubtask[]> {
+  return await repo().listTaskSubtasksByAssignee(assigneeId);
+}
+
 export async function getLinkedParentSubtask(linkedTaskId: string): Promise<TaskSubtask | null> {
   return await repo().getLinkedParentSubtask(linkedTaskId);
 }

@@ -12,6 +12,7 @@ export function KanbanBoard({
   profiles,
   projects,
   teams,
+  subtaskAssignmentsByTaskId,
   onOpenTask,
   canMoveToStatus,
   onMoveTask
@@ -20,6 +21,7 @@ export function KanbanBoard({
   profiles: Profile[];
   projects: Project[];
   teams: TaskTeam[];
+  subtaskAssignmentsByTaskId?: Record<string, Array<{ id: string; title: string }>>;
   onOpenTask: (t: Task) => void;
   canMoveToStatus: (task: Task, next: TaskStatus) => { ok: boolean; reason?: string };
   onMoveTask: (task: Task, next: TaskStatus) => Promise<void>;
@@ -178,6 +180,7 @@ export function KanbanBoard({
                         assignee={assigneeFor(t)}
                         project={projectFor(t)}
                         team={teamFor(t)}
+                        subtaskAssignments={subtaskAssignmentsByTaskId?.[t.id] ?? undefined}
                         onOpen={() => onOpenTask(t)}
                         onHover={() => router.prefetch(`/tasks/${t.id}`)}
                         disableOpen={draggingTaskId != null}
@@ -207,6 +210,7 @@ export function KanbanBoard({
               assignee={assigneeFor(draggingTask)}
               project={projectFor(draggingTask)}
               team={teamFor(draggingTask)}
+              subtaskAssignments={subtaskAssignmentsByTaskId?.[draggingTask.id] ?? undefined}
               onOpen={() => null}
               disableOpen
               className="cursor-grabbing"

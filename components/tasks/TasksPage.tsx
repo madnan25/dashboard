@@ -10,13 +10,14 @@ import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TasksCalendar } from "@/components/tasks/TasksCalendar";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
-import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
+import type { Profile, Project, Task, TaskSubtask, TaskTeam } from "@/lib/dashboardDb";
 import {
   createTask,
   getCurrentProfile,
   listProfiles,
   listProjects,
   listTasks,
+  listTaskSubtasksByAssignee,
   listTaskTeams,
   nextTeamTicketNumber,
   updateTask
@@ -68,6 +69,7 @@ export function TasksPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<TaskTeam[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [assigneeSubtasks, setAssigneeSubtasks] = useState<TaskSubtask[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [view, setView] = useState<View>("board");
@@ -85,7 +87,12 @@ export function TasksPage() {
   const isCmo = profile?.role === "cmo";
   const canEdit = profile != null;
   const isManager = isMarketingManagerProfile(profile) || isCmo;
-  const assignableProfiles = useMemo(() => profiles.filter(isMarketingTeamProfile), [profiles]);
+  const assignableProfiles = useMemo(() => {
+    const rows = profiles.filter(isMarketingTeamProfile);
+    const meId = profile?.id ?? null;
+    // Avoid showing both "Me" and your name in the same dropdown.
+    return meId ? rows.filter((p) => p.id !== meId) : rows;
+  }, [profiles, profile?.id]);
 
   function getAssigneeFilterOptionProfiles(selected: string) {
     if (!selected || selected === "__me__" || selected === "__none__") return assignableProfiles;
@@ -189,6 +196,39 @@ export function TasksPage() {
     return null;
   }, [assigneeFilter, assigneeMode, meId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!resolvedAssigneeId) {
+        setAssigneeSubtasks([]);
+        return;
+      }
+      try {
+        const rows = await listTaskSubtasksByAssignee(resolvedAssigneeId);
+        if (cancelled) return;
+        setAssigneeSubtasks(rows);
+      } catch {
+        if (!cancelled) setAssigneeSubtasks([]);
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedAssigneeId]);
+
+  const assigneeSubtasksByTaskId = useMemo(() => {
+    const map = new Map<string, TaskSubtask[]>();
+    if (!resolvedAssigneeId) return map;
+    for (const s of assigneeSubtasks) {
+      const key = s.task_id;
+      const cur = map.get(key) ?? [];
+      cur.push(s);
+      map.set(key, cur);
+    }
+    return map;
+  }, [assigneeSubtasks, resolvedAssigneeId]);
+
   const filtered = useMemo(() => {
     const now = new Date();
     const weekStart = startOfWeek(now);
@@ -198,7 +238,11 @@ export function TasksPage() {
 
     return tasks.filter((t) => {
       if (assigneeMode === "unassigned" && t.assignee_id) return false;
-      if (resolvedAssigneeId && t.assignee_id !== resolvedAssigneeId) return false;
+      if (resolvedAssigneeId) {
+        const direct = t.assignee_id === resolvedAssigneeId;
+        const viaSubtask = assigneeSubtasksByTaskId.has(t.id);
+        if (!direct && !viaSubtask) return false;
+      }
       if (priorityFilter && t.priority !== priorityFilter) return false;
       if (projectFilter && (t.project_id ?? "") !== projectFilter) return false;
       if (teamFilter && (t.team_id ?? "") !== teamFilter) return false;
@@ -220,7 +264,7 @@ export function TasksPage() {
       }
       return true;
     });
-  }, [assigneeMode, priorityFilter, projectFilter, resolvedAssigneeId, tasks, teamFilter, view, meId]);
+  }, [assigneeMode, priorityFilter, projectFilter, resolvedAssigneeId, tasks, teamFilter, view, meId, assigneeSubtasksByTaskId]);
 
   const viewOptions: View[] = isCmo
     ? ["board", "calendar", "with_me", "blocked", "delivery", "impact", "reliability", "project"]
@@ -437,7 +481,15 @@ export function TasksPage() {
             >
               <div className="text-sm text-white/60">{status || " "}</div>
               <div className={view === "calendar" ? "flex flex-wrap items-center gap-2 w-full" : "flex flex-wrap items-center gap-2"}>
-                <PillSelect value={assigneeFilter} onChange={setAssigneeFilter} ariaLabel="Assignee filter">
+                <PillSelect
+                  value={assigneeFilter}
+                  onChange={(v) => {
+                    // If you pick your own user from the list, normalize to "Me" so it doesn't show twice.
+                    if (meId && v === meId) setAssigneeFilter("__me__");
+                    else setAssigneeFilter(v);
+                  }}
+                  ariaLabel="Assignee filter"
+                >
                   <option value="" className="bg-zinc-900">
                     All assignees
                   </option>
@@ -521,6 +573,12 @@ export function TasksPage() {
                   profiles={profiles}
                   projects={projects}
                   teams={teams}
+                  subtaskAssignmentsByTaskId={Object.fromEntries(
+                    Array.from(assigneeSubtasksByTaskId.entries()).map(([taskId, subs]) => [
+                      taskId,
+                      subs.map((s) => ({ id: s.id, title: s.title }))
+                    ])
+                  )}
                   onOpenTask={(t) => {
                     router.push(`/tasks/${t.id}`);
                   }}

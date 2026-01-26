@@ -1,6 +1,6 @@
 "use client";
 
-import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
+import type { Profile, Project, Task, TaskSubtask, TaskTeam } from "@/lib/dashboardDb";
 
 function pillClass(kind: "p0" | "p1" | "p2" | "p3") {
   switch (kind) {
@@ -31,6 +31,7 @@ export function TaskCard({
   assignee,
   project,
   team,
+  subtaskAssignments,
   onOpen,
   onHover,
   disableOpen,
@@ -40,12 +41,14 @@ export function TaskCard({
   assignee: Profile | null;
   project: Project | null;
   team?: TaskTeam | null;
+  subtaskAssignments?: Array<Pick<TaskSubtask, "id" | "title">>;
   onOpen: () => void;
   onHover?: () => void;
   disableOpen?: boolean;
   className?: string;
 }) {
   const effectiveApproval: Task["approval_state"] = task.status === "approved" ? "approved" : task.approval_state;
+  const assignedViaSubtask = subtaskAssignments && subtaskAssignments.length > 0 ? subtaskAssignments : null;
   return (
     <button
       type="button"
@@ -73,6 +76,19 @@ export function TaskCard({
             {project ? <span className="ml-2 text-white/45">· {project.name}</span> : null}
             {team ? <span className="ml-2 text-white/45">· {team.name}</span> : null}
           </div>
+          {assignedViaSubtask ? (
+            <div className="mt-2">
+              <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] text-white/70">
+                <span className="shrink-0">Subtask</span>
+                <span className="text-white/40">·</span>
+                <span className="min-w-0 truncate">
+                  {assignedViaSubtask.length === 1
+                    ? assignedViaSubtask[0].title
+                    : `${assignedViaSubtask.length} assigned`}
+                </span>
+              </span>
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${pillClass(task.priority)}`}>
