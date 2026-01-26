@@ -21,7 +21,7 @@ export function KanbanBoard({
   profiles: Profile[];
   projects: Project[];
   teams: TaskTeam[];
-  subtaskAssignmentsByTaskId?: Record<string, Array<{ id: string; title: string }>>;
+  subtaskAssignmentsByTaskId?: Record<string, Array<{ id: string; title: string; status: "not_done" | "done" | "blocked" | "on_hold" }>>;
   onOpenTask: (t: Task) => void;
   canMoveToStatus: (task: Task, next: TaskStatus) => { ok: boolean; reason?: string };
   onMoveTask: (task: Task, next: TaskStatus) => Promise<void>;

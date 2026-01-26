@@ -26,6 +26,35 @@ function approvalPill(approval: Task["approval_state"]) {
   }
 }
 
+function subtaskIndicatorTone(
+  statuses: Array<TaskSubtask["status"]>
+): "purple" | "green" | "red" {
+  if (statuses.some((s) => s === "blocked" || s === "on_hold")) return "red";
+  if (statuses.length > 0 && statuses.every((s) => s === "done")) return "green";
+  return "purple";
+}
+
+function subtaskPillClass(tone: "purple" | "green" | "red") {
+  switch (tone) {
+    case "green":
+      return {
+        wrap: "border-emerald-400/25 bg-emerald-500/[0.10] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.12)]",
+        dot: "bg-emerald-200/90 shadow-[0_0_10px_rgba(16,185,129,0.35)]"
+      };
+    case "red":
+      return {
+        wrap: "border-rose-400/25 bg-rose-500/[0.10] text-rose-100 shadow-[0_0_18px_rgba(244,63,94,0.12)]",
+        dot: "bg-rose-200/90 shadow-[0_0_10px_rgba(244,63,94,0.35)]"
+      };
+    case "purple":
+    default:
+      return {
+        wrap: "border-fuchsia-400/25 bg-fuchsia-500/[0.10] text-fuchsia-100 shadow-[0_0_18px_rgba(217,70,239,0.12)]",
+        dot: "bg-fuchsia-200/90 shadow-[0_0_10px_rgba(217,70,239,0.35)]"
+      };
+  }
+}
+
 export function TaskCard({
   task,
   assignee,
@@ -41,7 +70,7 @@ export function TaskCard({
   assignee: Profile | null;
   project: Project | null;
   team?: TaskTeam | null;
-  subtaskAssignments?: Array<Pick<TaskSubtask, "id" | "title">>;
+  subtaskAssignments?: Array<Pick<TaskSubtask, "id" | "title" | "status">>;
   onOpen: () => void;
   onHover?: () => void;
   disableOpen?: boolean;
@@ -49,6 +78,8 @@ export function TaskCard({
 }) {
   const effectiveApproval: Task["approval_state"] = task.status === "approved" ? "approved" : task.approval_state;
   const assignedViaSubtask = subtaskAssignments && subtaskAssignments.length > 0 ? subtaskAssignments : null;
+  const subtaskTone = assignedViaSubtask ? subtaskIndicatorTone(assignedViaSubtask.map((s) => s.status)) : null;
+  const subtaskClasses = subtaskTone ? subtaskPillClass(subtaskTone) : null;
   return (
     <button
       type="button"
@@ -78,8 +109,13 @@ export function TaskCard({
           </div>
           {assignedViaSubtask ? (
             <div className="mt-2">
-              <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-fuchsia-400/25 bg-fuchsia-500/[0.10] px-2 py-0.5 text-[11px] text-fuchsia-100 shadow-[0_0_18px_rgba(217,70,239,0.12)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-200/90 shadow-[0_0_10px_rgba(217,70,239,0.35)]" />
+              <span
+                className={[
+                  "inline-flex max-w-full items-center gap-2 rounded-full border px-2 py-0.5 text-[11px]",
+                  subtaskClasses?.wrap || ""
+                ].join(" ")}
+              >
+                <span className={["h-1.5 w-1.5 rounded-full", subtaskClasses?.dot || ""].join(" ")} />
                 <span className="shrink-0 tracking-wide">Subtask</span>
                 <span className="text-white/40">·</span>
                 <span className="min-w-0 truncate">

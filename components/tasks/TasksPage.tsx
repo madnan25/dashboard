@@ -29,6 +29,49 @@ import { MONTHS } from "@/lib/digitalSnapshot";
 
 type View = "board" | "calendar" | "with_me" | "blocked" | "delivery" | "impact" | "reliability" | "project";
 
+const TASKS_FILTERS_STORAGE_KEY = "dashboard.tasks.filters.v1";
+
+function isView(x: unknown): x is View {
+  return (
+    x === "board" ||
+    x === "calendar" ||
+    x === "with_me" ||
+    x === "blocked" ||
+    x === "delivery" ||
+    x === "impact" ||
+    x === "reliability" ||
+    x === "project"
+  );
+}
+
+function readStoredTaskFilters(): Partial<{
+  view: View;
+  assigneeFilter: string;
+  priorityFilter: string;
+  projectFilter: string;
+  teamFilter: string;
+}> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(TASKS_FILTERS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const af = parsed.assigneeFilter;
+    const pf = parsed.priorityFilter;
+    const projf = parsed.projectFilter;
+    const tf = parsed.teamFilter;
+    return {
+      view: isView(parsed.view) ? parsed.view : undefined,
+      assigneeFilter: typeof af === "string" ? af : undefined,
+      priorityFilter: typeof pf === "string" ? pf : undefined,
+      projectFilter: typeof projf === "string" ? projf : undefined,
+      teamFilter: typeof tf === "string" ? tf : undefined
+    };
+  } catch {
+    return {};
+  }
+}
+
 function labelForView(v: View) {
   switch (v) {
     case "board":
@@ -72,13 +115,24 @@ export function TasksPage() {
   const [assigneeSubtasks, setAssigneeSubtasks] = useState<TaskSubtask[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [view, setView] = useState<View>("board");
+  const [view, setView] = useState<View>(() => readStoredTaskFilters().view ?? "board");
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [calMonthIndex, setCalMonthIndex] = useState(() => new Date().getMonth());
-  const [assigneeFilter, setAssigneeFilter] = useState<string>(""); // ""=all, else user id, "__me__" handled
-  const [priorityFilter, setPriorityFilter] = useState<string>(""); // ""=all
-  const [projectFilter, setProjectFilter] = useState<string>(""); // ""=all
-  const [teamFilter, setTeamFilter] = useState<string>(""); // ""=all
+  const [assigneeFilter, setAssigneeFilter] = useState<string>(() => readStoredTaskFilters().assigneeFilter ?? ""); // ""=all, else user id, "__me__" handled
+  const [priorityFilter, setPriorityFilter] = useState<string>(() => readStoredTaskFilters().priorityFilter ?? ""); // ""=all
+  const [projectFilter, setProjectFilter] = useState<string>(() => readStoredTaskFilters().projectFilter ?? ""); // ""=all
+  const [teamFilter, setTeamFilter] = useState<string>(() => readStoredTaskFilters().teamFilter ?? ""); // ""=all
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        TASKS_FILTERS_STORAGE_KEY,
+        JSON.stringify({ view, assigneeFilter, priorityFilter, projectFilter, teamFilter })
+      );
+    } catch {
+      // ignore
+    }
+  }, [assigneeFilter, priorityFilter, projectFilter, teamFilter, view]);
 
   const [newTitle, setNewTitle] = useState("");
   const [newTeamId, setNewTeamId] = useState("");
@@ -576,7 +630,7 @@ export function TasksPage() {
                   subtaskAssignmentsByTaskId={Object.fromEntries(
                     Array.from(assigneeSubtasksByTaskId.entries()).map(([taskId, subs]) => [
                       taskId,
-                      subs.map((s) => ({ id: s.id, title: s.title }))
+                      subs.map((s) => ({ id: s.id, title: s.title, status: s.status }))
                     ])
                   )}
                   onOpenTask={(t) => {
