@@ -28,18 +28,24 @@ function approvalPill(approval: Task["approval_state"]) {
 
 function subtaskIndicatorTone(
   statuses: Array<TaskSubtask["status"]>
-): "purple" | "green" | "red" {
-  if (statuses.some((s) => s === "blocked" || s === "on_hold")) return "red";
+): "purple" | "green" | "red" | "yellow" {
+  if (statuses.some((s) => s === "blocked")) return "red";
+  if (statuses.some((s) => s === "on_hold")) return "yellow";
   if (statuses.length > 0 && statuses.every((s) => s === "done")) return "green";
   return "purple";
 }
 
-function subtaskPillClass(tone: "purple" | "green" | "red") {
+function subtaskPillClass(tone: "purple" | "green" | "red" | "yellow") {
   switch (tone) {
     case "green":
       return {
         wrap: "border-emerald-400/25 bg-emerald-500/[0.10] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.12)]",
         dot: "bg-emerald-200/90 shadow-[0_0_10px_rgba(16,185,129,0.35)]"
+      };
+    case "yellow":
+      return {
+        wrap: "border-amber-400/25 bg-amber-500/[0.10] text-amber-100 shadow-[0_0_18px_rgba(245,158,11,0.12)]",
+        dot: "bg-amber-200/90 shadow-[0_0_10px_rgba(245,158,11,0.35)]"
       };
     case "red":
       return {
