@@ -32,6 +32,7 @@ import {
   deleteTaskComment,
   createTaskComment,
   getLinkedParentSubtask,
+  nextDesignTicketNumber,
   getCurrentProfile,
   getTask,
   listProfiles,
@@ -66,6 +67,10 @@ function getErrorMessage(err: unknown, fallback: string) {
   if (typeof err === "string") return err;
   if (err && typeof (err as { message?: unknown }).message === "string") return (err as { message?: string }).message || fallback;
   return fallback;
+}
+
+function formatDesignTicketTitle(number: number, label: string) {
+  return `DES-${number}: ${label}`;
 }
 
 export function TaskPage({ taskId }: { taskId: string }) {
@@ -675,15 +680,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setStatus("Creating design ticket…");
     try {
       const block = [
-        `Parent ticket: /tasks/${taskId}`,
         `Subtask: ${subtask.title}`,
         "Subtask details:",
         subtask.description || "",
       ]
         .join("\n")
         .trimEnd();
+      const ticketNumber = await nextDesignTicketNumber();
+      const designTitle = formatDesignTicketTitle(ticketNumber, subtask.title);
       const created = await createTask({
-        title: `Design: ${subtask.title}`,
+        title: designTitle,
         description: block,
         team_id: designTeam.id,
         // Route initial work to design approver (triage), and team-based approval stays on the Design team.
@@ -694,7 +700,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       router.prefetch(`/tasks/${created.id}`);
       setLinkedTaskTitles((prev) => ({
         ...prev,
-        [created.id.toLowerCase()]: created.title || `Design: ${subtask.title}`
+        [created.id.toLowerCase()]: created.title || designTitle
       }));
       await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Design ticket created.");

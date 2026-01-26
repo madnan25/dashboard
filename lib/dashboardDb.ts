@@ -253,6 +253,10 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   return await repo().createTask(input);
 }
 
+export async function nextDesignTicketNumber(): Promise<number> {
+  return await repo().nextDesignTicketNumber();
+}
+
 export async function updateTask(taskId: string, patch: UpdateTaskPatch): Promise<void> {
   return await repo().updateTask(taskId, patch);
 }

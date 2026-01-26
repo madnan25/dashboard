@@ -98,6 +98,14 @@ export async function createTask(supabase: SupabaseClient, input: CreateTaskInpu
   return data as Task;
 }
 
+export async function nextDesignTicketNumber(supabase: SupabaseClient): Promise<number> {
+  const { data, error } = await supabase.rpc("next_design_ticket_number");
+  if (error) throw error;
+  const value = typeof data === "number" ? data : Number(data);
+  if (!Number.isFinite(value)) throw new Error("Invalid design ticket number");
+  return value;
+}
+
 export type UpdateTaskPatch = Partial<
   Pick<
     Task,

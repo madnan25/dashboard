@@ -11,7 +11,7 @@ import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TasksCalendar } from "@/components/tasks/TasksCalendar";
 import { TasksScoreboard } from "@/components/tasks/TasksScoreboard";
 import type { Profile, Project, Task, TaskTeam } from "@/lib/dashboardDb";
-import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, listTaskTeams, updateTask } from "@/lib/dashboardDb";
+import { createTask, getCurrentProfile, listProfiles, listProjects, listTasks, listTaskTeams, nextDesignTicketNumber, updateTask } from "@/lib/dashboardDb";
 import { endOfWeek, isoDate, isMarketingManagerProfile, isMarketingTeamProfile, startOfWeek, taskIsOpen } from "@/components/tasks/taskModel";
 import type { TaskStatus } from "@/lib/dashboardDb";
 import Link from "next/link";
@@ -38,6 +38,14 @@ function labelForView(v: View) {
     case "project":
       return "Scoreboard: Projects";
   }
+}
+
+function isDesignTeam(team: TaskTeam | null) {
+  return Boolean(team && team.name.toLowerCase().includes("design"));
+}
+
+function formatDesignTicketTitle(number: number, label: string) {
+  return `DES-${number}: ${label}`;
 }
 
 export function TasksPage() {
@@ -99,7 +107,11 @@ export function TasksPage() {
     setCreating(true);
     setStatus("Creating task…");
     try {
-      const created = await createTask({ title: t, team_id: newTeamId });
+      const selectedTeam = teams.find((team) => team.id === newTeamId) ?? null;
+      const nextTitle = isDesignTeam(selectedTeam)
+        ? formatDesignTicketTitle(await nextDesignTicketNumber(), t)
+        : t;
+      const created = await createTask({ title: nextTitle, team_id: newTeamId });
       setNewTitle("");
       setNewTeamId("");
       setStatus("Opening task…");
