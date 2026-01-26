@@ -261,8 +261,13 @@ function isMissingColumnError(err: unknown, column: string): boolean {
   const anyErr = err as { code?: string; message?: string; details?: string };
   // Postgres undefined_column is 42703; PostgREST often forwards this.
   if (anyErr.code === "42703" && (anyErr.message?.includes(column) || anyErr.details?.includes(column))) return true;
+  // PostgREST schema cache miss / unknown column.
+  if (anyErr.code === "PGRST204" && (anyErr.message?.includes(column) || anyErr.details?.includes(column))) return true;
   const msg = (anyErr.message || anyErr.details || "").toLowerCase();
-  return msg.includes("does not exist") && msg.includes(column.toLowerCase());
+  if (msg.includes("does not exist") && msg.includes(column.toLowerCase())) return true;
+  if (msg.includes("schema cache") && msg.includes(column.toLowerCase())) return true;
+  if (msg.includes("could not find") && msg.includes(column.toLowerCase())) return true;
+  return false;
 }
 
 export async function listTaskTeams(supabase: SupabaseClient): Promise<TaskTeam[]> {
@@ -327,6 +332,13 @@ export async function updateTaskTeam(
 
   // Backwards-compatible fallback: retry without `ticket_prefix` if column doesn't exist yet.
   const { ticket_prefix: _ignored, ...rest } = patch;
+  if (Object.keys(rest).length === 0) {
+    // User only changed ticket_prefix, but the column isn't available yet.
+    // Surface a clear message instead of failing with an empty update payload.
+    throw new Error(
+      "Ticket prefix can’t be saved yet because the database migration hasn’t been applied. Apply `20260127001000_task_teams_ticket_prefix.sql` in Supabase, then retry."
+    );
+  }
   const { error: retryErr } = await supabase.from("task_teams").update(rest).eq("id", id);
   if (retryErr) throw retryErr;
 }

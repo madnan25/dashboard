@@ -54,6 +54,16 @@ export default function TaskTeamsPage() {
     return current ? [current, ...approverProfiles] : approverProfiles;
   }
 
+  function getErrorMessage(err: unknown, fallback: string) {
+    if (err instanceof Error) return err.message;
+    if (typeof err === "string") return err;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return fallback;
+    }
+  }
+
   async function refresh() {
     const [teamRows, profileRows] = await Promise.all([listTaskTeams(), listProfiles()]);
     setTeams(teamRows);
@@ -137,7 +147,7 @@ export default function TaskTeamsPage() {
       setSelectedId(created.id);
       setStatus("Team created.");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to create team");
+      setStatus(getErrorMessage(e, "Failed to create team"));
     } finally {
       setCreating(false);
     }
@@ -178,7 +188,7 @@ export default function TaskTeamsPage() {
         // Best-effort refresh so list/selection stays in sync.
         await refresh().catch(() => null);
       } catch (e) {
-        setStatus(e instanceof Error ? e.message : "Failed to update team");
+        setStatus(getErrorMessage(e, "Failed to update team"));
       } finally {
         setSaving(false);
       }
@@ -199,7 +209,7 @@ export default function TaskTeamsPage() {
       await refresh();
       setStatus("Team deleted.");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to delete team");
+      setStatus(getErrorMessage(e, "Failed to delete team"));
     }
   }
 
