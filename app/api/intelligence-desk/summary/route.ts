@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildTaskInsights, packInsightsForPrompt } from "@/lib/intelligence/taskInsights";
 import { generateSummaryFromInsights } from "@/lib/intelligence/summary";
 
@@ -7,6 +8,27 @@ export const dynamic = "force-dynamic";
 
 function json(status: number, body: unknown) {
   return NextResponse.json(body, { status });
+}
+
+async function loadIntelligenceTimeZone(supabase: SupabaseClient) {
+  try {
+    const { data, error } = (await supabase.rpc("get_intelligence_sync_settings")) as {
+      data: unknown;
+      error: { message?: string } | null;
+    };
+    if (error) return "Asia/Karachi";
+    const row = Array.isArray(data) ? data[0] : data;
+    const timezone =
+      row &&
+      typeof row === "object" &&
+      "timezone" in row &&
+      typeof (row as { timezone?: unknown }).timezone === "string"
+        ? (row as { timezone: string }).timezone.trim()
+        : "";
+    return timezone || "Asia/Karachi";
+  } catch {
+    return "Asia/Karachi";
+  }
 }
 
 async function requireCmo() {
@@ -56,7 +78,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const insights = await buildTaskInsights();
+    const timeZone = await loadIntelligenceTimeZone(supabase);
+    const insights = await buildTaskInsights({ supabase, timeZone });
     const dataPack = packInsightsForPrompt(insights);
     const summary = await generateSummaryFromInsights(insights);
 

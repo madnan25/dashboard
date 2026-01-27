@@ -88,6 +88,7 @@ type InsightsOptions = {
   recentDays?: number;
   taskLimit?: number;
   supabase?: SupabaseClient;
+  timeZone?: string;
 };
 
 type CommentRow = {
@@ -121,14 +122,35 @@ type SubtaskDependencyRow = {
   reason: string | null;
 };
 
-function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
+const DEFAULT_TIMEZONE = "Asia/Karachi";
+
+function isoDateInTimeZone(date: Date, timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(date);
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+    if (!year || !month || !day) return date.toISOString().slice(0, 10);
+    return `${year}-${month}-${day}`;
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
 }
 
-function addDays(d: Date, days: number) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + days);
-  return x;
+function addDaysIso(isoDate: string, days: number) {
+  const [yearStr, monthStr, dayStr] = isoDate.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return isoDate;
+  const d = new Date(Date.UTC(year, month - 1, day));
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 function isOpenStatus(status: TaskStatus) {
@@ -260,6 +282,7 @@ function buildNameMaps(profiles: Profile[], teams: TaskTeam[], projects: Project
 export async function buildTaskInsights(options: InsightsOptions = {}): Promise<TaskInsights> {
   const recentDays = options.recentDays ?? DEFAULT_RECENT_DAYS;
   const taskLimit = options.taskLimit ?? DEFAULT_TASK_LIMIT;
+  const timeZone = options.timeZone || DEFAULT_TIMEZONE;
 
   const supabase = options.supabase ?? (await createServerDbClient());
   const repo = createDashboardRepo(supabase);
@@ -272,9 +295,9 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
   ]);
 
   const today = new Date();
-  const todayIso = isoDate(today);
-  const dueSoonIso = isoDate(addDays(today, 7));
-  const recentCutoff = isoDate(addDays(today, -recentDays));
+  const todayIso = isoDateInTimeZone(today, timeZone);
+  const dueSoonIso = addDaysIso(todayIso, 7);
+  const recentCutoff = addDaysIso(todayIso, -recentDays);
 
   const maps = buildNameMaps(profiles, teams, projects);
 

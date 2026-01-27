@@ -33,6 +33,52 @@ const CHAT_SYSTEM_PROMPT = [
   "Be concise and actionable."
 ].join(" ");
 
+const DEEP_DIVE_LIMITS = {
+  tasks: 8,
+  subtasks: 6,
+  deps: 8,
+  subtaskDeps: 4,
+  comments: 3,
+  events: 5,
+  chain: 10,
+  text: 180,
+  reason: 120
+};
+
+function compactText(value: string | null | undefined, max = DEEP_DIVE_LIMITS.text) {
+  if (!value) return null;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  return normalized.length > max ? `${normalized.slice(0, max - 1)}...` : normalized;
+}
+
+function nameOrFallback(value: string | null | undefined, fallback: string) {
+  const trimmed = (value || "").trim();
+  return trimmed ? trimmed : fallback;
+}
+
+function collectUniqueIds(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter((v): v is string => Boolean(v))));
+}
+
+function formatDependencyLabel(
+  opts: { reason?: string | null; blockerTaskId?: string | null; blockerSubtaskId?: string | null },
+  taskTitleById: Map<string, string>,
+  subtaskTitleById: Map<string, string>
+) {
+  const reason = compactText(opts.reason, DEEP_DIVE_LIMITS.reason);
+  if (reason) return reason;
+  if (opts.blockerTaskId) return taskTitleById.get(opts.blockerTaskId) || `${opts.blockerTaskId.slice(0, 8)}...`;
+  if (opts.blockerSubtaskId) return subtaskTitleById.get(opts.blockerSubtaskId) || `${opts.blockerSubtaskId.slice(0, 8)}...`;
+  return "unknown";
+}
+
+function formatEventValue(value: unknown) {
+  if (value == null) return null;
+  if (typeof value === "string") return compactText(value, 80);
+  return compactText(String(value), 80);
+}
+
 export async function POST(req: Request) {
   const auth = await requireCmo();
   if ("error" in auth) return auth.error;
@@ -130,50 +176,227 @@ export async function POST(req: Request) {
       taskIds = filtered.map((t) => t.id);
     }
 
+    taskIds = taskIds.slice(0, DEEP_DIVE_LIMITS.tasks);
     const scopedTasks = taskIds.length > 0 ? await repo.listTasksByIds(taskIds).catch(() => [] as Task[]) : [];
-    const deepDetails = await Promise.all(
-      scopedTasks.map(async (t) => {
-        const [comments, subtasks, deps, parentLink] = await Promise.all([
+    const rawDetails = await Promise.all(
+      scopedTasks.slice(0, DEEP_DIVE_LIMITS.tasks).map(async (t) => {
+        const [comments, subtasks, deps, parentLink, events] = await Promise.all([
           repo.listTaskComments(t.id).catch(() => []),
           repo.listTaskSubtasks(t.id).catch(() => []),
-          repo.listTaskDependencies(t.id).catch(() => [] as Array<{ id: string; blocker_task_id: string; reason: string | null }>),
-          repo.getLinkedParentSubtask(t.id).catch(() => null)
+          repo.listTaskDependencies(t.id).catch(() => []),
+          repo.getLinkedParentSubtask(t.id).catch(() => null),
+          repo.listTaskEvents(t.id).catch(() => [])
         ]);
+        const limitedSubtasks = subtasks.slice(-DEEP_DIVE_LIMITS.subtasks);
         const subtaskDeps = await Promise.all(
-          subtasks.map(async (s) => ({ id: s.id, deps: await repo.listSubtaskDependencies(s.id).catch(() => []) }))
+          limitedSubtasks.map(async (s) => ({ id: s.id, deps: await repo.listSubtaskDependencies(s.id).catch(() => []) }))
         );
         const linkedParentDeps = parentLink ? await repo.listSubtaskDependencies(parentLink.id).catch(() => []) : [];
-        const recentComments = comments.slice(-2).map((c) => c.body);
         return {
-          id: t.id,
-          title: t.title,
-          status: t.status,
-          priority: t.priority,
-          due_at: t.due_at,
-          subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, status: s.status, due_at: s.due_at })),
-          dependencies: deps,
-          subtask_dependencies: subtaskDeps,
-          linked_parent_subtask: parentLink
-            ? {
-                id: parentLink.id,
-                task_id: parentLink.task_id,
-                title: parentLink.title,
-                status: parentLink.status
-              }
-            : null,
-          linked_parent_dependencies: linkedParentDeps,
-          recent_comments: recentComments
+          task: t,
+          comments,
+          subtasks: limitedSubtasks,
+          deps,
+          parentLink,
+          subtaskDeps,
+          linkedParentDeps,
+          events
         };
       })
     );
 
+    const blockerTaskIds = collectUniqueIds(
+      rawDetails.flatMap((d) => [
+        ...d.deps.map((dep) => dep.blocker_task_id),
+        ...d.subtaskDeps.flatMap((row) => row.deps.map((dep) => dep.blocker_task_id)),
+        ...d.linkedParentDeps.map((dep) => dep.blocker_task_id)
+      ])
+    ).slice(0, DEEP_DIVE_LIMITS.tasks * DEEP_DIVE_LIMITS.deps);
+    const blockerTasks =
+      blockerTaskIds.length > 0 ? await repo.listTasksByIds(blockerTaskIds).catch(() => [] as Task[]) : [];
+    const taskTitleById = new Map(
+      blockerTasks.map((t) => [t.id, nameOrFallback(t.title, `${t.id.slice(0, 8)}...`)])
+    );
+
+    const subtaskTitleById = new Map<string, string>();
+    for (const entry of rawDetails) {
+      for (const s of entry.subtasks) {
+        subtaskTitleById.set(s.id, nameOrFallback(s.title, `${s.id.slice(0, 8)}...`));
+      }
+      if (entry.parentLink) {
+        subtaskTitleById.set(
+          entry.parentLink.id,
+          nameOrFallback(entry.parentLink.title, `${entry.parentLink.id.slice(0, 8)}...`)
+        );
+      }
+    }
+
+    const profileIds = collectUniqueIds(
+      rawDetails.flatMap((d) => [
+        d.task.assignee_id,
+        d.parentLink?.assignee_id,
+        ...d.subtasks.map((s) => s.assignee_id),
+        ...d.comments.map((c) => c.author_id),
+        ...d.events.map((e) => e.actor_id)
+      ])
+    );
+    const profiles =
+      profileIds.length > 0 ? await repo.listProfilesByIds(profileIds).catch(() => []) : [];
+    const profileNameById = new Map(
+      profiles.map((p) => [
+        p.id,
+        nameOrFallback(p.full_name || p.email, `${p.id.slice(0, 8)}...`)
+      ])
+    );
+    const resolveProfileName = (id: string | null | undefined, fallback = "Unassigned") => {
+      if (!id) return fallback;
+      return profileNameById.get(id) || `${id.slice(0, 8)}...`;
+    };
+
+    const deepDetails = rawDetails.map((entry) => {
+      const taskLabel = nameOrFallback(entry.task.title, `${entry.task.id.slice(0, 8)}...`);
+      const dependencyItems = entry.deps.slice(0, DEEP_DIVE_LIMITS.deps).map((d) => {
+        const reason = compactText(d.reason, DEEP_DIVE_LIMITS.reason);
+        return {
+          type: "task" as const,
+          id: d.blocker_task_id,
+          label: formatDependencyLabel({ reason: d.reason, blockerTaskId: d.blocker_task_id }, taskTitleById, subtaskTitleById),
+          ...(reason ? { reason } : {})
+        };
+      });
+
+      const subtaskDependencies = entry.subtaskDeps
+        .map((row) => {
+          const subtaskTitle = subtaskTitleById.get(row.id) || `${row.id.slice(0, 8)}...`;
+          const blockers = row.deps.slice(0, DEEP_DIVE_LIMITS.subtaskDeps).map((d) => {
+            const reason = compactText(d.reason, DEEP_DIVE_LIMITS.reason);
+            const id = d.blocker_task_id ?? d.blocker_subtask_id ?? "";
+            return {
+              type: d.blocker_task_id ? "task" : "subtask",
+              id,
+              label: formatDependencyLabel(
+                { reason: d.reason, blockerTaskId: d.blocker_task_id, blockerSubtaskId: d.blocker_subtask_id },
+                taskTitleById,
+                subtaskTitleById
+              ),
+              ...(reason ? { reason } : {})
+            };
+          });
+          return { subtask_id: row.id, subtask_title: subtaskTitle, blockers };
+        })
+        .filter((row) => row.blockers.length > 0);
+
+      const linkedParentDependencies = entry.linkedParentDeps.slice(0, DEEP_DIVE_LIMITS.subtaskDeps).map((d) => {
+        const reason = compactText(d.reason, DEEP_DIVE_LIMITS.reason);
+        const id = d.blocker_task_id ?? d.blocker_subtask_id ?? "";
+        return {
+          type: d.blocker_task_id ? "task" : "subtask",
+          id,
+          label: formatDependencyLabel(
+            { reason: d.reason, blockerTaskId: d.blocker_task_id, blockerSubtaskId: d.blocker_subtask_id },
+            taskTitleById,
+            subtaskTitleById
+          ),
+          ...(reason ? { reason } : {})
+        };
+      });
+
+      const dependencyChain: Array<{ blocked: string; blocker: string; reason?: string | null }> = [];
+      for (const item of dependencyItems) {
+        dependencyChain.push({ blocked: taskLabel, blocker: item.label, ...(item.reason ? { reason: item.reason } : {}) });
+      }
+      for (const row of subtaskDependencies) {
+        for (const blocker of row.blockers) {
+          dependencyChain.push({
+            blocked: `Subtask: ${row.subtask_title}`,
+            blocker: blocker.label,
+            ...(blocker.reason ? { reason: blocker.reason } : {})
+          });
+        }
+      }
+      if (entry.parentLink) {
+        const parentTitle = subtaskTitleById.get(entry.parentLink.id) || `${entry.parentLink.id.slice(0, 8)}...`;
+        for (const blocker of linkedParentDependencies) {
+          dependencyChain.push({
+            blocked: `Linked subtask: ${parentTitle}`,
+            blocker: blocker.label,
+            ...(blocker.reason ? { reason: blocker.reason } : {})
+          });
+        }
+      }
+
+      const recentComments = entry.comments
+        .slice(-DEEP_DIVE_LIMITS.comments)
+        .map((c) => ({
+          at: c.created_at,
+          author: resolveProfileName(c.author_id, "Unknown"),
+          body: compactText(c.body, DEEP_DIVE_LIMITS.text)
+        }))
+        .filter((c) => Boolean(c.body));
+
+      const recentEvents = entry.events.slice(0, DEEP_DIVE_LIMITS.events).map((e) => {
+        const from = formatEventValue(e.from_value);
+        const to = formatEventValue(e.to_value);
+        return {
+          at: e.created_at,
+          type: e.type,
+          actor: resolveProfileName(e.actor_id, "Unknown"),
+          ...(from ? { from } : {}),
+          ...(to ? { to } : {})
+        };
+      });
+
+      return {
+        id: entry.task.id,
+        title: entry.task.title,
+        status: entry.task.status,
+        priority: entry.task.priority,
+        assignee: resolveProfileName(entry.task.assignee_id, "Unassigned"),
+        due_at: entry.task.due_at,
+        dependencies: dependencyItems,
+        dependency_chain: dependencyChain.slice(0, DEEP_DIVE_LIMITS.chain),
+        subtasks: entry.subtasks.map((s) => ({
+          id: s.id,
+          title: s.title,
+          status: s.status,
+          assignee: resolveProfileName(s.assignee_id, "Unassigned"),
+          due_at: s.due_at
+        })),
+        subtask_dependencies: subtaskDependencies,
+        linked_parent_subtask: entry.parentLink
+          ? {
+              id: entry.parentLink.id,
+              task_id: entry.parentLink.task_id,
+              title: entry.parentLink.title,
+              status: entry.parentLink.status,
+              assignee: resolveProfileName(entry.parentLink.assignee_id, "Unassigned")
+            }
+          : null,
+        linked_parent_dependencies: linkedParentDependencies,
+        recent_comments: recentComments,
+        recent_events: recentEvents
+      };
+    });
+
     scopeContext = `${scopeContext}\n\nDEEP DIVE (live, scoped):\n${JSON.stringify({ scope: { type: scopeType, id: scopeId }, tasks: deepDetails })}`;
   }
+
+  const deepDiveGuidance = deepDive
+    ? [
+        "DEEP DIVE GUIDANCE:",
+        "- Use the live scoped context first, then the cached data pack.",
+        "- Explain blockers using dependency_chain, subtask_dependencies, and linked_parent_dependencies.",
+        "- Use recent_events and recent_comments for what changed and who owns it.",
+        "- If asked who owns a subtask, use the subtask assignee.",
+        "- Answer in short, clear bullets (2-5)."
+      ].join("\n")
+    : "";
 
   const messages = [
     { role: "system" as const, content: CHAT_SYSTEM_PROMPT },
     { role: "user" as const, content: `DATA PACK (JSON):\n${dataPack}` },
     ...(scopeContext ? [{ role: "user" as const, content: scopeContext }] : []),
+    ...(deepDiveGuidance ? [{ role: "user" as const, content: deepDiveGuidance }] : []),
     ...sanitizedHistory,
     { role: "user" as const, content: question }
   ];
