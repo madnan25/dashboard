@@ -6,6 +6,7 @@ import { Button } from "@heroui/react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { Surface } from "@/components/ds/Surface";
+import { PillSelect } from "@/components/ds/PillSelect";
 import { CmoApprovalsPanel } from "@/components/features/cmo/CmoApprovalsPanel";
 import { CmoProjectsPanel } from "@/components/features/cmo/CmoProjectsPanel";
 import { CmoTargetsPanel } from "@/components/features/cmo/CmoTargetsPanel";
@@ -34,6 +35,27 @@ function monthNumber(monthIndex: number) {
 function toNumber(value: string) {
   const v = Number(value);
   return Number.isFinite(v) ? v : null;
+}
+
+function formatTimeLabel(hhmm: string) {
+  const m = hhmm.match(/^(\d{2}):(\d{2})$/);
+  if (!m) return hhmm;
+  const h24 = Number(m[1]);
+  const mins = m[2];
+  const ampm = h24 >= 12 ? "PM" : "AM";
+  const h12 = ((h24 + 11) % 12) + 1;
+  return `${String(h12).padStart(2, "0")}:${mins} ${ampm}`;
+}
+
+function buildTimeOptions(stepMinutes = 15) {
+  const opts: Array<{ value: string; label: string }> = [];
+  for (let h = 0; h < 24; h += 1) {
+    for (let m = 0; m < 60; m += stepMinutes) {
+      const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      opts.push({ value, label: formatTimeLabel(value) });
+    }
+  }
+  return opts;
 }
 
 export default function CmoProjectsPage() {
@@ -68,6 +90,7 @@ export default function CmoProjectsPage() {
   });
 
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([]);
+  const timeOptions = useMemo(() => buildTimeOptions(15), []);
 
   const envMissing =
     typeof window !== "undefined" &&
@@ -370,12 +393,18 @@ export default function CmoProjectsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <input
-                type="time"
-                value={intelligenceSyncTime}
-                onChange={(e) => setIntelligenceSyncTime(e.target.value)}
-                className="h-10 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-sm text-white/85 outline-none focus:border-white/20"
-              />
+              <PillSelect
+                value={/^\d{2}:\d{2}$/.test(intelligenceSyncTime) ? intelligenceSyncTime : "12:00"}
+                onChange={(v) => setIntelligenceSyncTime(v)}
+                ariaLabel="Intelligence Desk sync time (PKT)"
+                className="min-w-[170px]"
+              >
+                {timeOptions.map((t) => (
+                  <option key={t.value} value={t.value} className="bg-zinc-900">
+                    {t.label}
+                  </option>
+                ))}
+              </PillSelect>
               <Button
                 color="primary"
                 onPress={() => void onSaveIntelligenceSync()}

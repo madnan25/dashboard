@@ -81,43 +81,62 @@ export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIC
   const temperature = options.temperature ?? 0.2;
   const maxTokens = options.maxTokens ?? 900;
 
-  const basePayload = {
+  const buildPayload = (useMaxCompletionTokens: boolean, includeTemperature: boolean) => ({
     model,
-    temperature,
-    messages: options.messages
-  } satisfies Record<string, unknown>;
-
-  const buildPayload = (useMaxCompletionTokens: boolean) => ({
-    ...basePayload,
+    messages: options.messages,
+    ...(includeTemperature ? { temperature } : {}),
     ...(useMaxCompletionTokens ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens })
   });
 
   let useMaxCompletionTokens = supportsMaxCompletionTokens(model);
+  let includeTemperature = true;
   let data: {
     model?: string;
     choices?: Array<{ message?: { content?: string } }>;
     usage?: OpenAIChatResult["usage"];
-  };
-  try {
-    data = (await postChatCompletions(apiKey, buildPayload(useMaxCompletionTokens))) as typeof data;
-  } catch (e) {
-    const msg =
-      e instanceof Error && "openai_message" in e
-        ? String((e as Error & { openai_message?: string }).openai_message || e.message)
-        : e instanceof Error
-          ? e.message
-          : "";
+  } | null = null;
+  let lastError: unknown = null;
 
-    // Some models are strict about which token-limit parameter is accepted.
-    if (!useMaxCompletionTokens && msg.includes("Unsupported parameter: 'max_tokens'")) {
-      useMaxCompletionTokens = true;
-      data = (await postChatCompletions(apiKey, buildPayload(true))) as typeof data;
-    } else if (useMaxCompletionTokens && msg.includes("Unsupported parameter: 'max_completion_tokens'")) {
-      useMaxCompletionTokens = false;
-      data = (await postChatCompletions(apiKey, buildPayload(false))) as typeof data;
-    } else {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      data = (await postChatCompletions(apiKey, buildPayload(useMaxCompletionTokens, includeTemperature))) as typeof data;
+      break;
+    } catch (e) {
+      lastError = e;
+      const msg =
+        e instanceof Error && "openai_message" in e
+          ? String((e as Error & { openai_message?: string }).openai_message || e.message)
+          : e instanceof Error
+            ? e.message
+            : "";
+
+      // Some models are strict about which token-limit parameter is accepted.
+      if (!useMaxCompletionTokens && msg.includes("Unsupported parameter: 'max_tokens'")) {
+        useMaxCompletionTokens = true;
+        continue;
+      }
+
+      if (useMaxCompletionTokens && msg.includes("Unsupported parameter: 'max_completion_tokens'")) {
+        useMaxCompletionTokens = false;
+        continue;
+      }
+
+      if (
+        includeTemperature &&
+        (msg.includes("Unsupported parameter: 'temperature'") ||
+          msg.includes("Unsupported value: 'temperature'") ||
+          (msg.includes("temperature") && msg.includes("Only the default (1)")))
+      ) {
+        includeTemperature = false;
+        continue;
+      }
+
       throw e;
     }
+  }
+
+  if (!data) {
+    throw lastError instanceof Error ? lastError : new Error("OpenAI request failed");
   }
 
   const content = data?.choices?.[0]?.message?.content?.trim() ?? "";
