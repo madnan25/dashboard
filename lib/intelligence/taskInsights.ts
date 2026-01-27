@@ -248,7 +248,7 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
   const blockedDetails: BlockedTask[] = blockedTasks.map((t) => {
     const latest = latestComments.get(t.id);
     return {
-      ...formatTaskSummary(t, maps, latest),
+      ...formatTaskSummary(t, maps, latest ?? null),
       description_snippet: compactText(t.description),
       latest_comment_snippet: latest ? compactText(latest.body) : null
     };
