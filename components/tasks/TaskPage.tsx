@@ -94,6 +94,8 @@ function formatTicketTitle(prefix: string, number: number, label: string) {
   return `${prefix}-${number}: ${label}`;
 }
 
+const DEPENDENCY_TICKET_STATUSES: TaskStatus[] = ["queued", "in_progress", "submitted"];
+
 export function TaskPage({ taskId }: { taskId: string }) {
   const router = useRouter();
   const [status, setStatus] = useState("");
@@ -264,7 +266,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }, [blockedDependencyChips.length, taskStatus]);
 
   const SUBTASK_STATUSES: TaskSubtaskStatus[] = ["not_done", "done", "blocked", "on_hold"];
-  const DEPENDENCY_TICKET_STATUSES: TaskStatus[] = ["queued", "in_progress", "submitted"];
   const TASK_LINK_CLASS =
     "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-blue-400/60 text-blue-300 hover:text-violet-200 hover:decoration-violet-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/30 rounded-sm";
   const DEP_CHIP_CLASS =

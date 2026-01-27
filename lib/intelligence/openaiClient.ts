@@ -75,6 +75,12 @@ async function postChatCompletions(apiKey: string, payload: Record<string, unkno
   return body;
 }
 
+type ChatCompletionsResponse = {
+  model?: string;
+  choices?: Array<{ message?: { content?: string } }>;
+  usage?: OpenAIChatResult["usage"];
+};
+
 export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
   const { apiKey, defaultModel, allowlist } = getOpenAIConfig();
   const model = resolveModel(options.model, allowlist, defaultModel);
@@ -90,16 +96,12 @@ export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIC
 
   let useMaxCompletionTokens = supportsMaxCompletionTokens(model);
   let includeTemperature = true;
-  let data: {
-    model?: string;
-    choices?: Array<{ message?: { content?: string } }>;
-    usage?: OpenAIChatResult["usage"];
-  } | null = null;
+  let data: ChatCompletionsResponse | null = null;
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      data = (await postChatCompletions(apiKey, buildPayload(useMaxCompletionTokens, includeTemperature))) as typeof data;
+      data = (await postChatCompletions(apiKey, buildPayload(useMaxCompletionTokens, includeTemperature))) as ChatCompletionsResponse;
       break;
     } catch (e) {
       lastError = e;
@@ -139,12 +141,12 @@ export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIC
     throw lastError instanceof Error ? lastError : new Error("OpenAI request failed");
   }
 
-  const content = data?.choices?.[0]?.message?.content?.trim() ?? "";
+  const content = data.choices?.[0]?.message?.content?.trim() ?? "";
   if (!content) throw new Error("OpenAI returned an empty response");
 
   return {
     content,
-    model: data?.model || model,
-    usage: data?.usage
+    model: data.model || model,
+    usage: data.usage
   };
 }
