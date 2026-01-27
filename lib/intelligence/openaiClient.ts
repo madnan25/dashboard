@@ -75,6 +75,27 @@ async function postChatCompletions(apiKey: string, payload: Record<string, unkno
   return body;
 }
 
+async function postResponses(apiKey: string, payload: Record<string, unknown>) {
+  const res = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = typeof body?.error?.message === "string" ? body.error.message : res.statusText;
+    const err = new Error(`OpenAI error: ${msg}`);
+    (err as Error & { openai_message?: string }).openai_message = msg;
+    throw err;
+  }
+
+  return body;
+}
+
 type ChatCompletionsResponse = {
   model?: string;
   choices?: Array<{ message?: { content?: unknown; refusal?: unknown }; text?: unknown }>;
@@ -185,6 +206,13 @@ export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIC
     ...(useMaxCompletionTokens ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens })
   });
 
+  const buildResponsesPayload = (includeTemperature: boolean) => ({
+    model,
+    input: options.messages,
+    ...(includeTemperature ? { temperature } : {}),
+    max_output_tokens: maxTokens
+  });
+
   let useMaxCompletionTokens = supportsMaxCompletionTokens(model);
   let includeTemperature = true;
   let data: ChatCompletionsResponse | null = null;
@@ -228,11 +256,49 @@ export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIC
     }
   }
 
+  let content = data ? extractChoiceContent(data.choices?.[0]) || extractResponseOutput(data) : "";
+  if (!content) {
+    // Fallback to Responses API for models that return empty Chat Completions.
+    let responseData: unknown = null;
+    let responseIncludeTemperature = includeTemperature;
+    try {
+      responseData = await postResponses(apiKey, buildResponsesPayload(responseIncludeTemperature));
+    } catch (e) {
+      const msg =
+        e instanceof Error && "openai_message" in e
+          ? String((e as Error & { openai_message?: string }).openai_message || e.message)
+          : e instanceof Error
+            ? e.message
+            : "";
+      if (
+        responseIncludeTemperature &&
+        (msg.includes("Unsupported parameter: 'temperature'") ||
+          msg.includes("Unsupported value: 'temperature'") ||
+          (msg.includes("temperature") && msg.includes("Only the default (1)")))
+      ) {
+        responseIncludeTemperature = false;
+        responseData = await postResponses(apiKey, buildResponsesPayload(false));
+      } else {
+        lastError = e;
+      }
+    }
+
+    if (responseData) {
+      content = extractResponseOutput(responseData);
+      if (content) {
+        return {
+          content,
+          model,
+          usage: (responseData as { usage?: OpenAIChatResult["usage"] }).usage
+        };
+      }
+    }
+  }
+
   if (!data) {
     throw lastError instanceof Error ? lastError : new Error("OpenAI request failed");
   }
 
-  const content = extractChoiceContent(data.choices?.[0]) || extractResponseOutput(data);
   if (!content) {
     const summary = summarizeResponseShape(data);
     console.warn("OpenAI empty response", { model, summary });
