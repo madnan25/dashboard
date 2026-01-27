@@ -27,7 +27,9 @@ import type {
 import {
   createTaskSubtask,
   createTask,
+  createTaskDependency,
   deleteTask,
+  deleteTaskDependency,
   deleteTaskSubtask,
   deleteTaskComment,
   createTaskComment,
@@ -37,6 +39,7 @@ import {
   nextTeamTicketNumber,
   getCurrentProfile,
   getTask,
+  listTaskDependencies,
   listProfiles,
   listProfilesByIds,
   listProjects,
@@ -107,6 +110,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [subtaskDependencyAction, setSubtaskDependencyAction] = useState<Record<string, "" | "task" | "subtask">>({});
   const [subtaskDependencyPickerValue, setSubtaskDependencyPickerValue] = useState<Record<string, string>>({});
   const [dependencyTickets, setDependencyTickets] = useState<Task[]>([]);
+  const [taskDependencies, setTaskDependencies] = useState<Array<{ id: string; blocker_task_id: string; reason: string | null }>>([]);
+  const [taskDependencyPickerValue, setTaskDependencyPickerValue] = useState<string>("");
+  const [linkedFromSubtaskDeps, setLinkedFromSubtaskDeps] = useState<TaskSubtaskDependency[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [commentsStatus, setCommentsStatus] = useState<string>("");
   const [loadingTask, setLoadingTask] = useState(true);
@@ -216,6 +222,42 @@ export function TaskPage({ taskId }: { taskId: string }) {
       .filter((p): p is Profile => Boolean(p));
   }, [assigneeId, profiles, subtasks, task?.created_by]);
 
+  const blockedDependencyChips = useMemo(() => {
+    const chips: Array<{ kind: "ticket" | "subtask"; id: string; label: string }> = [];
+
+    for (const d of taskDependencies) {
+      const k = d.blocker_task_id.toLowerCase();
+      const label = d.reason?.trim() || linkedTaskTitles[k] || `${k.slice(0, 8)}…`;
+      chips.push({ kind: "ticket", id: d.blocker_task_id, label });
+    }
+
+    // If this ticket is linked from a subtask, show that subtask's deps too.
+    for (const d of linkedFromSubtaskDeps) {
+      if (d.blocker_task_id) {
+        const k = d.blocker_task_id.toLowerCase();
+        const label = d.reason?.trim() || linkedTaskTitles[k] || `${k.slice(0, 8)}…`;
+        chips.push({ kind: "ticket", id: d.blocker_task_id, label });
+      } else if (d.blocker_subtask_id) {
+        const label = d.reason?.trim() || `${d.blocker_subtask_id.slice(0, 8)}…`;
+        chips.push({ kind: "subtask", id: d.blocker_subtask_id, label });
+      }
+    }
+
+    // Dedupe by (kind,id)
+    const seen = new Set<string>();
+    return chips.filter((c) => {
+      const key = `${c.kind}:${c.id.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [linkedFromSubtaskDeps, linkedTaskTitles, taskDependencies]);
+
+  const isDependencyBlocked = useMemo(() => {
+    if (taskStatus !== "blocked") return false;
+    return blockedDependencyChips.length > 0;
+  }, [blockedDependencyChips.length, taskStatus]);
+
   const SUBTASK_STATUSES: TaskSubtaskStatus[] = ["not_done", "done", "blocked", "on_hold"];
   const DEPENDENCY_TICKET_STATUSES: TaskStatus[] = ["queued", "in_progress", "submitted"];
   const TASK_LINK_CLASS =
@@ -223,6 +265,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const DEP_CHIP_CLASS =
     "inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-xs text-white/80";
   const DEP_REMOVE_CLASS = "text-xs text-white/55 hover:text-white/80 underline underline-offset-2";
+  const BLOCKED_BANNER_CLASS =
+    "rounded-2xl border border-rose-400/25 bg-rose-500/[0.08] px-4 py-3 shadow-[0_0_26px_rgba(244,63,94,0.18)]";
 
   const resizeTextareaToContent = useCallback((el: HTMLTextAreaElement | null, maxHeightPx = 320) => {
     if (!el) return;
@@ -368,13 +412,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
     try {
       setStatus("");
       setCommentsStatus("");
-      const [t, ev, subs, teamRows, parentLink, depRows] = await Promise.all([
+      const [t, ev, subs, teamRows, parentLink, depRows, taskDepRows] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
         listTaskSubtasks(taskId),
         listTaskTeams(),
         getLinkedParentSubtask(taskId).catch(() => null),
-        listTasks({ statuses: DEPENDENCY_TICKET_STATUSES }).catch(() => [] as Task[])
+        listTasks({ statuses: DEPENDENCY_TICKET_STATUSES }).catch(() => [] as Task[]),
+        listTaskDependencies(taskId).catch(() => [] as Array<{ id: string; blocker_task_id: string; reason: string | null }>)
       ]);
       setTaskState(t);
       setEvents(ev);
@@ -384,11 +429,25 @@ export function TaskPage({ taskId }: { taskId: string }) {
       // NOTE: listTasks is best-effort (RLS may block in some contexts).
       // Keep the picker small by excluding the current ticket.
       setDependencyTickets(((depRows as Task[]) ?? []).filter((x) => x.id !== taskId));
+      setTaskDependencies((taskDepRows ?? []).map((d) => ({ id: d.id, blocker_task_id: d.blocker_task_id, reason: d.reason ?? null })));
+      await ensureTaskTitlesLoaded((taskDepRows ?? []).map((d) => d.blocker_task_id));
       await ensureTaskTitlesLoaded([
         ...(subs.map((s) => s.linked_task_id ?? null) ?? []),
         parentLink?.task_id ?? null
       ]);
       await refreshSubtaskDependencies(subs);
+
+      if (parentLink?.id) {
+        try {
+          const rows = await listSubtaskDependencies(parentLink.id);
+          setLinkedFromSubtaskDeps(rows ?? []);
+          await ensureTaskTitlesLoaded(rows.map((r) => r.blocker_task_id));
+        } catch {
+          setLinkedFromSubtaskDeps([]);
+        }
+      } else {
+        setLinkedFromSubtaskDeps([]);
+      }
       // Event payloads can include profile IDs (e.g. assignee changes). Load those so the UI can show names.
       const eventProfileIds: Array<string | null | undefined> = [];
       for (const e of ev) {
@@ -821,15 +880,26 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setStatus("Subtask cannot depend on itself.");
       return;
     }
-    const reasonInput = prompt("Optional: why is this blocked? (Also used in the comment.)") ?? "";
-    const reason = reasonInput.trim() || null;
     setStatus("Adding dependency…");
     try {
+      const autoReason = (() => {
+        if (kind === "task") {
+          const title =
+            dependencyTickets.find((t) => t.id.toLowerCase() === id)?.title ||
+            linkedTaskTitles[id] ||
+            `${id.slice(0, 8)}…`;
+          return `Ticket: ${title}`;
+        }
+        const blockerSubtask = subtasks.find((s) => s.id.toLowerCase() === id) ?? null;
+        const label = blockerSubtask?.title?.trim() || `${id.slice(0, 8)}…`;
+        return `Subtask: ${label}`;
+      })();
+
       await createSubtaskDependency({
         blocked_subtask_id: subtask.id,
         blocker_task_id: kind === "task" ? id : null,
         blocker_subtask_id: kind === "subtask" ? id : null,
-        reason
+        reason: autoReason
       });
       await refreshSubtasksOnly();
       setStatus("Dependency added.");
@@ -853,6 +923,50 @@ export function TaskPage({ taskId }: { taskId: string }) {
     } catch (e) {
       setStatus(getErrorMessage(e, "Failed to remove dependency"));
       await refreshSubtaskDependencies(subtasks).catch(() => null);
+    }
+  }
+
+  async function onCreateTaskDependency(blockerTaskId: string) {
+    if (!canEditStatus) return;
+    const id = (blockerTaskId || "").trim().toLowerCase();
+    if (!id) return;
+    if (id === taskId.toLowerCase()) return;
+    if (linkedParentSubtask?.task_id) {
+      // Linked tickets are blocked by parent subtasks; task-to-task dependencies are still allowed,
+      // but we keep the UX simple and disallow editing for linked tickets for now.
+      setStatus("Dependencies can only be managed from the parent ticket.");
+      return;
+    }
+    setStatus("Adding dependency…");
+    try {
+      const title =
+        dependencyTickets.find((t) => t.id.toLowerCase() === id)?.title ||
+        linkedTaskTitles[id] ||
+        `${id.slice(0, 8)}…`;
+      await createTaskDependency({ blocker_task_id: id, blocked_task_id: taskId, reason: `Ticket: ${title}` });
+      setTaskDependencyPickerValue("");
+      await refresh().catch(() => null);
+      setStatus("Dependency added.");
+    } catch (e) {
+      setStatus(getErrorMessage(e, "Failed to add dependency"));
+      await refresh().catch(() => null);
+    }
+  }
+
+  async function onRemoveTaskDependency(dependencyId: string) {
+    if (!canEditStatus) return;
+    if (linkedParentSubtask?.task_id) {
+      setStatus("Dependencies can only be managed from the parent ticket.");
+      return;
+    }
+    setStatus("Removing dependency…");
+    try {
+      await deleteTaskDependency(dependencyId);
+      await refresh().catch(() => null);
+      setStatus("Dependency removed.");
+    } catch (e) {
+      setStatus(getErrorMessage(e, "Failed to remove dependency"));
+      await refresh().catch(() => null);
     }
   }
 
@@ -1009,6 +1123,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   async function onSetStatus(next: TaskStatus) {
     if (!canEditStatus) return;
+    const dependencyLocked =
+      taskStatus === "blocked" && (taskDependencies.length > 0 || linkedFromSubtaskDeps.length > 0);
+    if (dependencyLocked && next !== "blocked") {
+      setStatus("This ticket is blocked by dependencies. Resolve them before changing status.");
+      return;
+    }
     if ((next === "approved" || next === "closed") && !canApprove) {
       setStatus("Only the assigned approver can approve or close this ticket.");
       return;
@@ -1122,6 +1242,43 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 ) : null}
               </div>
 
+              {isDependencyBlocked ? (
+                <div className="mt-4">
+                  <div className={BLOCKED_BANNER_CLASS}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-widest text-rose-200/90">Blocked by dependencies</div>
+                        <div className="mt-1 text-sm text-white/80">
+                          Resolve the dependency items below to unlock status changes.
+                        </div>
+                      </div>
+                      <div className="text-xs text-white/55">Status is locked</div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {blockedDependencyChips.map((c) => {
+                        if (c.kind === "ticket") {
+                          const href = `/tasks/${c.id}`;
+                          return (
+                            <span key={`${c.kind}:${c.id}`} className="inline-flex items-center gap-2 rounded-full border border-rose-400/25 bg-rose-500/[0.06] px-3 py-1 text-xs text-white/85">
+                              <span className="text-rose-200/90">Ticket</span>
+                              <button type="button" className={TASK_LINK_CLASS} onClick={() => router.push(href)}>
+                                {c.label}
+                              </button>
+                            </span>
+                          );
+                        }
+                        return (
+                          <span key={`${c.kind}:${c.id}`} className="inline-flex items-center gap-2 rounded-full border border-rose-400/25 bg-rose-500/[0.06] px-3 py-1 text-xs text-white/85">
+                            <span className="text-rose-200/90">Subtask</span>
+                            <span>{c.label}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {taskStatus !== "closed" ? (
                   <AppButton
@@ -1129,7 +1286,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     size="sm"
                     className="h-10 px-4"
                     onPress={() => onSetStatus("in_progress")}
-                    isDisabled={!canEditStatus}
+                    isDisabled={!canEditStatus || isDependencyBlocked}
                   >
                     Start work
                   </AppButton>
@@ -1139,7 +1296,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   size="sm"
                   className="h-10 px-4"
                   onPress={() => onSetStatus("submitted")}
-                  isDisabled={!canEditStatus || taskStatus === "closed" || !teamId || !approverUserId}
+                  isDisabled={!canEditStatus || isDependencyBlocked || taskStatus === "closed" || !teamId || !approverUserId}
                 >
                   Submit for approval
                 </AppButton>
@@ -1333,6 +1490,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               </div>
                             )}
                           </div>
+
+                          {s.status === "blocked" && (subtaskDependencies[s.id]?.length ?? 0) > 0 ? (
+                            <div className="mb-4">
+                              <div className={BLOCKED_BANNER_CLASS}>
+                                <div className="text-xs uppercase tracking-widest text-rose-200/90">Blocked</div>
+                                <div className="mt-1 text-sm text-white/80">
+                                  This subtask is blocked by dependencies.
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
 
                           {/* Controls Row */}
                           <div className="flex flex-wrap items-center gap-3">
@@ -1776,7 +1944,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">
                   <div className="text-xs uppercase tracking-widest text-white/45">Status</div>
                   {canEditStatus ? (
-                    <PillSelect value={taskStatus} onChange={(v) => onSetStatus(v as TaskStatus)} ariaLabel="Status">
+                    <PillSelect
+                      value={taskStatus}
+                      onChange={(v) => onSetStatus(v as TaskStatus)}
+                      ariaLabel="Status"
+                      disabled={isDependencyBlocked}
+                    >
                       {statusOptions.map((s) => (
                         <option key={s} value={s} className="bg-zinc-900">
                           {statusLabel(s)}
@@ -1786,6 +1959,62 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   ) : (
                     <div className="text-sm text-white/80">{statusLabel(taskStatus)}</div>
                   )}
+                </div>
+
+                <div className="grid grid-cols-[130px,1fr] items-start gap-3">
+                  <div className="pt-1 text-xs uppercase tracking-widest text-white/45">Dependencies</div>
+                  <div className="space-y-2">
+                    {taskDependencies.length === 0 ? (
+                      <div className="text-sm text-white/55">None</div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {taskDependencies.map((d) => {
+                          const k = d.blocker_task_id.toLowerCase();
+                          const label = d.reason?.trim() || linkedTaskTitles[k] || `${d.blocker_task_id.slice(0, 8)}…`;
+                          return (
+                            <span key={d.id} className={DEP_CHIP_CLASS}>
+                              <span className="text-white/55">Ticket</span>
+                              <button type="button" className={TASK_LINK_CLASS} onClick={() => router.push(`/tasks/${d.blocker_task_id}`)}>
+                                {label}
+                              </button>
+                              {canEditStatus ? (
+                                <button className={DEP_REMOVE_CLASS} onClick={() => onRemoveTaskDependency(d.id)}>
+                                  Remove
+                                </button>
+                              ) : null}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {canEditStatus && !linkedParentSubtask?.task_id ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <PillSelect
+                          value={taskDependencyPickerValue}
+                          onChange={(v) => {
+                            const next = (v as string) || "";
+                            setTaskDependencyPickerValue(next);
+                            if (!next) return;
+                            void onCreateTaskDependency(next);
+                          }}
+                          ariaLabel="Add dependency ticket"
+                          disabled={dependencyTickets.length === 0}
+                        >
+                          <option value="" className="bg-zinc-900">
+                            {dependencyTickets.length === 0 ? "No pre-approved tickets found" : "Add ticket dependency…"}
+                          </option>
+                          {dependencyTickets
+                            .filter((t) => t.id !== taskId)
+                            .map((t) => (
+                              <option key={t.id} value={t.id} className="bg-zinc-900">
+                                {t.title || `${t.id.slice(0, 8)}…`}
+                              </option>
+                            ))}
+                        </PillSelect>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-[130px,1fr] items-center gap-3">
