@@ -128,7 +128,7 @@ export function IntelligenceDeskPage() {
     setChatLoading(true);
     setChatInput("");
 
-    const nextMessages = [...chatMessages, { role: "user", content: trimmed }];
+    const nextMessages: ChatMessage[] = [...chatMessages, { role: "user", content: trimmed }];
     setChatMessages(nextMessages);
 
     try {

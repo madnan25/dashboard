@@ -10,12 +10,15 @@ function json(status: number, body: unknown) {
   });
 }
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
   const targetUrl = Deno.env.get("INTELLIGENCE_CRON_URL");
   const secret = Deno.env.get("CRON_SECRET");
 
   if (!targetUrl) return json(500, { ok: false, error: "Missing INTELLIGENCE_CRON_URL" });
   if (!secret) return json(500, { ok: false, error: "Missing CRON_SECRET" });
+
+  const provided = req.headers.get("x-cron-secret") || "";
+  if (!provided || provided !== secret) return json(401, { ok: false, error: "Unauthorized" });
 
   try {
     const res = await fetch(targetUrl, {
