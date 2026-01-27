@@ -220,6 +220,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const DEPENDENCY_TICKET_STATUSES: TaskStatus[] = ["queued", "in_progress", "submitted"];
   const TASK_LINK_CLASS =
     "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-blue-400/60 text-blue-300 hover:text-violet-200 hover:decoration-violet-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/30 rounded-sm";
+  const DEP_CHIP_CLASS =
+    "inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-xs text-white/80";
+  const DEP_REMOVE_CLASS = "text-xs text-white/55 hover:text-white/80 underline underline-offset-2";
 
   const resizeTextareaToContent = useCallback((el: HTMLTextAreaElement | null, maxHeightPx = 320) => {
     if (!el) return;
@@ -816,6 +819,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return lines.join("\n");
   }
 
+  function buildDependencyCommentForBlockedWork(subtask: TaskSubtask, kind: "task" | "subtask", blockerId: string, reason: string | null) {
+    const label = subtask.title?.trim() ? subtask.title.trim() : "Untitled subtask";
+    const lines = [`Blocked: subtask "${label}" is waiting on a dependency.`];
+    if (kind === "task") lines.push(`Dependency ticket: /tasks/${blockerId}`);
+    if (kind === "subtask") lines.push(`Dependency subtask ID: ${blockerId}`);
+    lines.push(`Parent: /tasks/${taskId}`);
+    if (subtask.linked_task_id) lines.push(`Blocked ticket: /tasks/${subtask.linked_task_id}`);
+    if (reason) lines.push(`Reason: ${reason}`);
+    return lines.join("\n");
+  }
+
   function buildBlockedByDependenciesComment(deps: TaskSubtaskDependency[]) {
     if (!deps || deps.length === 0) return "";
     const lines = ["Blocked by dependencies from parent subtask:", `Parent: /tasks/${taskId}`];
@@ -838,6 +852,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
     if (!canEditSubtasks) return;
     const id = (blockerId || "").trim().toLowerCase();
     if (!id) return;
+    if (kind === "task" && subtask.linked_task_id && id === subtask.linked_task_id.toLowerCase()) {
+      setStatus("That ticket is created from this subtask; it can't be a dependency for itself.");
+      return;
+    }
     if (kind === "subtask" && id === subtask.id) {
       setStatus("Subtask cannot depend on itself.");
       return;
@@ -853,7 +871,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
         blocker_subtask_id: kind === "subtask" ? id : null,
         reason
       });
-      // Default notify: add a comment on the blocker ticket (uses existing task_comments).
+      // Default notify (visible context): add a comment on the blocked work (linked ticket if present; else parent ticket).
+      if (canComment) {
+        const blockedWorkId = subtask.linked_task_id ?? taskId;
+        try {
+          await createTaskComment({ task_id: blockedWorkId, body: buildDependencyCommentForBlockedWork(subtask, kind, id, reason) });
+        } catch (e) {
+          commentError = e;
+        }
+      }
+
+      // Also notify the blocker ticket (so owners of the dependency see it).
       if (kind === "task" && canComment) {
         try {
           await createTaskComment({ task_id: id, body: buildDependencyComment(subtask, reason) });
@@ -1530,18 +1558,18 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                     if (dep.blocker_task_id) {
                                       const k = dep.blocker_task_id.toLowerCase();
                                       return (
-                                        <span key={dep.id} className="inline-flex items-center gap-2">
+                                        <span key={dep.id} className={DEP_CHIP_CLASS} title={reason || undefined}>
+                                          <span className="text-white/55">Ticket</span>
                                           <button
                                             type="button"
                                             className={TASK_LINK_CLASS}
-                                            title={reason || undefined}
                                             onClick={() => router.push(`/tasks/${dep.blocker_task_id}`)}
                                           >
                                             {linkedTaskTitles[k] || `${dep.blocker_task_id.slice(0, 8)}…`}
                                           </button>
                                           {canEditSubtasks ? (
                                             <button
-                                              className="text-xs text-white/60 hover:text-white/80"
+                                              className={DEP_REMOVE_CLASS}
                                               onClick={() => onRemoveSubtaskDependency(s.id, dep.id)}
                                             >
                                               Remove
@@ -1554,11 +1582,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                       const blockerSubtask = subtasks.find((candidate) => candidate.id === dep.blocker_subtask_id) ?? null;
                                       const label = blockerSubtask?.title || `${dep.blocker_subtask_id.slice(0, 8)}…`;
                                       return (
-                                        <span key={dep.id} className="inline-flex items-center gap-2" title={reason || undefined}>
-                                          <span className="text-xs text-white/70">Subtask: {label}</span>
+                                        <span key={dep.id} className={DEP_CHIP_CLASS} title={reason || undefined}>
+                                          <span className="text-white/55">Subtask</span>
+                                          <span className="text-white/80">{label}</span>
                                           {canEditSubtasks ? (
                                             <button
-                                              className="text-xs text-white/60 hover:text-white/80"
+                                              className={DEP_REMOVE_CLASS}
                                               onClick={() => onRemoveSubtaskDependency(s.id, dep.id)}
                                             >
                                               Remove
@@ -1635,11 +1664,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 <option value="" className="bg-zinc-900">
                                   {dependencyTickets.length === 0 ? "No pre-approved tickets found" : "Select ticket…"}
                                 </option>
-                                {dependencyTickets.map((t) => (
-                                  <option key={t.id} value={t.id} className="bg-zinc-900">
-                                    {t.title || `${t.id.slice(0, 8)}…`}
-                                  </option>
-                                ))}
+                                {dependencyTickets
+                                  .filter((t) => t.id !== (s.linked_task_id ?? ""))
+                                  .map((t) => (
+                                    <option key={t.id} value={t.id} className="bg-zinc-900">
+                                      {t.title || `${t.id.slice(0, 8)}…`}
+                                    </option>
+                                  ))}
                               </PillSelect>
                             ) : null}
                           </div>
