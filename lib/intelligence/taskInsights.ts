@@ -19,6 +19,9 @@ type TaskSummary = {
   project: string;
   due_at: string | null;
   updated_at: string;
+  description_snippet: string | null;
+  latest_comment_snippet: string | null;
+  latest_comment_at: string | null;
 };
 
 type BlockedTask = TaskSummary & {
@@ -52,6 +55,15 @@ export type TaskInsights = {
   by_project: Array<{ id: string | null; name: string; total: number; open: number; blocked: number; overdue: number }>;
   tasks: TaskSummary[];
   blocked_tasks: BlockedTask[];
+  recent_comments: Array<{
+    task_id: string;
+    title: string;
+    created_at: string;
+    snippet: string;
+    assignee: string;
+    team: string;
+    project: string;
+  }>;
   truncated: boolean;
 };
 
@@ -114,7 +126,11 @@ async function loadLatestComments(
   return map;
 }
 
-function formatTaskSummary(t: Task, maps: ReturnType<typeof buildNameMaps>): TaskSummary {
+function formatTaskSummary(
+  t: Task,
+  maps: ReturnType<typeof buildNameMaps>,
+  latestComment: CommentRow | null
+): TaskSummary {
   return {
     id: t.id,
     title: t.title,
@@ -124,7 +140,10 @@ function formatTaskSummary(t: Task, maps: ReturnType<typeof buildNameMaps>): Tas
     team: maps.teamName(t.team_id),
     project: maps.projectName(t.project_id),
     due_at: t.due_at ?? null,
-    updated_at: t.updated_at
+    updated_at: t.updated_at,
+    description_snippet: compactText(t.description),
+    latest_comment_snippet: latestComment ? compactText(latestComment.body) : null,
+    latest_comment_at: latestComment?.created_at ?? null
   };
 }
 
@@ -166,10 +185,11 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
   const detailTasks = sorted.slice(0, taskLimit);
 
   const blockedTasks = tasks.filter((t) => t.status === "blocked" || t.status === "on_hold");
-  const latestComments = await loadLatestComments(
-    supabase,
-    blockedTasks.map((t) => t.id)
+  const commentTaskIds = Array.from(
+    new Set([...detailTasks, ...blockedTasks].map((t) => t.id))
   );
+  const latestComments = await loadLatestComments(supabase, commentTaskIds);
+  const taskById = new Map(tasks.map((t) => [t.id, t]));
 
   const byStatus = new Map<TaskStatus, number>();
   const byPriority = new Map<string, number>();
@@ -228,11 +248,29 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
   const blockedDetails: BlockedTask[] = blockedTasks.map((t) => {
     const latest = latestComments.get(t.id);
     return {
-      ...formatTaskSummary(t, maps),
+      ...formatTaskSummary(t, maps, latest),
       description_snippet: compactText(t.description),
       latest_comment_snippet: latest ? compactText(latest.body) : null
     };
   });
+
+  const recentComments = Array.from(latestComments.entries())
+    .map(([taskId, comment]) => {
+      const task = taskById.get(taskId);
+      if (!task || !comment?.body) return null;
+      return {
+        task_id: taskId,
+        title: task.title,
+        created_at: comment.created_at,
+        snippet: compactText(comment.body, 220) ?? "",
+        assignee: maps.assigneeName(task.assignee_id),
+        team: maps.teamName(task.team_id),
+        project: maps.projectName(task.project_id)
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 12);
 
   return {
     generated_at: new Date().toISOString(),
@@ -270,8 +308,9 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
       name: maps.projectName(id ?? null),
       ...entry
     })),
-    tasks: detailTasks.map((t) => formatTaskSummary(t, maps)),
+    tasks: detailTasks.map((t) => formatTaskSummary(t, maps, latestComments.get(t.id) ?? null)),
     blocked_tasks: blockedDetails,
+    recent_comments: recentComments,
     truncated
   };
 }

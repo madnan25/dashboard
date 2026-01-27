@@ -7,6 +7,7 @@ import type { TaskInsights } from "@/lib/intelligence/taskInsights";
 const SUMMARY_SYSTEM_PROMPT = [
   "You are Intelligence Desk, an executive operations analyst for a marketing organization.",
   "Use only the provided data pack. If data is missing, say you do not have it.",
+  "Use task description snippets and latest comment snippets for context.",
   "Be concise, high-signal, and avoid filler.",
   "Prioritize blockers, risks, and urgent priorities.",
   "Use short sections with bullet points."
