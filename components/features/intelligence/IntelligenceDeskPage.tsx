@@ -104,14 +104,39 @@ function stripCodeFence(raw: string) {
   return fenced ? fenced[1].trim() : trimmed;
 }
 
+function sanitizeJsonText(raw: string) {
+  return raw
+    .replace(/^[\uFEFF\u200B\u200C\u200D]+/, "")
+    .replace(/\u0000/g, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/,\s*([}\]])/g, "$1");
+}
+
+function extractJsonBlock(raw: string) {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  return raw.slice(start, end + 1);
+}
+
 function parseSummaryPayload(raw: string): SummaryPayload | null {
   if (!raw) return null;
+  const cleaned = sanitizeJsonText(stripCodeFence(raw));
   try {
-    const parsed = JSON.parse(stripCodeFence(raw)) as SummaryPayload;
+    const parsed = JSON.parse(cleaned) as SummaryPayload;
     if (!parsed || typeof parsed !== "object") return null;
     return parsed;
   } catch {
-    return null;
+    const block = extractJsonBlock(cleaned);
+    if (!block) return null;
+    try {
+      const parsed = JSON.parse(sanitizeJsonText(block)) as SummaryPayload;
+      if (!parsed || typeof parsed !== "object") return null;
+      return parsed;
+    } catch {
+      return null;
+    }
   }
 }
 
