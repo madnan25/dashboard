@@ -40,6 +40,7 @@ import {
   listProfiles,
   listProfilesByIds,
   listProjects,
+  listTasks,
   listTasksByIds,
   listTaskComments,
   listTaskEvents,
@@ -104,6 +105,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
   const [subtaskDependencies, setSubtaskDependencies] = useState<Record<string, TaskSubtaskDependency[]>>({});
   const [subtaskDependencyAction, setSubtaskDependencyAction] = useState<Record<string, "" | "task" | "subtask">>({});
+  const [subtaskDependencyPickerValue, setSubtaskDependencyPickerValue] = useState<Record<string, string>>({});
+  const [dependencyTickets, setDependencyTickets] = useState<Task[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [commentsStatus, setCommentsStatus] = useState<string>("");
   const [loadingTask, setLoadingTask] = useState(true);
@@ -214,6 +217,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }, [assigneeId, profiles, subtasks, task?.created_by]);
 
   const SUBTASK_STATUSES: TaskSubtaskStatus[] = ["not_done", "done", "blocked", "on_hold"];
+  const DEPENDENCY_TICKET_STATUSES: TaskStatus[] = ["queued", "in_progress", "submitted"];
   const TASK_LINK_CLASS =
     "inline-flex max-w-[36ch] items-baseline truncate underline underline-offset-2 decoration-blue-400/60 text-blue-300 hover:text-violet-200 hover:decoration-violet-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/30 rounded-sm";
 
@@ -361,18 +365,22 @@ export function TaskPage({ taskId }: { taskId: string }) {
     try {
       setStatus("");
       setCommentsStatus("");
-      const [t, ev, subs, teamRows, parentLink] = await Promise.all([
+      const [t, ev, subs, teamRows, parentLink, depRows] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
         listTaskSubtasks(taskId),
         listTaskTeams(),
-        getLinkedParentSubtask(taskId).catch(() => null)
+        getLinkedParentSubtask(taskId).catch(() => null),
+        listTasks({ statuses: DEPENDENCY_TICKET_STATUSES }).catch(() => [] as Task[])
       ]);
       setTaskState(t);
       setEvents(ev);
       setSubtasks(subs);
       setTeams(teamRows);
       setLinkedParentSubtask(parentLink);
+      // NOTE: listTasks is best-effort (RLS may block in some contexts).
+      // Keep the picker small by excluding the current ticket.
+      setDependencyTickets(((depRows as Task[]) ?? []).filter((x) => x.id !== taskId));
       await ensureTaskTitlesLoaded([
         ...(subs.map((s) => s.linked_task_id ?? null) ?? []),
         parentLink?.task_id ?? null
@@ -826,35 +834,29 @@ export function TaskPage({ taskId }: { taskId: string }) {
     return lines.join("\n");
   }
 
-  async function onAddSubtaskDependency(subtask: TaskSubtask, kind: "task" | "subtask") {
+  async function onCreateSubtaskDependency(subtask: TaskSubtask, kind: "task" | "subtask", blockerId: string) {
     if (!canEditSubtasks) return;
-    const raw = prompt(
-      kind === "task" ? "Paste the ticket URL or ID that blocks this subtask:" : "Paste the subtask ID that blocks this subtask:"
-    );
-    if (!raw) return;
-    const blockerId = extractTaskId(raw);
-    if (!blockerId) {
-      setStatus("Could not detect an ID. Paste a /tasks/<id> link or UUID.");
-      return;
-    }
-    if (kind === "subtask" && blockerId === subtask.id) {
+    const id = (blockerId || "").trim().toLowerCase();
+    if (!id) return;
+    if (kind === "subtask" && id === subtask.id) {
       setStatus("Subtask cannot depend on itself.");
       return;
     }
-    const reasonInput = prompt("Optional: add a dependency reason (also used in the comment).") ?? "";
+    const reasonInput = prompt("Optional: why is this blocked? (Also used in the comment.)") ?? "";
     const reason = reasonInput.trim() || null;
     setStatus("Adding dependency…");
     let commentError: unknown = null;
     try {
       await createSubtaskDependency({
         blocked_subtask_id: subtask.id,
-        blocker_task_id: kind === "task" ? blockerId : null,
-        blocker_subtask_id: kind === "subtask" ? blockerId : null,
+        blocker_task_id: kind === "task" ? id : null,
+        blocker_subtask_id: kind === "subtask" ? id : null,
         reason
       });
+      // Default notify: add a comment on the blocker ticket (uses existing task_comments).
       if (kind === "task" && canComment) {
         try {
-          await createTaskComment({ task_id: blockerId, body: buildDependencyComment(subtask, reason) });
+          await createTaskComment({ task_id: id, body: buildDependencyComment(subtask, reason) });
         } catch (e) {
           commentError = e;
         }
@@ -868,6 +870,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
     } catch (e) {
       setStatus(getErrorMessage(e, "Failed to add dependency"));
       await refreshSubtaskDependencies(subtasks).catch(() => null);
+    } finally {
+      // Close any open picker UI for this subtask.
+      setSubtaskDependencyAction((prev) => ({ ...prev, [subtask.id]: "" }));
+      setSubtaskDependencyPickerValue((prev) => ({ ...prev, [subtask.id]: "" }));
     }
   }
 
@@ -1572,15 +1578,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 onChange={(v) => {
                                   const next = (v as "" | "task" | "subtask") ?? "";
                                   setSubtaskDependencyAction((prev) => ({ ...prev, [s.id]: next }));
-                                  if (next === "task") {
-                                    void onAddSubtaskDependency(s, "task").finally(() =>
-                                      setSubtaskDependencyAction((prev) => ({ ...prev, [s.id]: "" }))
-                                    );
-                                  } else if (next === "subtask") {
-                                    void onAddSubtaskDependency(s, "subtask").finally(() =>
-                                      setSubtaskDependencyAction((prev) => ({ ...prev, [s.id]: "" }))
-                                    );
-                                  }
+                                  setSubtaskDependencyPickerValue((prev) => ({ ...prev, [s.id]: "" }));
                                 }}
                                 ariaLabel="Dependency actions"
                                 disabled={!canEditSubtasks}
@@ -1594,6 +1592,54 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 <option value="subtask" className="bg-zinc-900">
                                   Link subtask dependency
                                 </option>
+                              </PillSelect>
+                            ) : null}
+
+                            {canEditSubtasks && subtaskDependencyAction[s.id] === "subtask" ? (
+                              <PillSelect
+                                value={subtaskDependencyPickerValue[s.id] ?? ""}
+                                onChange={(v) => {
+                                  const next = (v as string) || "";
+                                  setSubtaskDependencyPickerValue((prev) => ({ ...prev, [s.id]: next }));
+                                  if (!next) return;
+                                  void onCreateSubtaskDependency(s, "subtask", next);
+                                }}
+                                ariaLabel="Select blocking subtask"
+                                disabled={!canEditSubtasks}
+                              >
+                                <option value="" className="bg-zinc-900">
+                                  Select subtask…
+                                </option>
+                                {subtasks
+                                  .filter((x) => x.id !== s.id)
+                                  .map((x) => (
+                                    <option key={x.id} value={x.id} className="bg-zinc-900">
+                                      {x.title || `${x.id.slice(0, 8)}…`}
+                                    </option>
+                                  ))}
+                              </PillSelect>
+                            ) : null}
+
+                            {canEditSubtasks && subtaskDependencyAction[s.id] === "task" ? (
+                              <PillSelect
+                                value={subtaskDependencyPickerValue[s.id] ?? ""}
+                                onChange={(v) => {
+                                  const next = (v as string) || "";
+                                  setSubtaskDependencyPickerValue((prev) => ({ ...prev, [s.id]: next }));
+                                  if (!next) return;
+                                  void onCreateSubtaskDependency(s, "task", next);
+                                }}
+                                ariaLabel="Select blocking ticket"
+                                disabled={!canEditSubtasks || dependencyTickets.length === 0}
+                              >
+                                <option value="" className="bg-zinc-900">
+                                  {dependencyTickets.length === 0 ? "No pre-approved tickets found" : "Select ticket…"}
+                                </option>
+                                {dependencyTickets.map((t) => (
+                                  <option key={t.id} value={t.id} className="bg-zinc-900">
+                                    {t.title || `${t.id.slice(0, 8)}…`}
+                                  </option>
+                                ))}
                               </PillSelect>
                             ) : null}
                           </div>
