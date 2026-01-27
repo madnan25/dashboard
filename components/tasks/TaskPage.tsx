@@ -809,45 +809,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
-  function buildDependencyComment(subtask: TaskSubtask, reason: string | null) {
-    const label = subtask.title?.trim() ? subtask.title.trim() : "Untitled subtask";
-    const lines = [
-      `Dependency noted: subtask "${label}" is blocked by this ticket.`,
-      `Parent: /tasks/${taskId}`
-    ];
-    if (reason) lines.push(`Reason: ${reason}`);
-    return lines.join("\n");
-  }
-
-  function buildDependencyCommentForBlockedWork(subtask: TaskSubtask, kind: "task" | "subtask", blockerId: string, reason: string | null) {
-    const label = subtask.title?.trim() ? subtask.title.trim() : "Untitled subtask";
-    const lines = [`Blocked: subtask "${label}" is waiting on a dependency.`];
-    if (kind === "task") lines.push(`Dependency ticket: /tasks/${blockerId}`);
-    if (kind === "subtask") lines.push(`Dependency subtask ID: ${blockerId}`);
-    lines.push(`Parent: /tasks/${taskId}`);
-    if (subtask.linked_task_id) lines.push(`Blocked ticket: /tasks/${subtask.linked_task_id}`);
-    if (reason) lines.push(`Reason: ${reason}`);
-    return lines.join("\n");
-  }
-
-  function buildBlockedByDependenciesComment(deps: TaskSubtaskDependency[]) {
-    if (!deps || deps.length === 0) return "";
-    const lines = ["Blocked by dependencies from parent subtask:", `Parent: /tasks/${taskId}`];
-    for (const dep of deps) {
-      const reason = dep.reason?.trim();
-      if (dep.blocker_task_id) {
-        const k = dep.blocker_task_id.toLowerCase();
-        const title = linkedTaskTitles[k] || `${dep.blocker_task_id.slice(0, 8)}…`;
-        lines.push(`- /tasks/${dep.blocker_task_id} (${title})${reason ? ` — ${reason}` : ""}`);
-      } else if (dep.blocker_subtask_id) {
-        const blockerSubtask = subtasks.find((candidate) => candidate.id === dep.blocker_subtask_id) ?? null;
-        const label = blockerSubtask?.title || `${dep.blocker_subtask_id.slice(0, 8)}…`;
-        lines.push(`- Subtask ${label}${reason ? ` — ${reason}` : ""}`);
-      }
-    }
-    return lines.join("\n");
-  }
-
   async function onCreateSubtaskDependency(subtask: TaskSubtask, kind: "task" | "subtask", blockerId: string) {
     if (!canEditSubtasks) return;
     const id = (blockerId || "").trim().toLowerCase();
@@ -863,7 +824,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
     const reasonInput = prompt("Optional: why is this blocked? (Also used in the comment.)") ?? "";
     const reason = reasonInput.trim() || null;
     setStatus("Adding dependency…");
-    let commentError: unknown = null;
     try {
       await createSubtaskDependency({
         blocked_subtask_id: subtask.id,
@@ -871,30 +831,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
         blocker_subtask_id: kind === "subtask" ? id : null,
         reason
       });
-      // Default notify (visible context): add a comment on the blocked work (linked ticket if present; else parent ticket).
-      if (canComment) {
-        const blockedWorkId = subtask.linked_task_id ?? taskId;
-        try {
-          await createTaskComment({ task_id: blockedWorkId, body: buildDependencyCommentForBlockedWork(subtask, kind, id, reason) });
-        } catch (e) {
-          commentError = e;
-        }
-      }
-
-      // Also notify the blocker ticket (so owners of the dependency see it).
-      if (kind === "task" && canComment) {
-        try {
-          await createTaskComment({ task_id: id, body: buildDependencyComment(subtask, reason) });
-        } catch (e) {
-          commentError = e;
-        }
-      }
       await refreshSubtasksOnly();
-      if (commentError) {
-        setStatus(getErrorMessage(commentError, "Dependency added, but comment failed."));
-      } else {
-        setStatus("Dependency added.");
-      }
+      setStatus("Dependency added.");
     } catch (e) {
       setStatus(getErrorMessage(e, "Failed to add dependency"));
       await refreshSubtaskDependencies(subtasks).catch(() => null);
@@ -978,16 +916,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
       }));
       setLinkedTaskDueAt((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.due_at ?? null) as string | null }));
       setLinkedTaskStatus((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.status ?? null) as TaskStatus | null }));
-      if (deps.length > 0 && canComment) {
-        const commentBody = buildBlockedByDependenciesComment(deps);
-        if (commentBody) {
-          try {
-            await createTaskComment({ task_id: created.id, body: commentBody });
-          } catch {
-            // Non-blocking: dependency comment can fail independently.
-          }
-        }
-      }
       await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Design ticket created.");
     } catch (e) {
@@ -1037,16 +965,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
       }));
       setLinkedTaskDueAt((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.due_at ?? null) as string | null }));
       setLinkedTaskStatus((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.status ?? null) as TaskStatus | null }));
-      if (deps.length > 0 && canComment) {
-        const commentBody = buildBlockedByDependenciesComment(deps);
-        if (commentBody) {
-          try {
-            await createTaskComment({ task_id: created.id, body: commentBody });
-          } catch {
-            // Non-blocking: dependency comment can fail independently.
-          }
-        }
-      }
       await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Production ticket created.");
     } catch (e) {
