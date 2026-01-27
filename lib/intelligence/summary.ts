@@ -10,6 +10,8 @@ const SUMMARY_SYSTEM_PROMPT = [
   "Leverage task descriptions and comment snippets for context, with special attention to dependency summaries and blocked chains.",
   "Be concise, high-signal, and avoid filler.",
   "Prioritize blockers, risks, and urgent priorities.",
+  "Use blocker_ranked signals to infer genuine blockers; deprioritize low-severity dependency-only items.",
+  "Use assignee_pressure and comment_signals to surface overload or urgent context.",
   "Use short sections with bullet points to ensure clarity and actionable insights."
 ].join(" ");
 
@@ -23,12 +25,16 @@ const SUMMARY_USER_PROMPT = [
   '  "blockers": Array<{ "task": string, "reason": string, "dependency": string } | string> (max 3),',
   '  "priorities": string[] (max 3),',
   '  "risks": string[] (max 3),',
-  '  "next_actions": string[] (max 3, action verbs)',
+  '  "next_actions": string[] (max 3, action verbs),',
+  '  "what_im_noticing": string[] (max 3, natural and personal tone)'
   "}",
   "Rules:",
   "- If data is missing, use 'unknown'.",
   "- Keep items short and skimmable.",
   "- Focus on blockers, risks, and urgent priorities.",
+  "- Use blocker_ranked (pre-scored) to decide genuine blockers. Prefer critical/high severity; omit low-severity blockers unless nothing else exists.",
+  "- Order each list by severity/urgency with the worst items first.",
+  "- Use what_im_noticing for overload/throughput risks or comment urgency (natural tone).",
   "- Do not include newlines inside string values.",
   "- Do not use smart quotes or trailing commas."
 ].join("\n");

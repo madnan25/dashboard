@@ -80,6 +80,7 @@ type SummaryPayload = {
   priorities?: string[];
   risks?: string[];
   next_actions?: string[];
+  what_im_noticing?: string[];
 };
 
 type ChatMessage = {
@@ -498,8 +499,8 @@ export function IntelligenceDeskPage() {
                   </div>
                 ))}
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                {[0, 1].map((idx) => (
+              <div className="grid gap-3 md:grid-cols-3">
+                {[0, 1, 2].map((idx) => (
                   <div key={`summary-skeleton-bottom-${idx}`} className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
                     <div className="h-3 w-24 rounded-full shimmer" />
                     <div className="mt-3 space-y-2">
@@ -558,6 +559,13 @@ export function IntelligenceDeskPage() {
                   tone="slate"
                   items={normalizeList(parsedSummary.risks)}
                   empty="No risks noted."
+                  linkMap={ticketLinkMap}
+                />
+                <SummaryCard
+                  title="What I'm noticing"
+                  tone="sky"
+                  items={normalizeList(parsedSummary.what_im_noticing)}
+                  empty="No observations yet."
                   linkMap={ticketLinkMap}
                 />
               </div>

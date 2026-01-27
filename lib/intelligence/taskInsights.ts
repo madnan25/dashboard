@@ -46,6 +46,46 @@ type BlockedTask = TaskSummary & {
   latest_comment_snippet: string | null;
 };
 
+type BlockerRanked = {
+  task_id: string;
+  title: string;
+  score: number;
+  severity: "critical" | "high" | "medium" | "low";
+  priority: string;
+  status: TaskStatus;
+  due_at: string | null;
+  is_overdue: boolean;
+  is_due_soon: boolean;
+  dependency_count: number;
+  blocked_subtasks: number;
+  blocked_by_dependencies: number;
+  signals: string[];
+  reason_hint: string | null;
+};
+
+type AssigneePressure = {
+  id: string | null;
+  name: string;
+  pressure_score: number;
+  level: "high" | "medium" | "low";
+  open: number;
+  blocked: number;
+  overdue: number;
+  due_soon: number;
+  due_soon_3d: number;
+  no_due_date_open: number;
+  high_priority_open: number;
+  soonest_due_at: string | null;
+  blocked_titles: string[];
+};
+
+type CommentSignal = {
+  task_id: string;
+  title: string;
+  snippet: string;
+  signal: string;
+};
+
 export type TaskInsights = {
   generated_at: string;
   window: {
@@ -72,6 +112,9 @@ export type TaskInsights = {
   by_project: Array<{ id: string | null; name: string; total: number; open: number; blocked: number; overdue: number }>;
   tasks: TaskSummary[];
   blocked_tasks: BlockedTask[];
+  blocker_ranked: BlockerRanked[];
+  assignee_pressure: AssigneePressure[];
+  comment_signals: CommentSignal[];
   recent_comments: Array<{
     task_id: string;
     title: string;
@@ -123,6 +166,22 @@ type SubtaskDependencyRow = {
 };
 
 const DEFAULT_TIMEZONE = "Asia/Karachi";
+const ASSIGNEE_PRESSURE_LIMIT = 10;
+const COMMENT_SIGNAL_LIMIT = 10;
+
+const PRIORITY_WEIGHTS: Record<string, number> = {
+  P0: 5,
+  P1: 4,
+  P2: 3,
+  P3: 2,
+  P4: 1,
+  CRITICAL: 5,
+  URGENT: 5,
+  HIGH: 4,
+  MEDIUM: 3,
+  NORMAL: 2,
+  LOW: 1
+};
 
 function isoDateInTimeZone(date: Date, timeZone: string) {
   try {
@@ -175,6 +234,62 @@ function compactText(value: string | null | undefined, max = 180) {
 function nameOrFallback(value: string | null | undefined, fallback: string) {
   const trimmed = (value || "").trim();
   return trimmed ? trimmed : fallback;
+}
+
+function priorityScore(priority: string) {
+  const key = priority.trim().toUpperCase();
+  if (key in PRIORITY_WEIGHTS) return PRIORITY_WEIGHTS[key];
+  const match = key.match(/^P(\d)$/);
+  if (match) {
+    const level = Number(match[1]);
+    if (Number.isFinite(level)) return Math.max(1, 5 - level);
+  }
+  return 2;
+}
+
+function severityFromScore(score: number): BlockerRanked["severity"] {
+  if (score >= 12) return "critical";
+  if (score >= 9) return "high";
+  if (score >= 6) return "medium";
+  return "low";
+}
+
+function buildReasonHint(task: BlockedTask) {
+  const dependency = task.dependency_summary.find((item) => item.reason || item.label);
+  if (dependency?.reason) return compactText(dependency.reason, 120);
+  if (dependency?.label) return compactText(dependency.label, 120);
+  const topBlocked = task.subtask_summary?.top_blocked?.[0];
+  if (topBlocked) return compactText(topBlocked, 120);
+  if (task.latest_comment_snippet) return compactText(task.latest_comment_snippet, 120);
+  if (task.description_snippet) return compactText(task.description_snippet, 120);
+  return null;
+}
+
+function detectUrgencySignal(text: string | null | undefined) {
+  if (!text) return null;
+  const lowered = text.toLowerCase();
+  const keywords = [
+    "urgent",
+    "asap",
+    "blocker",
+    "blocked",
+    "stuck",
+    "waiting",
+    "delay",
+    "delayed",
+    "overdue",
+    "deadline",
+    "approval",
+    "sign-off",
+    "client",
+    "cannot",
+    "can't",
+    "missed"
+  ];
+  for (const word of keywords) {
+    if (lowered.includes(word)) return word;
+  }
+  return null;
 }
 
 async function loadLatestComments(
@@ -297,6 +412,7 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
   const today = new Date();
   const todayIso = isoDateInTimeZone(today, timeZone);
   const dueSoonIso = addDaysIso(todayIso, 7);
+  const dueSoon3Iso = addDaysIso(todayIso, 3);
   const recentCutoff = addDaysIso(todayIso, -recentDays);
 
   const maps = buildNameMaps(profiles, teams, projects);
@@ -358,6 +474,7 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
   const byTeam = new Map<string | null, { total: number; open: number; blocked: number; overdue: number }>();
   const byAssignee = new Map<string | null, { total: number; open: number; blocked: number; overdue: number }>();
   const byProject = new Map<string | null, { total: number; open: number; blocked: number; overdue: number }>();
+  const assigneePressureDraft = new Map<string | null, Omit<AssigneePressure, "pressure_score" | "level">>();
 
   let openCount = 0;
   let closedCount = 0;
@@ -373,6 +490,7 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
     byPriority.set(t.priority.toUpperCase(), (byPriority.get(t.priority.toUpperCase()) ?? 0) + 1);
 
     const open = isOpenStatus(t.status);
+    const priorityWeight = priorityScore(t.priority);
     if (open) openCount += 1;
     if (t.status === "closed") closedCount += 1;
     if (t.status === "dropped") droppedCount += 1;
@@ -381,6 +499,7 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
 
     const isOverdue = Boolean(open && t.due_at && t.due_at < todayIso);
     const isDueSoon = Boolean(open && t.due_at && t.due_at >= todayIso && t.due_at <= dueSoonIso);
+    const isDueSoon3 = Boolean(open && t.due_at && t.due_at >= todayIso && t.due_at <= dueSoon3Iso);
     if (isOverdue) overdueCount += 1;
     if (isDueSoon) dueSoonCount += 1;
     if (t.updated_at >= recentCutoff) updatedRecentCount += 1;
@@ -405,6 +524,41 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
     if (t.status === "blocked" || t.status === "on_hold") projectEntry.blocked += 1;
     if (isOverdue) projectEntry.overdue += 1;
     byProject.set(t.project_id ?? null, projectEntry);
+
+    const assigneeKey = t.assignee_id ?? null;
+    const pressureEntry =
+      assigneePressureDraft.get(assigneeKey) ??
+      ({
+        id: assigneeKey,
+        name: maps.assigneeName(assigneeKey),
+        open: 0,
+        blocked: 0,
+        overdue: 0,
+        due_soon: 0,
+        due_soon_3d: 0,
+        no_due_date_open: 0,
+        high_priority_open: 0,
+        soonest_due_at: null,
+        blocked_titles: []
+      } as Omit<AssigneePressure, "pressure_score" | "level">);
+    if (open) {
+      pressureEntry.open += 1;
+      if (!t.due_at) pressureEntry.no_due_date_open += 1;
+      if (priorityWeight >= 4) pressureEntry.high_priority_open += 1;
+    }
+    if (t.status === "blocked" || t.status === "on_hold") {
+      pressureEntry.blocked += 1;
+      if (pressureEntry.blocked_titles.length < 2 && t.title) {
+        pressureEntry.blocked_titles.push(t.title);
+      }
+    }
+    if (isOverdue) pressureEntry.overdue += 1;
+    if (isDueSoon) pressureEntry.due_soon += 1;
+    if (isDueSoon3) pressureEntry.due_soon_3d += 1;
+    if (t.due_at && (!pressureEntry.soonest_due_at || t.due_at < pressureEntry.soonest_due_at)) {
+      pressureEntry.soonest_due_at = t.due_at;
+    }
+    assigneePressureDraft.set(assigneeKey, pressureEntry);
   }
 
   function buildDependencySummary(taskId: string) {
@@ -519,6 +673,99 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
     };
   });
 
+  const commentSignals = blockedDetails
+    .map((task) => {
+      const snippet = task.latest_comment_snippet || task.description_snippet;
+      const signal = detectUrgencySignal(snippet);
+      if (!signal || !snippet) return null;
+      return {
+        task_id: task.id,
+        title: task.title,
+        snippet,
+        signal,
+        updated_at: task.updated_at
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    .slice(0, COMMENT_SIGNAL_LIMIT)
+    .map(({ updated_at, ...rest }) => rest);
+
+  const blockerRanked: BlockerRanked[] = blockedDetails
+    .map((task) => {
+      const depCount = task.dependency_summary.length;
+      const blockedSubtasks = task.subtask_summary?.blocked ?? 0;
+      const blockedByDeps = task.subtask_summary?.blocked_by_dependencies ?? 0;
+      const isOverdue = Boolean(task.due_at && task.due_at < todayIso);
+      const isDueSoon = Boolean(task.due_at && task.due_at >= todayIso && task.due_at <= dueSoonIso);
+      const priorityWeight = priorityScore(task.priority);
+      const commentSignal = detectUrgencySignal(task.latest_comment_snippet || task.description_snippet);
+
+      let score = priorityWeight * 2;
+      if (isOverdue) score += 6;
+      else if (isDueSoon) score += 3;
+      if (depCount > 0) score += 2;
+      if (blockedSubtasks > 0) score += Math.min(3, blockedSubtasks);
+      if (blockedByDeps > 0) score += 1;
+      if (commentSignal) score += 2;
+      if (task.status === "on_hold") score -= 2;
+      if (!task.due_at) score -= 1;
+
+      const signals: string[] = [];
+      if (isOverdue) signals.push("overdue");
+      else if (isDueSoon) signals.push("due_soon");
+      if (priorityWeight >= 4) signals.push("high_priority");
+      if (depCount > 0) signals.push("dependency_blocked");
+      if (blockedByDeps > 0) signals.push("subtask_dependencies");
+      if (blockedSubtasks > 0) signals.push(`blocked_subtasks:${blockedSubtasks}`);
+      if (commentSignal) signals.push(`comment:${commentSignal}`);
+      if (!task.due_at) signals.push("no_due_date");
+      if (task.status === "on_hold") signals.push("on_hold");
+
+      return {
+        task_id: task.id,
+        title: task.title,
+        score,
+        severity: severityFromScore(score),
+        priority: task.priority,
+        status: task.status,
+        due_at: task.due_at ?? null,
+        is_overdue: isOverdue,
+        is_due_soon: isDueSoon,
+        dependency_count: depCount,
+        blocked_subtasks: blockedSubtasks,
+        blocked_by_dependencies: blockedByDeps,
+        signals,
+        reason_hint: buildReasonHint(task)
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20);
+
+  const assigneePressure: AssigneePressure[] = Array.from(assigneePressureDraft.entries())
+    .map(([id, entry]) => {
+      let score =
+        entry.overdue * 3 +
+        entry.due_soon_3d * 2 +
+        entry.due_soon +
+        entry.blocked * 2 +
+        entry.high_priority_open;
+      if (entry.open >= 12) score += 3;
+      else if (entry.open >= 8) score += 2;
+      else if (entry.open >= 5) score += 1;
+      if (entry.no_due_date_open >= 3) score += 1;
+
+      const level = score >= 12 ? "high" : score >= 7 ? "medium" : "low";
+      return {
+        ...entry,
+        pressure_score: score,
+        level
+      };
+    })
+    .filter((entry) => entry.open > 0)
+    .sort((a, b) => b.pressure_score - a.pressure_score)
+    .slice(0, ASSIGNEE_PRESSURE_LIMIT);
+
   const recentComments = Array.from(latestComments.entries())
     .map(([taskId, comment]) => {
       const task = taskById.get(taskId);
@@ -573,6 +820,9 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
       name: maps.projectName(id ?? null),
       ...entry
     })),
+    blocker_ranked: blockerRanked,
+    assignee_pressure: assigneePressure,
+    comment_signals: commentSignals,
     tasks: detailTasks.map((t) =>
       formatTaskSummary(
         t,
