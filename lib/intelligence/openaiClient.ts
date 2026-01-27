@@ -22,18 +22,35 @@ type OpenAIChatResult = {
   };
 };
 
+function parseAllowlist(raw: string | undefined) {
+  return (raw || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function resolveModel(requested: string | undefined, allowlist: string[], fallback: string) {
+  if (requested && allowlist.includes(requested)) return requested;
+  if (allowlist.includes(fallback)) return fallback;
+  return allowlist[0] || fallback;
+}
+
 function getOpenAIConfig() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("Missing OPENAI_API_KEY");
   }
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-  return { apiKey, model };
+  const defaultModel = process.env.OPENAI_MODEL || "gpt-5-mini";
+  const allowlist = parseAllowlist(process.env.OPENAI_MODEL_ALLOWLIST).length
+    ? parseAllowlist(process.env.OPENAI_MODEL_ALLOWLIST)
+    : ["gpt-5-mini", "gpt-5", "gpt-4o-mini", "gpt-4o"];
+
+  return { apiKey, defaultModel, allowlist };
 }
 
 export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
-  const { apiKey, model: defaultModel } = getOpenAIConfig();
-  const model = options.model || defaultModel;
+  const { apiKey, defaultModel, allowlist } = getOpenAIConfig();
+  const model = resolveModel(options.model, allowlist, defaultModel);
   const temperature = options.temperature ?? 0.2;
   const maxTokens = options.maxTokens ?? 900;
 

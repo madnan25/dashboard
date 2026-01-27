@@ -22,6 +22,23 @@ type TaskSummary = {
   description_snippet: string | null;
   latest_comment_snippet: string | null;
   latest_comment_at: string | null;
+  dependency_summary: Array<{
+    type: "task" | "subtask";
+    id: string;
+    label: string;
+    reason: string | null;
+  }>;
+  subtask_summary: {
+    total: number;
+    not_done: number;
+    done: number;
+    blocked: number;
+    on_hold: number;
+    overdue: number;
+    due_soon: number;
+    blocked_by_dependencies: number;
+    top_blocked: string[];
+  } | null;
 };
 
 type BlockedTask = TaskSummary & {
@@ -79,6 +96,31 @@ type CommentRow = {
   created_at: string;
 };
 
+type SubtaskRow = {
+  id: string;
+  task_id: string;
+  title: string;
+  status: "not_done" | "done" | "blocked" | "on_hold";
+  assignee_id: string | null;
+  due_at: string | null;
+  linked_task_id: string | null;
+};
+
+type TaskDependencyRow = {
+  id: string;
+  blocker_task_id: string;
+  blocked_task_id: string;
+  reason: string | null;
+};
+
+type SubtaskDependencyRow = {
+  id: string;
+  blocked_subtask_id: string;
+  blocker_task_id: string | null;
+  blocker_subtask_id: string | null;
+  reason: string | null;
+};
+
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
@@ -91,6 +133,14 @@ function addDays(d: Date, days: number) {
 
 function isOpenStatus(status: TaskStatus) {
   return status !== "closed" && status !== "dropped";
+}
+
+function isTaskResolved(status: TaskStatus) {
+  return status === "approved" || status === "closed" || status === "dropped";
+}
+
+function isSubtaskResolved(status: SubtaskRow["status"]) {
+  return status === "done";
 }
 
 function compactText(value: string | null | undefined, max = 180) {
@@ -126,10 +176,45 @@ async function loadLatestComments(
   return map;
 }
 
+async function loadSubtasks(supabase: SupabaseClient, taskIds: string[]): Promise<SubtaskRow[]> {
+  const unique = Array.from(new Set(taskIds.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase
+    .from("task_subtasks")
+    .select("id, task_id, title, status, assignee_id, due_at, linked_task_id")
+    .in("task_id", unique);
+  if (error) throw error;
+  return (data as SubtaskRow[]) ?? [];
+}
+
+async function loadTaskDependencies(supabase: SupabaseClient, taskIds: string[]): Promise<TaskDependencyRow[]> {
+  const unique = Array.from(new Set(taskIds.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase
+    .from("task_dependencies")
+    .select("id, blocker_task_id, blocked_task_id, reason")
+    .in("blocked_task_id", unique);
+  if (error) throw error;
+  return (data as TaskDependencyRow[]) ?? [];
+}
+
+async function loadSubtaskDependencies(supabase: SupabaseClient, subtaskIds: string[]): Promise<SubtaskDependencyRow[]> {
+  const unique = Array.from(new Set(subtaskIds.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase
+    .from("task_subtask_dependencies")
+    .select("id, blocked_subtask_id, blocker_task_id, blocker_subtask_id, reason")
+    .in("blocked_subtask_id", unique);
+  if (error) throw error;
+  return (data as SubtaskDependencyRow[]) ?? [];
+}
+
 function formatTaskSummary(
   t: Task,
   maps: ReturnType<typeof buildNameMaps>,
-  latestComment: CommentRow | null
+  latestComment: CommentRow | null,
+  dependencySummary: TaskSummary["dependency_summary"],
+  subtaskSummary: TaskSummary["subtask_summary"]
 ): TaskSummary {
   return {
     id: t.id,
@@ -143,7 +228,9 @@ function formatTaskSummary(
     updated_at: t.updated_at,
     description_snippet: compactText(t.description),
     latest_comment_snippet: latestComment ? compactText(latestComment.body) : null,
-    latest_comment_at: latestComment?.created_at ?? null
+    latest_comment_at: latestComment?.created_at ?? null,
+    dependency_summary: dependencySummary,
+    subtask_summary: subtaskSummary
   };
 }
 
@@ -190,6 +277,35 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
   );
   const latestComments = await loadLatestComments(supabase, commentTaskIds);
   const taskById = new Map(tasks.map((t) => [t.id, t]));
+  const detailTaskIds = detailTasks.map((t) => t.id);
+
+  const subtasks = await loadSubtasks(supabase, detailTaskIds);
+  const subtaskById = new Map(subtasks.map((s) => [s.id, s]));
+  const subtasksByTaskId = new Map<string, SubtaskRow[]>();
+  for (const s of subtasks) {
+    const cur = subtasksByTaskId.get(s.task_id) ?? [];
+    cur.push(s);
+    subtasksByTaskId.set(s.task_id, cur);
+  }
+
+  const taskDeps = await loadTaskDependencies(supabase, detailTaskIds);
+  const taskDepsByBlocked = new Map<string, TaskDependencyRow[]>();
+  for (const d of taskDeps) {
+    const cur = taskDepsByBlocked.get(d.blocked_task_id) ?? [];
+    cur.push(d);
+    taskDepsByBlocked.set(d.blocked_task_id, cur);
+  }
+
+  const subtaskDeps = await loadSubtaskDependencies(
+    supabase,
+    subtasks.map((s) => s.id)
+  );
+  const subtaskDepsByBlocked = new Map<string, SubtaskDependencyRow[]>();
+  for (const d of subtaskDeps) {
+    const cur = subtaskDepsByBlocked.get(d.blocked_subtask_id) ?? [];
+    cur.push(d);
+    subtaskDepsByBlocked.set(d.blocked_subtask_id, cur);
+  }
 
   const byStatus = new Map<TaskStatus, number>();
   const byPriority = new Map<string, number>();
@@ -245,10 +361,93 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
     byProject.set(t.project_id ?? null, projectEntry);
   }
 
-  const blockedDetails: BlockedTask[] = blockedTasks.map((t) => {
-    const latest = latestComments.get(t.id);
+  function buildDependencySummary(taskId: string) {
+    const items: TaskSummary["dependency_summary"] = [];
+
+    const deps = taskDepsByBlocked.get(taskId) ?? [];
+    for (const d of deps) {
+      const blocker = taskById.get(d.blocker_task_id);
+      if (blocker && isTaskResolved(blocker.status)) continue;
+      const label = compactText(d.reason, 80) || blocker?.title || `${d.blocker_task_id.slice(0, 8)}…`;
+      items.push({ type: "task", id: d.blocker_task_id, label, reason: d.reason ?? null });
+    }
+
+    const subRows = subtasksByTaskId.get(taskId) ?? [];
+    for (const s of subRows) {
+      const depRows = subtaskDepsByBlocked.get(s.id) ?? [];
+      for (const d of depRows) {
+        if (d.blocker_task_id) {
+          const blocker = taskById.get(d.blocker_task_id);
+          if (blocker && isTaskResolved(blocker.status)) continue;
+          const label =
+            compactText(d.reason, 80) || blocker?.title || `${d.blocker_task_id.slice(0, 8)}…`;
+          items.push({ type: "task", id: d.blocker_task_id, label, reason: d.reason ?? null });
+        } else if (d.blocker_subtask_id) {
+          const blockerSub = subtaskById.get(d.blocker_subtask_id);
+          if (blockerSub && isSubtaskResolved(blockerSub.status)) continue;
+          const label =
+            compactText(d.reason, 80) || blockerSub?.title || `${d.blocker_subtask_id.slice(0, 8)}…`;
+          items.push({ type: "subtask", id: d.blocker_subtask_id, label, reason: d.reason ?? null });
+        }
+      }
+    }
+
+    const seen = new Set<string>();
+    return items
+      .filter((i) => {
+        const key = `${i.type}:${i.id.toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 8);
+  }
+
+  function buildSubtaskSummary(taskId: string) {
+    const rows = subtasksByTaskId.get(taskId) ?? [];
+    if (rows.length === 0) return null;
+    let blockedByDeps = 0;
+    const topBlocked: string[] = [];
+    let done = 0;
+    let blocked = 0;
+    let onHold = 0;
+    let notDone = 0;
+    let overdue = 0;
+    let dueSoon = 0;
+    for (const s of rows) {
+      if (s.status === "done") done += 1;
+      if (s.status === "blocked") blocked += 1;
+      if (s.status === "on_hold") onHold += 1;
+      if (s.status === "not_done") notDone += 1;
+      const hasDeps = (subtaskDepsByBlocked.get(s.id) ?? []).length > 0;
+      if (hasDeps) blockedByDeps += 1;
+      if ((s.status === "blocked" || s.status === "on_hold") && topBlocked.length < 3) {
+        topBlocked.push(s.title || `${s.id.slice(0, 8)}…`);
+      }
+      if (s.due_at) {
+        if (s.due_at < todayIso) overdue += 1;
+        if (s.due_at >= todayIso && s.due_at <= dueSoonIso) dueSoon += 1;
+      }
+    }
     return {
-      ...formatTaskSummary(t, maps, latest ?? null),
+      total: rows.length,
+      not_done: notDone,
+      done,
+      blocked,
+      on_hold: onHold,
+      overdue,
+      due_soon: dueSoon,
+      blocked_by_dependencies: blockedByDeps,
+      top_blocked: topBlocked
+    };
+  }
+
+  const blockedDetails: BlockedTask[] = blockedTasks.map((t) => {
+    const latest = latestComments.get(t.id) ?? null;
+    const dependencySummary = buildDependencySummary(t.id);
+    const subtaskSummary = buildSubtaskSummary(t.id);
+    return {
+      ...formatTaskSummary(t, maps, latest, dependencySummary, subtaskSummary),
       description_snippet: compactText(t.description),
       latest_comment_snippet: latest ? compactText(latest.body) : null
     };
@@ -308,7 +507,15 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
       name: maps.projectName(id ?? null),
       ...entry
     })),
-    tasks: detailTasks.map((t) => formatTaskSummary(t, maps, latestComments.get(t.id) ?? null)),
+    tasks: detailTasks.map((t) =>
+      formatTaskSummary(
+        t,
+        maps,
+        latestComments.get(t.id) ?? null,
+        buildDependencySummary(t.id),
+        buildSubtaskSummary(t.id)
+      )
+    ),
     blocked_tasks: blockedDetails,
     recent_comments: recentComments,
     truncated

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
+import { PillSelect } from "@/components/ds/PillSelect";
 import { KpiCard } from "@/components/ds/KpiCard";
 import { getCurrentProfile } from "@/lib/dashboardDb";
 
@@ -21,6 +22,7 @@ type Insights = {
     updated_recent: number;
   };
   by_team: Array<{ id: string | null; name: string; total: number; open: number; blocked: number; overdue: number }>;
+  by_assignee: Array<{ id: string | null; name: string; total: number; open: number; blocked: number; overdue: number }>;
   by_project: Array<{ id: string | null; name: string; total: number; open: number; blocked: number; overdue: number }>;
   blocked_tasks: Array<{
     id: string;
@@ -34,6 +36,27 @@ type Insights = {
     updated_at: string;
     description_snippet: string | null;
     latest_comment_snippet: string | null;
+    dependency_summary?: Array<{ type: "task" | "subtask"; id: string; label: string; reason: string | null }>;
+    subtask_summary?: {
+      total: number;
+      not_done: number;
+      done: number;
+      blocked: number;
+      on_hold: number;
+      overdue: number;
+      due_soon: number;
+      blocked_by_dependencies: number;
+      top_blocked: string[];
+    } | null;
+  }>;
+  recent_comments: Array<{
+    task_id: string;
+    title: string;
+    created_at: string;
+    snippet: string;
+    assignee: string;
+    team: string;
+    project: string;
   }>;
 };
 
@@ -41,7 +64,7 @@ type SummaryResponse = {
   summary: string;
   generated_at: string;
   cached: boolean;
-  insights: Insights;
+  insights: Insights | null;
 };
 
 type ChatMessage = {
@@ -77,6 +100,9 @@ export function IntelligenceDeskPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatStatus, setChatStatus] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatScopeType, setChatScopeType] = useState<"" | "team" | "project" | "assignee" | "task">("");
+  const [chatScopeValue, setChatScopeValue] = useState("");
+  const [chatDeepDive, setChatDeepDive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,7 +163,11 @@ export function IntelligenceDeskPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: trimmed,
-          history: chatMessages
+          history: chatMessages,
+          scope:
+            chatScopeType && chatScopeValue
+              ? { type: chatScopeType, id: chatScopeValue, deep: chatDeepDive }
+              : null
         })
       });
       const body = (await res.json().catch(() => null)) as { reply?: string; error?: string } | null;
@@ -157,11 +187,32 @@ export function IntelligenceDeskPage() {
     const rows = summaryMeta?.insights?.by_team ?? [];
     return [...rows].sort((a, b) => b.open - a.open).slice(0, 5);
   }, [summaryMeta]);
+  const topAssignees = useMemo(() => {
+    const rows = summaryMeta?.insights?.by_assignee ?? [];
+    return [...rows].sort((a, b) => b.open - a.open).slice(0, 5);
+  }, [summaryMeta]);
   const topProjects = useMemo(() => {
     const rows = summaryMeta?.insights?.by_project ?? [];
     return [...rows].sort((a, b) => b.blocked - a.blocked).slice(0, 5);
   }, [summaryMeta]);
   const blockedTasks = summaryMeta?.insights?.blocked_tasks?.slice(0, 6) ?? [];
+  const recentComments = summaryMeta?.insights?.recent_comments?.slice(0, 6) ?? [];
+
+  const scopeOptions = useMemo(() => {
+    if (chatScopeType === "team") {
+      return (summaryMeta?.insights?.by_team ?? []).map((t) => ({ value: t.name, label: t.name }));
+    }
+    if (chatScopeType === "project") {
+      return (summaryMeta?.insights?.by_project ?? []).map((t) => ({ value: t.name, label: t.name }));
+    }
+    if (chatScopeType === "assignee") {
+      return (summaryMeta?.insights?.by_assignee ?? []).map((t) => ({ value: t.name, label: t.name }));
+    }
+    if (chatScopeType === "task") {
+      return (summaryMeta?.insights?.blocked_tasks ?? []).map((t) => ({ value: t.id, label: t.title }));
+    }
+    return [];
+  }, [chatScopeType, summaryMeta]);
 
   if (authChecked && profileRole && profileRole !== "cmo") {
     return (
@@ -218,10 +269,15 @@ export function IntelligenceDeskPage() {
         <Surface>
           <div className="text-xs uppercase tracking-widest text-white/45">Executive Summary</div>
           <div className="mt-3 whitespace-pre-wrap text-sm text-white/85">
-            {summaryLoading ? "Generating summary…" : summary || "Summary will appear here."}
+            {summaryLoading
+              ? "Generating summary…"
+              : summary ||
+                (summaryMeta
+                  ? "Summary will appear here."
+                  : "No cached summary yet. Use Refresh or wait for the 12 PM PKT sync.")}
           </div>
           <div className="mt-2 text-xs text-white/45">
-            {summaryMeta?.cached ? "Cached summary" : "Fresh summary"} • Session-only chat history
+            {summaryMeta?.cached ? "Cached summary (12 PM PKT sync)" : "Manual refresh"} • Session-only chat history
           </div>
         </Surface>
 
@@ -238,6 +294,21 @@ export function IntelligenceDeskPage() {
                     <div className="mt-1 text-xs text-white/60">
                       {t.team} · {t.assignee} · {t.priority} · {t.status}
                     </div>
+                    {t.dependency_summary && t.dependency_summary.length > 0 ? (
+                      <div className="mt-2 text-xs text-rose-200/90">
+                        Blocked by:{" "}
+                        {t.dependency_summary
+                          .slice(0, 3)
+                          .map((d) => d.label)
+                          .join(", ")}
+                      </div>
+                    ) : null}
+                    {t.subtask_summary?.total ? (
+                      <div className="mt-1 text-xs text-white/55">
+                        Subtasks: {t.subtask_summary.total} · Blocked {t.subtask_summary.blocked} · Overdue{" "}
+                        {t.subtask_summary.overdue}
+                      </div>
+                    ) : null}
                     {t.latest_comment_snippet || t.description_snippet ? (
                       <div className="mt-2 text-xs text-white/55">
                         {t.latest_comment_snippet || t.description_snippet}
@@ -267,6 +338,22 @@ export function IntelligenceDeskPage() {
             </Surface>
 
             <Surface>
+              <div className="text-xs uppercase tracking-widest text-white/45">Assignees with most open work</div>
+              <div className="mt-3 space-y-2">
+                {topAssignees.length === 0 ? (
+                  <div className="text-sm text-white/55">No assignee data yet.</div>
+                ) : (
+                  topAssignees.map((t) => (
+                    <div key={t.id ?? t.name} className="flex items-center justify-between text-sm text-white/80">
+                      <span>{t.name}</span>
+                      <span className="text-white/55 tabular-nums">{t.open}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Surface>
+
+            <Surface>
               <div className="text-xs uppercase tracking-widest text-white/45">Projects at risk</div>
               <div className="mt-3 space-y-2">
                 {topProjects.length === 0 ? (
@@ -276,6 +363,23 @@ export function IntelligenceDeskPage() {
                     <div key={p.id ?? p.name} className="flex items-center justify-between text-sm text-white/80">
                       <span>{p.name}</span>
                       <span className="text-white/55 tabular-nums">{p.blocked}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Surface>
+
+            <Surface>
+              <div className="text-xs uppercase tracking-widest text-white/45">Recent comment highlights</div>
+              <div className="mt-3 space-y-2">
+                {recentComments.length === 0 ? (
+                  <div className="text-sm text-white/55">No recent comments yet.</div>
+                ) : (
+                  recentComments.map((c) => (
+                    <div key={`${c.task_id}-${c.created_at}`} className="rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2">
+                      <div className="text-xs text-white/60">{c.project} · {c.team}</div>
+                      <div className="mt-1 text-sm text-white/85">{c.title}</div>
+                      <div className="mt-1 text-xs text-white/55">{c.snippet}</div>
                     </div>
                   ))
                 )}
@@ -308,6 +412,68 @@ export function IntelligenceDeskPage() {
                 {q}
               </button>
             ))}
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[140px,1fr] md:items-center">
+            <div className="text-xs uppercase tracking-widest text-white/45">Scope</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <PillSelect
+                value={chatScopeType}
+                onChange={(v) => {
+                  const next = (v as "" | "team" | "project" | "assignee" | "task") ?? "";
+                  setChatScopeType(next);
+                  setChatScopeValue("");
+                  setChatDeepDive(false);
+                }}
+                ariaLabel="Scope type"
+              >
+                <option value="" className="bg-zinc-900">
+                  No scope (cached summary)
+                </option>
+                <option value="team" className="bg-zinc-900">
+                  Team
+                </option>
+                <option value="project" className="bg-zinc-900">
+                  Project
+                </option>
+                <option value="assignee" className="bg-zinc-900">
+                  Assignee
+                </option>
+                <option value="task" className="bg-zinc-900">
+                  Blocked task
+                </option>
+              </PillSelect>
+
+              {chatScopeType ? (
+                <PillSelect
+                  value={chatScopeValue}
+                  onChange={(v) => setChatScopeValue((v as string) || "")}
+                  ariaLabel="Scope value"
+                  disabled={scopeOptions.length === 0}
+                >
+                  <option value="" className="bg-zinc-900">
+                    {scopeOptions.length === 0 ? "No cached options yet" : "Select…"}
+                  </option>
+                  {scopeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value} className="bg-zinc-900">
+                      {opt.label}
+                    </option>
+                  ))}
+                </PillSelect>
+              ) : null}
+
+              {chatScopeType ? (
+                <label className="inline-flex items-center gap-2 text-xs text-white/60">
+                  <input
+                    type="checkbox"
+                    checked={chatDeepDive}
+                    onChange={(e) => setChatDeepDive(e.target.checked)}
+                    className="h-4 w-4 rounded border border-white/20 bg-transparent"
+                  />
+                  Deep dive (fetch extra context)
+                </label>
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-4 space-y-3">

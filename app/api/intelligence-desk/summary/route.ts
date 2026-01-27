@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
-import { buildTaskInsights } from "@/lib/intelligence/taskInsights";
+import { buildTaskInsights, packInsightsForPrompt } from "@/lib/intelligence/taskInsights";
 import { generateSummaryFromInsights } from "@/lib/intelligence/summary";
 
 export const dynamic = "force-dynamic";
-
-const CACHE_TTL_MINUTES = 240;
 
 function json(status: number, body: unknown) {
   return NextResponse.json(body, { status });
@@ -37,31 +35,29 @@ export async function GET(req: Request) {
 
   const { data: latestReport, error: reportErr } = await supabase
     .from("intelligence_reports")
-    .select("id, summary, created_at, report_type, range_start, range_end, model")
+    .select("id, summary, created_at, report_type, range_start, range_end, model, insights_json")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (reportErr) return json(500, { error: "Failed to load cached summary" });
 
-  const insights = await buildTaskInsights();
-  const now = Date.now();
-
-  const isFresh =
-    !force &&
-    latestReport?.created_at &&
-    (now - new Date(latestReport.created_at).getTime()) / 60000 < CACHE_TTL_MINUTES;
-
-  if (isFresh && latestReport) {
+  if (!force && latestReport) {
     return json(200, {
       cached: true,
       summary: latestReport.summary,
       generated_at: latestReport.created_at,
       report: latestReport,
-      insights
+      insights: latestReport.insights_json ?? null
     });
   }
 
+  if (!force && !latestReport) {
+    return json(404, { error: "No cached summary yet. Run refresh or wait for the scheduled sync." });
+  }
+
   try {
+    const insights = await buildTaskInsights();
+    const dataPack = packInsightsForPrompt(insights);
     const summary = await generateSummaryFromInsights(insights);
 
     const insert = await supabase.from("intelligence_reports").insert({
@@ -70,7 +66,9 @@ export async function GET(req: Request) {
       range_start: insights.window.recent_cutoff,
       range_end: insights.window.today,
       model: summary.model,
-      token_usage: summary.usage ?? null
+      token_usage: summary.usage ?? null,
+      insights_json: insights,
+      data_pack: dataPack
     });
     if (insert.error) throw insert.error;
 

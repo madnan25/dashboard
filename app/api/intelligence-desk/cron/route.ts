@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseEnv } from "@/lib/supabase/env";
-import { buildTaskInsights } from "@/lib/intelligence/taskInsights";
+import { buildTaskInsights, packInsightsForPrompt } from "@/lib/intelligence/taskInsights";
 import { generateSummaryFromInsights } from "@/lib/intelligence/summary";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +37,7 @@ export async function GET(req: Request) {
 
   try {
     const insights = await buildTaskInsights({ supabase });
+    const dataPack = packInsightsForPrompt(insights);
     const summary = await generateSummaryFromInsights(insights);
 
     const { error } = await supabase.from("intelligence_reports").insert({
@@ -45,7 +46,9 @@ export async function GET(req: Request) {
       range_start: insights.window.recent_cutoff,
       range_end: insights.window.today,
       model: summary.model,
-      token_usage: summary.usage ?? null
+      token_usage: summary.usage ?? null,
+      insights_json: insights,
+      data_pack: dataPack
     });
     if (error) throw error;
 
