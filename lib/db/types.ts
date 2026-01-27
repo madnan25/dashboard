@@ -188,6 +188,15 @@ export type TaskComment = {
   updated_at: string;
 };
 
+export type TaskDependency = {
+  id: string;
+  blocker_task_id: string;
+  blocked_task_id: string;
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
 export type TaskWeightConfig = {
   id: "global";
   small_points: number;
@@ -248,6 +257,16 @@ export type TaskSubtask = {
   effort_points: number;
   created_at: string;
   updated_at: string;
+};
+
+export type TaskSubtaskDependency = {
+  id: string;
+  blocked_subtask_id: string;
+  blocker_task_id: string | null;
+  blocker_subtask_id: string | null;
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type TaskFlowApproverKind = "marketing_manager" | "user" | "ticket_manager";

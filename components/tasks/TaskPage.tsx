@@ -19,6 +19,7 @@ import type {
   TaskPriority,
   TaskStatus,
   TaskSubtask,
+  TaskSubtaskDependency,
   TaskSubtaskStatus,
   TaskTeam,
   TaskMasterCalendarTag
@@ -30,6 +31,8 @@ import {
   deleteTaskSubtask,
   deleteTaskComment,
   createTaskComment,
+  createSubtaskDependency,
+  deleteSubtaskDependency,
   getLinkedParentSubtask,
   nextTeamTicketNumber,
   getCurrentProfile,
@@ -42,6 +45,7 @@ import {
   listTaskEvents,
   listTaskTeams,
   listTaskSubtasks,
+  listSubtaskDependencies,
   updateTask,
   updateTaskComment,
   updateTaskSubtask
@@ -98,6 +102,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [, setLedger] = useState<unknown[]>([]);
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
+  const [subtaskDependencies, setSubtaskDependencies] = useState<Record<string, TaskSubtaskDependency[]>>({});
+  const [subtaskDependencyAction, setSubtaskDependencyAction] = useState<Record<string, "" | "task" | "subtask">>({});
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [commentsStatus, setCommentsStatus] = useState<string>("");
   const [loadingTask, setLoadingTask] = useState(true);
@@ -325,6 +331,31 @@ export function TaskPage({ taskId }: { taskId: string }) {
     [profiles]
   );
 
+  const refreshSubtaskDependencies = useCallback(
+    async (subs: TaskSubtask[]) => {
+      if (!subs || subs.length === 0) {
+        setSubtaskDependencies({});
+        return;
+      }
+      try {
+        const rows = await Promise.all(subs.map(async (s) => ({ id: s.id, deps: await listSubtaskDependencies(s.id) })));
+        const next: Record<string, TaskSubtaskDependency[]> = {};
+        const blockerTaskIds: string[] = [];
+        for (const row of rows) {
+          next[row.id] = row.deps;
+          for (const dep of row.deps) {
+            if (dep.blocker_task_id) blockerTaskIds.push(dep.blocker_task_id);
+          }
+        }
+        setSubtaskDependencies(next);
+        await ensureTaskTitlesLoaded(blockerTaskIds);
+      } catch (e) {
+        setStatus(getErrorMessage(e, "Failed to load dependencies"));
+      }
+    },
+    [ensureTaskTitlesLoaded]
+  );
+
   const refresh = useCallback(async () => {
     setLoadingTask(true);
     try {
@@ -346,6 +377,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         ...(subs.map((s) => s.linked_task_id ?? null) ?? []),
         parentLink?.task_id ?? null
       ]);
+      await refreshSubtaskDependencies(subs);
       // Event payloads can include profile IDs (e.g. assignee changes). Load those so the UI can show names.
       const eventProfileIds: Array<string | null | undefined> = [];
       for (const e of ev) {
@@ -401,12 +433,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
     } finally {
       setLoadingTask(false);
     }
-  }, [ensureProfilesLoaded, ensureTaskTitlesLoaded, taskId]);
+  }, [ensureProfilesLoaded, ensureTaskTitlesLoaded, refreshSubtaskDependencies, taskId]);
 
   async function refreshSubtasksOnly() {
     const subs = await listTaskSubtasks(taskId);
     setSubtasks(subs);
     await ensureTaskTitlesLoaded([...(subs.map((s) => s.linked_task_id ?? null) ?? [])]);
+    await refreshSubtaskDependencies(subs);
   }
 
   async function refreshCommentsOnly() {
@@ -765,6 +798,92 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
+  function buildDependencyComment(subtask: TaskSubtask, reason: string | null) {
+    const label = subtask.title?.trim() ? subtask.title.trim() : "Untitled subtask";
+    const lines = [
+      `Dependency noted: subtask "${label}" is blocked by this ticket.`,
+      `Parent: /tasks/${taskId}`
+    ];
+    if (reason) lines.push(`Reason: ${reason}`);
+    return lines.join("\n");
+  }
+
+  function buildBlockedByDependenciesComment(deps: TaskSubtaskDependency[]) {
+    if (!deps || deps.length === 0) return "";
+    const lines = ["Blocked by dependencies from parent subtask:", `Parent: /tasks/${taskId}`];
+    for (const dep of deps) {
+      const reason = dep.reason?.trim();
+      if (dep.blocker_task_id) {
+        const k = dep.blocker_task_id.toLowerCase();
+        const title = linkedTaskTitles[k] || `${dep.blocker_task_id.slice(0, 8)}…`;
+        lines.push(`- /tasks/${dep.blocker_task_id} (${title})${reason ? ` — ${reason}` : ""}`);
+      } else if (dep.blocker_subtask_id) {
+        const blockerSubtask = subtasks.find((candidate) => candidate.id === dep.blocker_subtask_id) ?? null;
+        const label = blockerSubtask?.title || `${dep.blocker_subtask_id.slice(0, 8)}…`;
+        lines.push(`- Subtask ${label}${reason ? ` — ${reason}` : ""}`);
+      }
+    }
+    return lines.join("\n");
+  }
+
+  async function onAddSubtaskDependency(subtask: TaskSubtask, kind: "task" | "subtask") {
+    if (!canEditSubtasks) return;
+    const raw = prompt(
+      kind === "task" ? "Paste the ticket URL or ID that blocks this subtask:" : "Paste the subtask ID that blocks this subtask:"
+    );
+    if (!raw) return;
+    const blockerId = extractTaskId(raw);
+    if (!blockerId) {
+      setStatus("Could not detect an ID. Paste a /tasks/<id> link or UUID.");
+      return;
+    }
+    if (kind === "subtask" && blockerId === subtask.id) {
+      setStatus("Subtask cannot depend on itself.");
+      return;
+    }
+    const reasonInput = prompt("Optional: add a dependency reason (also used in the comment).") ?? "";
+    const reason = reasonInput.trim() || null;
+    setStatus("Adding dependency…");
+    let commentError: unknown = null;
+    try {
+      await createSubtaskDependency({
+        blocked_subtask_id: subtask.id,
+        blocker_task_id: kind === "task" ? blockerId : null,
+        blocker_subtask_id: kind === "subtask" ? blockerId : null,
+        reason
+      });
+      if (kind === "task" && canComment) {
+        try {
+          await createTaskComment({ task_id: blockerId, body: buildDependencyComment(subtask, reason) });
+        } catch (e) {
+          commentError = e;
+        }
+      }
+      await refreshSubtasksOnly();
+      if (commentError) {
+        setStatus(getErrorMessage(commentError, "Dependency added, but comment failed."));
+      } else {
+        setStatus("Dependency added.");
+      }
+    } catch (e) {
+      setStatus(getErrorMessage(e, "Failed to add dependency"));
+      await refreshSubtaskDependencies(subtasks).catch(() => null);
+    }
+  }
+
+  async function onRemoveSubtaskDependency(subtaskId: string, dependencyId: string) {
+    if (!canEditSubtasks) return;
+    setStatus("Removing dependency…");
+    try {
+      await deleteSubtaskDependency(dependencyId);
+      await refreshSubtasksOnly();
+      setStatus("Dependency removed.");
+    } catch (e) {
+      setStatus(getErrorMessage(e, "Failed to remove dependency"));
+      await refreshSubtaskDependencies(subtasks).catch(() => null);
+    }
+  }
+
   async function onLinkExistingTicketForSubtask(subtask: TaskSubtask) {
     if (!profile || !isMarketingTeamProfile(profile)) return;
     if (linkedParentSubtask?.task_id) {
@@ -796,6 +915,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
     setStatus("Creating design ticket…");
     try {
+      const deps = subtaskDependencies[subtask.id] ?? [];
       const block = [
         `Subtask: ${subtask.title}`,
         "Subtask details:",
@@ -813,7 +933,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
         project_id: projectId || null,
         // Route initial work to design approver (triage), and team-based approval stays on the Design team.
         assignee_id: designTeam.approver_user_id ?? null,
-        due_at: (subtask.due_at ?? dueAt ?? null) || null
+        due_at: (subtask.due_at ?? dueAt ?? null) || null,
+        ...(deps.length > 0 ? { status: "blocked" as TaskStatus } : {})
       });
       // Make the next click feel instant + avoid a "missing title" flash.
       router.prefetch(`/tasks/${created.id}`);
@@ -823,6 +944,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
       }));
       setLinkedTaskDueAt((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.due_at ?? null) as string | null }));
       setLinkedTaskStatus((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.status ?? null) as TaskStatus | null }));
+      if (deps.length > 0 && canComment) {
+        const commentBody = buildBlockedByDependenciesComment(deps);
+        if (commentBody) {
+          try {
+            await createTaskComment({ task_id: created.id, body: commentBody });
+          } catch {
+            // Non-blocking: dependency comment can fail independently.
+          }
+        }
+      }
       await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Design ticket created.");
     } catch (e) {
@@ -844,6 +975,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
     setStatus("Creating production ticket…");
     try {
+      const deps = subtaskDependencies[subtask.id] ?? [];
       const block = [
         `Subtask: ${subtask.title}`,
         "Subtask details:",
@@ -861,7 +993,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
         project_id: projectId || null,
         // Route initial work to production approver (triage).
         assignee_id: productionTeam.approver_user_id ?? null,
-        due_at: (subtask.due_at ?? dueAt ?? null) || null
+        due_at: (subtask.due_at ?? dueAt ?? null) || null,
+        ...(deps.length > 0 ? { status: "blocked" as TaskStatus } : {})
       });
       router.prefetch(`/tasks/${created.id}`);
       setLinkedTaskTitles((prev) => ({
@@ -870,6 +1003,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
       }));
       setLinkedTaskDueAt((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.due_at ?? null) as string | null }));
       setLinkedTaskStatus((prev) => ({ ...prev, [created.id.toLowerCase()]: (created.status ?? null) as TaskStatus | null }));
+      if (deps.length > 0 && canComment) {
+        const commentBody = buildBlockedByDependenciesComment(deps);
+        if (commentBody) {
+          try {
+            await createTaskComment({ task_id: created.id, body: commentBody });
+          } catch {
+            // Non-blocking: dependency comment can fail independently.
+          }
+        }
+      }
       await onUpdateSubtaskLink(subtask, created.id);
       setStatus("Production ticket created.");
     } catch (e) {
@@ -1365,6 +1508,94 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               ) : null}
                             </div>
                           )}
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <div className="text-[11px] uppercase tracking-widest text-white/40">Dependencies</div>
+                            {(() => {
+                              const deps = subtaskDependencies[s.id] ?? [];
+                              if (deps.length === 0) {
+                                return <div className="text-xs text-white/45">None</div>;
+                              }
+                              return (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {deps.map((dep) => {
+                                    const reason = dep.reason?.trim() || "";
+                                    if (dep.blocker_task_id) {
+                                      const k = dep.blocker_task_id.toLowerCase();
+                                      return (
+                                        <span key={dep.id} className="inline-flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            className={TASK_LINK_CLASS}
+                                            title={reason || undefined}
+                                            onClick={() => router.push(`/tasks/${dep.blocker_task_id}`)}
+                                          >
+                                            {linkedTaskTitles[k] || `${dep.blocker_task_id.slice(0, 8)}…`}
+                                          </button>
+                                          {canEditSubtasks ? (
+                                            <button
+                                              className="text-xs text-white/60 hover:text-white/80"
+                                              onClick={() => onRemoveSubtaskDependency(s.id, dep.id)}
+                                            >
+                                              Remove
+                                            </button>
+                                          ) : null}
+                                        </span>
+                                      );
+                                    }
+                                    if (dep.blocker_subtask_id) {
+                                      const blockerSubtask = subtasks.find((candidate) => candidate.id === dep.blocker_subtask_id) ?? null;
+                                      const label = blockerSubtask?.title || `${dep.blocker_subtask_id.slice(0, 8)}…`;
+                                      return (
+                                        <span key={dep.id} className="inline-flex items-center gap-2" title={reason || undefined}>
+                                          <span className="text-xs text-white/70">Subtask: {label}</span>
+                                          {canEditSubtasks ? (
+                                            <button
+                                              className="text-xs text-white/60 hover:text-white/80"
+                                              onClick={() => onRemoveSubtaskDependency(s.id, dep.id)}
+                                            >
+                                              Remove
+                                            </button>
+                                          ) : null}
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })}
+                                </div>
+                              );
+                            })()}
+                            {canEditSubtasks ? (
+                              <PillSelect
+                                value={subtaskDependencyAction[s.id] ?? ""}
+                                onChange={(v) => {
+                                  const next = (v as "" | "task" | "subtask") ?? "";
+                                  setSubtaskDependencyAction((prev) => ({ ...prev, [s.id]: next }));
+                                  if (next === "task") {
+                                    void onAddSubtaskDependency(s, "task").finally(() =>
+                                      setSubtaskDependencyAction((prev) => ({ ...prev, [s.id]: "" }))
+                                    );
+                                  } else if (next === "subtask") {
+                                    void onAddSubtaskDependency(s, "subtask").finally(() =>
+                                      setSubtaskDependencyAction((prev) => ({ ...prev, [s.id]: "" }))
+                                    );
+                                  }
+                                }}
+                                ariaLabel="Dependency actions"
+                                disabled={!canEditSubtasks}
+                              >
+                                <option value="" className="bg-zinc-900">
+                                  Add dependency…
+                                </option>
+                                <option value="task" className="bg-zinc-900">
+                                  Link ticket dependency
+                                </option>
+                                <option value="subtask" className="bg-zinc-900">
+                                  Link subtask dependency
+                                </option>
+                              </PillSelect>
+                            ) : null}
                           </div>
 
                           <div className="mt-4">

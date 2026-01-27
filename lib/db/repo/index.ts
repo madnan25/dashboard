@@ -84,6 +84,12 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     updateTaskComment: (id: string, patch: Parameters<typeof tasks.updateTaskComment>[2]) =>
       tasks.updateTaskComment(supabase, id, patch),
     deleteTaskComment: (id: string) => tasks.deleteTaskComment(supabase, id),
+    listTaskDependencies: (taskId: string) => tasks.listTaskDependencies(supabase, taskId),
+    createTaskDependency: (input: Parameters<typeof tasks.createTaskDependency>[1]) => tasks.createTaskDependency(supabase, input),
+    deleteTaskDependency: (id: string) => tasks.deleteTaskDependency(supabase, id),
+    listSubtaskDependencies: (subtaskId: string) => tasks.listSubtaskDependencies(supabase, subtaskId),
+    createSubtaskDependency: (input: Parameters<typeof tasks.createSubtaskDependency>[1]) => tasks.createSubtaskDependency(supabase, input),
+    deleteSubtaskDependency: (id: string) => tasks.deleteSubtaskDependency(supabase, id),
     listTaskTeams: () => tasks.listTaskTeams(supabase),
     createTaskTeam: (input: Parameters<typeof tasks.createTaskTeam>[1]) => tasks.createTaskTeam(supabase, input),
     updateTaskTeam: (id: string, patch: Parameters<typeof tasks.updateTaskTeam>[2]) => tasks.updateTaskTeam(supabase, id, patch),

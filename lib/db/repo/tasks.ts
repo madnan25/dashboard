@@ -9,8 +9,10 @@ import type {
   TaskWeightConfig,
   TaskContribution,
   TaskContributionRole,
+  TaskDependency,
   TaskSubtask,
   TaskSubtaskStatus,
+  TaskSubtaskDependency,
   TaskTeam,
   TaskComment,
   MasterCalendarTask
@@ -264,6 +266,75 @@ export async function updateTaskComment(
 
 export async function deleteTaskComment(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from("task_comments").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function listTaskDependencies(supabase: SupabaseClient, taskId: string): Promise<TaskDependency[]> {
+  const { data, error } = await supabase
+    .from("task_dependencies")
+    .select("id, blocker_task_id, blocked_task_id, reason, created_by, created_at")
+    .eq("blocked_task_id", taskId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data as TaskDependency[]) ?? [];
+}
+
+export async function createTaskDependency(
+  supabase: SupabaseClient,
+  input: Pick<TaskDependency, "blocker_task_id" | "blocked_task_id"> & { reason?: string | null }
+): Promise<TaskDependency> {
+  const { data, error } = await supabase
+    .from("task_dependencies")
+    .insert({
+      blocker_task_id: input.blocker_task_id,
+      blocked_task_id: input.blocked_task_id,
+      reason: input.reason ?? null
+    })
+    .select("id, blocker_task_id, blocked_task_id, reason, created_by, created_at")
+    .single();
+  if (error) throw error;
+  return data as TaskDependency;
+}
+
+export async function deleteTaskDependency(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("task_dependencies").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function listSubtaskDependencies(supabase: SupabaseClient, subtaskId: string): Promise<TaskSubtaskDependency[]> {
+  const { data, error } = await supabase
+    .from("task_subtask_dependencies")
+    .select("id, blocked_subtask_id, blocker_task_id, blocker_subtask_id, reason, created_by, created_at")
+    .eq("blocked_subtask_id", subtaskId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data as TaskSubtaskDependency[]) ?? [];
+}
+
+export async function createSubtaskDependency(
+  supabase: SupabaseClient,
+  input: Pick<TaskSubtaskDependency, "blocked_subtask_id"> & {
+    blocker_task_id?: string | null;
+    blocker_subtask_id?: string | null;
+    reason?: string | null;
+  }
+): Promise<TaskSubtaskDependency> {
+  const { data, error } = await supabase
+    .from("task_subtask_dependencies")
+    .insert({
+      blocked_subtask_id: input.blocked_subtask_id,
+      blocker_task_id: input.blocker_task_id ?? null,
+      blocker_subtask_id: input.blocker_subtask_id ?? null,
+      reason: input.reason ?? null
+    })
+    .select("id, blocked_subtask_id, blocker_task_id, blocker_subtask_id, reason, created_by, created_at")
+    .single();
+  if (error) throw error;
+  return data as TaskSubtaskDependency;
+}
+
+export async function deleteSubtaskDependency(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("task_subtask_dependencies").delete().eq("id", id);
   if (error) throw error;
 }
 

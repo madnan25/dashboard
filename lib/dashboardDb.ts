@@ -27,6 +27,7 @@ export type {
   TaskComment,
   TaskContribution,
   TaskContributionRole,
+  TaskDependency,
   TaskEvent,
   TaskFlowApproverKind,
   TaskFlowInstance,
@@ -39,6 +40,7 @@ export type {
   TaskStatus,
   TaskMasterCalendarTag,
   TaskSubtask,
+  TaskSubtaskDependency,
   TaskSubtaskStatus,
   TaskWeightConfig,
   TaskWeightTier,
@@ -61,6 +63,7 @@ import type {
   TaskComment,
   TaskContribution,
   TaskContributionRole,
+  TaskDependency,
   TaskEvent,
   TaskFlowInstance,
   TaskFlowStepInstance,
@@ -70,6 +73,7 @@ import type {
   TaskWeightConfig,
   TaskMasterCalendarTag,
   TaskSubtask,
+  TaskSubtaskDependency,
   TaskSubtaskStatus,
   UserRole
 } from "@/lib/db/types";
@@ -299,6 +303,39 @@ export async function updateTaskComment(id: string, patch: { body?: string }): P
 
 export async function deleteTaskComment(id: string): Promise<void> {
   return await repo().deleteTaskComment(id);
+}
+
+export async function listTaskDependencies(taskId: string): Promise<TaskDependency[]> {
+  return await repo().listTaskDependencies(taskId);
+}
+
+export async function createTaskDependency(input: {
+  blocker_task_id: string;
+  blocked_task_id: string;
+  reason?: string | null;
+}): Promise<TaskDependency> {
+  return await repo().createTaskDependency(input);
+}
+
+export async function deleteTaskDependency(id: string): Promise<void> {
+  return await repo().deleteTaskDependency(id);
+}
+
+export async function listSubtaskDependencies(subtaskId: string): Promise<TaskSubtaskDependency[]> {
+  return await repo().listSubtaskDependencies(subtaskId);
+}
+
+export async function createSubtaskDependency(input: {
+  blocked_subtask_id: string;
+  blocker_task_id?: string | null;
+  blocker_subtask_id?: string | null;
+  reason?: string | null;
+}): Promise<TaskSubtaskDependency> {
+  return await repo().createSubtaskDependency(input);
+}
+
+export async function deleteSubtaskDependency(id: string): Promise<void> {
+  return await repo().deleteSubtaskDependency(id);
 }
 
 export async function listTaskTeams(): Promise<TaskTeam[]> {
