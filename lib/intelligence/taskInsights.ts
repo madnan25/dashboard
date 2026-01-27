@@ -755,7 +755,7 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
       else if (entry.open >= 5) score += 1;
       if (entry.no_due_date_open >= 3) score += 1;
 
-      const level = score >= 12 ? "high" : score >= 7 ? "medium" : "low";
+      const level: AssigneePressure["level"] = score >= 12 ? "high" : score >= 7 ? "medium" : "low";
       return {
         ...entry,
         pressure_score: score,
