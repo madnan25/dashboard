@@ -81,23 +81,39 @@ type ChatCompletionsResponse = {
   usage?: OpenAIChatResult["usage"];
 };
 
+function extractObjectText(obj: Record<string, unknown>): string {
+  const directKeys = ["text", "value", "content", "output_text", "refusal"];
+  for (const key of directKeys) {
+    const value = obj[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  const nestedText = obj.text;
+  if (nestedText && typeof nestedText === "object") {
+    const nested = extractObjectText(nestedText as Record<string, unknown>);
+    if (nested) return nested;
+  }
+
+  const nestedContent = obj.content;
+  if (Array.isArray(nestedContent)) {
+    const nested = extractContent(nestedContent);
+    if (nested) return nested;
+  }
+
+  return "";
+}
+
 function extractContent(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (Array.isArray(value)) {
     const text = value
-      .map((part) => {
-        if (typeof part === "string") return part;
-        if (part && typeof part === "object") {
-          const maybeText = (part as { text?: unknown }).text;
-          if (typeof maybeText === "string") return maybeText;
-          const maybeContent = (part as { content?: unknown }).content;
-          if (typeof maybeContent === "string") return maybeContent;
-        }
-        return "";
-      })
+      .map((part) => extractContent(part))
       .join("")
       .trim();
     return text;
+  }
+  if (value && typeof value === "object") {
+    return extractObjectText(value as Record<string, unknown>);
   }
   return "";
 }
@@ -106,11 +122,28 @@ function extractChoiceContent(choice: unknown): string {
   if (!choice || typeof choice !== "object") return "";
   const choiceObj = choice as { message?: { content?: unknown; refusal?: unknown }; text?: unknown };
   const message = choiceObj.message;
-  const messageContent = extractContent(message?.content);
+  const messageContent = extractContent(message?.content ?? message);
   if (messageContent) return messageContent;
   if (typeof message?.refusal === "string" && message.refusal.trim()) return message.refusal.trim();
   if (typeof choiceObj.text === "string" && choiceObj.text.trim()) return choiceObj.text.trim();
   return "";
+}
+
+function extractResponseOutput(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  const outputText = (data as { output_text?: unknown }).output_text;
+  if (typeof outputText === "string" && outputText.trim()) return outputText.trim();
+  const output = (data as { output?: unknown }).output;
+  if (!Array.isArray(output)) return "";
+  const text = output
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+      const content = (item as { content?: unknown }).content;
+      return extractContent(content);
+    })
+    .join("")
+    .trim();
+  return text;
 }
 
 export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
@@ -173,7 +206,7 @@ export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIC
     throw lastError instanceof Error ? lastError : new Error("OpenAI request failed");
   }
 
-  const content = extractChoiceContent(data.choices?.[0]);
+  const content = extractChoiceContent(data.choices?.[0]) || extractResponseOutput(data);
   if (!content) throw new Error("OpenAI returned an empty response");
 
   return {
