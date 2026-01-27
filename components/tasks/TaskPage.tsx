@@ -223,11 +223,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }, [assigneeId, profiles, subtasks, task?.created_by]);
 
   const blockedDependencyChips = useMemo(() => {
+    function normalizeDependencyLabel(raw: string) {
+      const s = (raw || "").trim();
+      return s.replace(/^Ticket:\s*/i, "").replace(/^Subtask:\s*/i, "").trim();
+    }
+
     const chips: Array<{ kind: "ticket" | "subtask"; id: string; label: string }> = [];
 
     for (const d of taskDependencies) {
       const k = d.blocker_task_id.toLowerCase();
-      const label = d.reason?.trim() || linkedTaskTitles[k] || `${k.slice(0, 8)}…`;
+      const label = normalizeDependencyLabel(d.reason?.trim() || linkedTaskTitles[k] || `${k.slice(0, 8)}…`);
       chips.push({ kind: "ticket", id: d.blocker_task_id, label });
     }
 
@@ -235,10 +240,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
     for (const d of linkedFromSubtaskDeps) {
       if (d.blocker_task_id) {
         const k = d.blocker_task_id.toLowerCase();
-        const label = d.reason?.trim() || linkedTaskTitles[k] || `${k.slice(0, 8)}…`;
+        const label = normalizeDependencyLabel(d.reason?.trim() || linkedTaskTitles[k] || `${k.slice(0, 8)}…`);
         chips.push({ kind: "ticket", id: d.blocker_task_id, label });
       } else if (d.blocker_subtask_id) {
-        const label = d.reason?.trim() || `${d.blocker_subtask_id.slice(0, 8)}…`;
+        const label = normalizeDependencyLabel(d.reason?.trim() || `${d.blocker_subtask_id.slice(0, 8)}…`);
         chips.push({ kind: "subtask", id: d.blocker_subtask_id, label });
       }
     }
