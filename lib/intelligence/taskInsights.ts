@@ -187,6 +187,17 @@ async function loadSubtasks(supabase: SupabaseClient, taskIds: string[]): Promis
   return (data as SubtaskRow[]) ?? [];
 }
 
+async function loadLinkedParentSubtasks(supabase: SupabaseClient, taskIds: string[]): Promise<SubtaskRow[]> {
+  const unique = Array.from(new Set(taskIds.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase
+    .from("task_subtasks")
+    .select("id, task_id, title, status, assignee_id, due_at, linked_task_id")
+    .in("linked_task_id", unique);
+  if (error) throw error;
+  return (data as SubtaskRow[]) ?? [];
+}
+
 async function loadTaskDependencies(supabase: SupabaseClient, taskIds: string[]): Promise<TaskDependencyRow[]> {
   const unique = Array.from(new Set(taskIds.filter(Boolean)));
   if (unique.length === 0) return [];
@@ -278,17 +289,29 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
   const latestComments = await loadLatestComments(supabase, commentTaskIds);
   const taskById = new Map(tasks.map((t) => [t.id, t]));
   const detailTaskIds = detailTasks.map((t) => t.id);
+  const dependencyTaskIds = Array.from(new Set([...detailTaskIds, ...blockedTasks.map((t) => t.id)]));
 
-  const subtasks = await loadSubtasks(supabase, detailTaskIds);
-  const subtaskById = new Map(subtasks.map((s) => [s.id, s]));
+  const [subtasks, linkedParentSubtasks] = await Promise.all([
+    loadSubtasks(supabase, dependencyTaskIds),
+    loadLinkedParentSubtasks(supabase, dependencyTaskIds)
+  ]);
+  const allSubtasks = [...subtasks, ...linkedParentSubtasks];
+  const subtaskById = new Map(allSubtasks.map((s) => [s.id, s]));
   const subtasksByTaskId = new Map<string, SubtaskRow[]>();
   for (const s of subtasks) {
     const cur = subtasksByTaskId.get(s.task_id) ?? [];
     cur.push(s);
     subtasksByTaskId.set(s.task_id, cur);
   }
+  const linkedParentsByTaskId = new Map<string, SubtaskRow[]>();
+  for (const s of linkedParentSubtasks) {
+    if (!s.linked_task_id) continue;
+    const cur = linkedParentsByTaskId.get(s.linked_task_id) ?? [];
+    cur.push(s);
+    linkedParentsByTaskId.set(s.linked_task_id, cur);
+  }
 
-  const taskDeps = await loadTaskDependencies(supabase, detailTaskIds);
+  const taskDeps = await loadTaskDependencies(supabase, dependencyTaskIds);
   const taskDepsByBlocked = new Map<string, TaskDependencyRow[]>();
   for (const d of taskDeps) {
     const cur = taskDepsByBlocked.get(d.blocked_task_id) ?? [];
@@ -298,7 +321,7 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
 
   const subtaskDeps = await loadSubtaskDependencies(
     supabase,
-    subtasks.map((s) => s.id)
+    allSubtasks.map((s) => s.id)
   );
   const subtaskDepsByBlocked = new Map<string, SubtaskDependencyRow[]>();
   for (const d of subtaskDeps) {
@@ -374,6 +397,26 @@ export async function buildTaskInsights(options: InsightsOptions = {}): Promise<
 
     const subRows = subtasksByTaskId.get(taskId) ?? [];
     for (const s of subRows) {
+      const depRows = subtaskDepsByBlocked.get(s.id) ?? [];
+      for (const d of depRows) {
+        if (d.blocker_task_id) {
+          const blocker = taskById.get(d.blocker_task_id);
+          if (blocker && isTaskResolved(blocker.status)) continue;
+          const label =
+            compactText(d.reason, 80) || blocker?.title || `${d.blocker_task_id.slice(0, 8)}…`;
+          items.push({ type: "task", id: d.blocker_task_id, label, reason: d.reason ?? null });
+        } else if (d.blocker_subtask_id) {
+          const blockerSub = subtaskById.get(d.blocker_subtask_id);
+          if (blockerSub && isSubtaskResolved(blockerSub.status)) continue;
+          const label =
+            compactText(d.reason, 80) || blockerSub?.title || `${d.blocker_subtask_id.slice(0, 8)}…`;
+          items.push({ type: "subtask", id: d.blocker_subtask_id, label, reason: d.reason ?? null });
+        }
+      }
+    }
+
+    const linkedParents = linkedParentsByTaskId.get(taskId) ?? [];
+    for (const s of linkedParents) {
       const depRows = subtaskDepsByBlocked.get(s.id) ?? [];
       for (const d of depRows) {
         if (d.blocker_task_id) {

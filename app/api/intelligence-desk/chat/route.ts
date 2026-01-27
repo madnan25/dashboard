@@ -133,11 +133,16 @@ export async function POST(req: Request) {
     const scopedTasks = taskIds.length > 0 ? await repo.listTasksByIds(taskIds).catch(() => [] as Task[]) : [];
     const deepDetails = await Promise.all(
       scopedTasks.map(async (t) => {
-        const [comments, subtasks, deps] = await Promise.all([
+        const [comments, subtasks, deps, parentLink] = await Promise.all([
           repo.listTaskComments(t.id).catch(() => []),
           repo.listTaskSubtasks(t.id).catch(() => []),
-          repo.listTaskDependencies(t.id).catch(() => [] as Array<{ id: string; blocker_task_id: string; reason: string | null }>)
+          repo.listTaskDependencies(t.id).catch(() => [] as Array<{ id: string; blocker_task_id: string; reason: string | null }>),
+          repo.getLinkedParentSubtask(t.id).catch(() => null)
         ]);
+        const subtaskDeps = await Promise.all(
+          subtasks.map(async (s) => ({ id: s.id, deps: await repo.listSubtaskDependencies(s.id).catch(() => []) }))
+        );
+        const linkedParentDeps = parentLink ? await repo.listSubtaskDependencies(parentLink.id).catch(() => []) : [];
         const recentComments = comments.slice(-2).map((c) => c.body);
         return {
           id: t.id,
@@ -147,6 +152,16 @@ export async function POST(req: Request) {
           due_at: t.due_at,
           subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, status: s.status, due_at: s.due_at })),
           dependencies: deps,
+          subtask_dependencies: subtaskDeps,
+          linked_parent_subtask: parentLink
+            ? {
+                id: parentLink.id,
+                task_id: parentLink.task_id,
+                title: parentLink.title,
+                status: parentLink.status
+              }
+            : null,
+          linked_parent_dependencies: linkedParentDeps,
           recent_comments: recentComments
         };
       })
