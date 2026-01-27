@@ -67,9 +67,15 @@ function formatDependencyLabel(
   subtaskTitleById: Map<string, string>
 ) {
   const reason = compactText(opts.reason, DEEP_DIVE_LIMITS.reason);
-  if (reason) return reason;
-  if (opts.blockerTaskId) return taskTitleById.get(opts.blockerTaskId) || `${opts.blockerTaskId.slice(0, 8)}...`;
-  if (opts.blockerSubtaskId) return subtaskTitleById.get(opts.blockerSubtaskId) || `${opts.blockerSubtaskId.slice(0, 8)}...`;
+  if (reason) return cleanLabel(reason);
+  if (opts.blockerTaskId) {
+    const title = taskTitleById.get(opts.blockerTaskId) || "Unknown task";
+    return cleanLabel(title);
+  }
+  if (opts.blockerSubtaskId) {
+    const title = subtaskTitleById.get(opts.blockerSubtaskId) || "Unknown subtask";
+    return cleanLabel(title);
+  }
   return "unknown";
 }
 
@@ -77,6 +83,16 @@ function formatEventValue(value: unknown) {
   if (value == null) return null;
   if (typeof value === "string") return compactText(value, 80);
   return compactText(String(value), 80);
+}
+
+function cleanLabel(value: string) {
+  const withoutIds = value
+    .replace(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, "")
+    .replace(/\(\s*id\s*:\s*[^)]+\)/gi, "")
+    .replace(/\bid\s*:\s*/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return withoutIds || "unknown";
 }
 
 export async function POST(req: Request) {
@@ -212,23 +228,35 @@ export async function POST(req: Request) {
         ...d.linkedParentDeps.map((dep) => dep.blocker_task_id)
       ])
     ).slice(0, DEEP_DIVE_LIMITS.tasks * DEEP_DIVE_LIMITS.deps);
+    const blockerSubtaskIds = collectUniqueIds(
+      rawDetails.flatMap((d) => [
+        ...d.subtaskDeps.flatMap((row) => row.deps.map((dep) => dep.blocker_subtask_id)),
+        ...d.linkedParentDeps.map((dep) => dep.blocker_subtask_id)
+      ])
+    ).slice(0, DEEP_DIVE_LIMITS.tasks * DEEP_DIVE_LIMITS.subtaskDeps);
     const blockerTasks =
       blockerTaskIds.length > 0 ? await repo.listTasksByIds(blockerTaskIds).catch(() => [] as Task[]) : [];
+    const blockerSubtasks =
+      blockerSubtaskIds.length > 0 ? await repo.listTaskSubtasksByIds(blockerSubtaskIds).catch(() => []) : [];
     const taskTitleById = new Map(
-      blockerTasks.map((t) => [t.id, nameOrFallback(t.title, `${t.id.slice(0, 8)}...`)])
+      blockerTasks.map((t) => [t.id, cleanLabel(nameOrFallback(t.title, "Untitled task"))])
     );
+    const subtaskAssigneeIdById = new Map(blockerSubtasks.map((s) => [s.id, s.assignee_id ?? null]));
 
     const subtaskTitleById = new Map<string, string>();
     for (const entry of rawDetails) {
       for (const s of entry.subtasks) {
-        subtaskTitleById.set(s.id, nameOrFallback(s.title, `${s.id.slice(0, 8)}...`));
+        subtaskTitleById.set(s.id, cleanLabel(nameOrFallback(s.title, "Untitled subtask")));
       }
       if (entry.parentLink) {
         subtaskTitleById.set(
           entry.parentLink.id,
-          nameOrFallback(entry.parentLink.title, `${entry.parentLink.id.slice(0, 8)}...`)
+          cleanLabel(nameOrFallback(entry.parentLink.title, "Untitled subtask"))
         );
       }
+    }
+    for (const s of blockerSubtasks) {
+      subtaskTitleById.set(s.id, cleanLabel(nameOrFallback(s.title, "Untitled subtask")));
     }
 
     const profileIds = collectUniqueIds(
@@ -239,6 +267,8 @@ export async function POST(req: Request) {
         ...d.comments.map((c) => c.author_id),
         ...d.events.map((e) => e.actor_id)
       ])
+        .concat(blockerTasks.map((t) => t.assignee_id))
+        .concat(Array.from(subtaskAssigneeIdById.values()))
     );
     const profiles =
       profileIds.length > 0 ? await repo.listProfilesByIds(profileIds).catch(() => []) : [];
@@ -252,74 +282,98 @@ export async function POST(req: Request) {
       if (!id) return fallback;
       return profileNameById.get(id) || `${id.slice(0, 8)}...`;
     };
+    const resolveSubtaskAssignee = (subtaskId: string | null | undefined) => {
+      if (!subtaskId) return "Unassigned";
+      const assigneeId = subtaskAssigneeIdById.get(subtaskId) ?? null;
+      return resolveProfileName(assigneeId, "Unassigned");
+    };
 
     const deepDetails = rawDetails.map((entry) => {
-      const taskLabel = nameOrFallback(entry.task.title, `${entry.task.id.slice(0, 8)}...`);
+      const taskLabel = cleanLabel(nameOrFallback(entry.task.title, "Untitled task"));
+      const taskAssignee = resolveProfileName(entry.task.assignee_id, "Unassigned");
       const dependencyItems = entry.deps.slice(0, DEEP_DIVE_LIMITS.deps).map((d) => {
         const reason = compactText(d.reason, DEEP_DIVE_LIMITS.reason);
         return {
           type: "task" as const,
-          id: d.blocker_task_id,
           label: formatDependencyLabel({ reason: d.reason, blockerTaskId: d.blocker_task_id }, taskTitleById, subtaskTitleById),
+          assignee: resolveProfileName(
+            blockerTasks.find((t) => t.id === d.blocker_task_id)?.assignee_id ?? null,
+            "Unassigned"
+          ),
           ...(reason ? { reason } : {})
         };
       });
 
       const subtaskDependencies = entry.subtaskDeps
         .map((row) => {
-          const subtaskTitle = subtaskTitleById.get(row.id) || `${row.id.slice(0, 8)}...`;
+          const subtaskTitle = subtaskTitleById.get(row.id) || "Untitled subtask";
           const blockers = row.deps.slice(0, DEEP_DIVE_LIMITS.subtaskDeps).map((d) => {
             const reason = compactText(d.reason, DEEP_DIVE_LIMITS.reason);
-            const id = d.blocker_task_id ?? d.blocker_subtask_id ?? "";
             return {
               type: d.blocker_task_id ? "task" : "subtask",
-              id,
               label: formatDependencyLabel(
                 { reason: d.reason, blockerTaskId: d.blocker_task_id, blockerSubtaskId: d.blocker_subtask_id },
                 taskTitleById,
                 subtaskTitleById
               ),
+              assignee: d.blocker_task_id
+                ? resolveProfileName(
+                    blockerTasks.find((t) => t.id === d.blocker_task_id)?.assignee_id ?? null,
+                    "Unassigned"
+                  )
+                : resolveSubtaskAssignee(d.blocker_subtask_id),
               ...(reason ? { reason } : {})
             };
           });
-          return { subtask_id: row.id, subtask_title: subtaskTitle, blockers };
+          return { subtask_title: cleanLabel(subtaskTitle), blockers };
         })
         .filter((row) => row.blockers.length > 0);
 
       const linkedParentDependencies = entry.linkedParentDeps.slice(0, DEEP_DIVE_LIMITS.subtaskDeps).map((d) => {
         const reason = compactText(d.reason, DEEP_DIVE_LIMITS.reason);
-        const id = d.blocker_task_id ?? d.blocker_subtask_id ?? "";
         return {
           type: d.blocker_task_id ? "task" : "subtask",
-          id,
           label: formatDependencyLabel(
             { reason: d.reason, blockerTaskId: d.blocker_task_id, blockerSubtaskId: d.blocker_subtask_id },
             taskTitleById,
             subtaskTitleById
           ),
+          assignee: d.blocker_task_id
+            ? resolveProfileName(
+                blockerTasks.find((t) => t.id === d.blocker_task_id)?.assignee_id ?? null,
+                "Unassigned"
+              )
+            : resolveSubtaskAssignee(d.blocker_subtask_id),
           ...(reason ? { reason } : {})
         };
       });
 
       const dependencyChain: Array<{ blocked: string; blocker: string; reason?: string | null }> = [];
       for (const item of dependencyItems) {
-        dependencyChain.push({ blocked: taskLabel, blocker: item.label, ...(item.reason ? { reason: item.reason } : {}) });
+        dependencyChain.push({
+          blocked: taskLabel,
+          blocker: item.label,
+          ...(item.assignee ? { assignee: item.assignee } : {}),
+          ...(item.reason ? { reason: item.reason } : {})
+        });
       }
       for (const row of subtaskDependencies) {
         for (const blocker of row.blockers) {
           dependencyChain.push({
             blocked: `Subtask: ${row.subtask_title}`,
             blocker: blocker.label,
+            ...(blocker.assignee ? { assignee: blocker.assignee } : {}),
             ...(blocker.reason ? { reason: blocker.reason } : {})
           });
         }
       }
       if (entry.parentLink) {
-        const parentTitle = subtaskTitleById.get(entry.parentLink.id) || `${entry.parentLink.id.slice(0, 8)}...`;
+        const parentTitle = subtaskTitleById.get(entry.parentLink.id) || "Untitled subtask";
         for (const blocker of linkedParentDependencies) {
           dependencyChain.push({
             blocked: `Linked subtask: ${parentTitle}`,
             blocker: blocker.label,
+            ...(blocker.assignee ? { assignee: blocker.assignee } : {}),
             ...(blocker.reason ? { reason: blocker.reason } : {})
           });
         }
@@ -347,17 +401,15 @@ export async function POST(req: Request) {
       });
 
       return {
-        id: entry.task.id,
-        title: entry.task.title,
+        title: cleanLabel(entry.task.title ?? "Untitled task"),
         status: entry.task.status,
         priority: entry.task.priority,
-        assignee: resolveProfileName(entry.task.assignee_id, "Unassigned"),
+        assignee: taskAssignee,
         due_at: entry.task.due_at,
         dependencies: dependencyItems,
         dependency_chain: dependencyChain.slice(0, DEEP_DIVE_LIMITS.chain),
         subtasks: entry.subtasks.map((s) => ({
-          id: s.id,
-          title: s.title,
+          title: cleanLabel(s.title || "Untitled subtask"),
           status: s.status,
           assignee: resolveProfileName(s.assignee_id, "Unassigned"),
           due_at: s.due_at
@@ -365,9 +417,7 @@ export async function POST(req: Request) {
         subtask_dependencies: subtaskDependencies,
         linked_parent_subtask: entry.parentLink
           ? {
-              id: entry.parentLink.id,
-              task_id: entry.parentLink.task_id,
-              title: entry.parentLink.title,
+              title: cleanLabel(entry.parentLink.title || "Untitled subtask"),
               status: entry.parentLink.status,
               assignee: resolveProfileName(entry.parentLink.assignee_id, "Unassigned")
             }
@@ -388,6 +438,7 @@ export async function POST(req: Request) {
         "- Explain blockers using dependency_chain, subtask_dependencies, and linked_parent_dependencies.",
         "- Use recent_events and recent_comments for what changed and who owns it.",
         "- If asked who owns a subtask, use the subtask assignee.",
+        "- Never mention raw IDs or UUIDs; use titles and names only.",
         "- Answer in short, clear bullets (2-5)."
       ].join("\n")
     : "";

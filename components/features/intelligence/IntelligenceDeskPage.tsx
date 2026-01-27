@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
 import { AppButton } from "@/components/ds/AppButton";
@@ -197,7 +198,12 @@ function SummaryCard({
             : "bg-white/50";
 
   return (
-    <div className={`rounded-2xl border ${toneClass} bg-white/[0.02] px-4 py-3`}>
+    <motion.div
+      className={`rounded-2xl border ${toneClass} bg-white/[0.02] px-4 py-3`}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+    >
       <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest">
         <span className={`inline-block h-2 w-2 rounded-full ${dotClass}`} />
         <span>{title}</span>
@@ -211,7 +217,7 @@ function SummaryCard({
           ))}
         </ul>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -232,6 +238,7 @@ export function IntelligenceDeskPage() {
   const [chatScopeValue, setChatScopeValue] = useState("");
   const [chatDeepDive, setChatDeepDive] = useState(false);
   const parsedSummary = useMemo(() => parseSummaryPayload(summary), [summary]);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -275,6 +282,11 @@ export function IntelligenceDeskPage() {
   useEffect(() => {
     if (profileRole === "cmo") void loadSummary();
   }, [profileRole]);
+
+  useEffect(() => {
+    if (!chatEndRef.current) return;
+    chatEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [chatMessages, chatLoading]);
 
   async function sendChat(question: string) {
     const trimmed = question.trim();
@@ -398,9 +410,38 @@ export function IntelligenceDeskPage() {
         <Surface>
           <div className="text-xs uppercase tracking-widest text-white/45">Executive Summary</div>
           {summaryLoading ? (
-            <div className="mt-3 text-sm text-white/70">Generating summary…</div>
-          ) : parsedSummary ? (
             <div className="mt-3 space-y-3">
+              <div className="h-4 w-2/3 rounded-full shimmer" />
+              <div className="grid gap-3 md:grid-cols-3">
+                {[0, 1, 2].map((idx) => (
+                  <div key={`summary-skeleton-top-${idx}`} className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                    <div className="h-3 w-24 rounded-full shimmer" />
+                    <div className="mt-3 space-y-2">
+                      <div className="h-3 w-4/5 rounded-full shimmer" />
+                      <div className="h-3 w-3/5 rounded-full shimmer" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {[0, 1].map((idx) => (
+                  <div key={`summary-skeleton-bottom-${idx}`} className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                    <div className="h-3 w-24 rounded-full shimmer" />
+                    <div className="mt-3 space-y-2">
+                      <div className="h-3 w-4/5 rounded-full shimmer" />
+                      <div className="h-3 w-3/5 rounded-full shimmer" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : parsedSummary ? (
+            <motion.div
+              className="mt-3 space-y-3"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+            >
               {parsedSummary.headline ? (
                 <div className="text-sm font-semibold text-white/90">{parsedSummary.headline}</div>
               ) : null}
@@ -438,7 +479,7 @@ export function IntelligenceDeskPage() {
                   empty="No risks noted."
                 />
               </div>
-            </div>
+            </motion.div>
           ) : (
             <div className="mt-3 whitespace-pre-wrap text-sm text-white/85">
               {summary ||
@@ -651,20 +692,26 @@ export function IntelligenceDeskPage() {
             {chatMessages.length === 0 ? (
               <div className="text-sm text-white/55">Ask about team activity, blockers, or project status.</div>
             ) : (
-              chatMessages.map((m, idx) => (
-                <div
-                  key={`${m.role}-${idx}`}
-                  className={[
-                    "rounded-2xl border px-4 py-3 text-sm",
-                    m.role === "user"
-                      ? "border-white/10 bg-white/[0.03] text-white/85"
-                      : "border-white/10 bg-white/[0.01] text-white/75"
-                  ].join(" ")}
-                >
-                  <div className="text-xs uppercase tracking-widest text-white/40">{m.role === "user" ? "You" : "Desk"}</div>
-                  <div className="mt-2 whitespace-pre-wrap">{m.content}</div>
-                </div>
-              ))
+              <AnimatePresence initial={false}>
+                {chatMessages.map((m, idx) => (
+                  <motion.div
+                    key={`${m.role}-${idx}`}
+                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className={[
+                      "rounded-2xl border px-4 py-3 text-sm",
+                      m.role === "user"
+                        ? "border-white/10 bg-white/[0.03] text-white/85"
+                        : "border-white/10 bg-white/[0.01] text-white/75"
+                    ].join(" ")}
+                  >
+                    <div className="text-xs uppercase tracking-widest text-white/40">{m.role === "user" ? "You" : "Desk"}</div>
+                    <div className="mt-2 whitespace-pre-wrap">{m.content}</div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             )}
           </div>
 
@@ -686,7 +733,18 @@ export function IntelligenceDeskPage() {
                 onPress={() => void sendChat(chatInput)}
                 isDisabled={chatLoading || !chatInput.trim()}
               >
-                {chatLoading ? "Thinking…" : "Send"}
+                {chatLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    Thinking
+                    <span className="typing-dots inline-flex items-center gap-1">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  </span>
+                ) : (
+                  "Send"
+                )}
               </AppButton>
             </div>
           </div>

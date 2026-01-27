@@ -477,6 +477,17 @@ export async function listTaskSubtasks(supabase: SupabaseClient, taskId: string)
   return (data as TaskSubtask[]) ?? [];
 }
 
+export async function listTaskSubtasksByIds(supabase: SupabaseClient, ids: string[]): Promise<TaskSubtask[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase
+    .from("task_subtasks")
+    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .in("id", unique);
+  if (error) throw error;
+  return (data as TaskSubtask[]) ?? [];
+}
+
 export async function listTaskSubtasksByAssignee(supabase: SupabaseClient, assigneeId: string): Promise<TaskSubtask[]> {
   const { data, error } = await supabase
     .from("task_subtasks")

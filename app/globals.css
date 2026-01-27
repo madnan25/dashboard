@@ -56,6 +56,66 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes typingDot {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateY(-2px);
+    opacity: 0.95;
+  }
+}
+
+.typing-dots > span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  animation: typingDot 0.9s ease-in-out infinite;
+}
+
+.typing-dots > span:nth-child(2) {
+  animation-delay: 0.15s;
+  opacity: 0.55;
+}
+
+.typing-dots > span:nth-child(3) {
+  animation-delay: 0.3s;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+  }
+  .typing-dots > span {
+    animation: none;
+  }
+}
+
 /* Make native date picker icon white on dark inputs (Safari/Chrome) */
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
