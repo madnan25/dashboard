@@ -48,37 +48,77 @@ function getOpenAIConfig() {
   return { apiKey, defaultModel, allowlist };
 }
 
-export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
-  const { apiKey, defaultModel, allowlist } = getOpenAIConfig();
-  const model = resolveModel(options.model, allowlist, defaultModel);
-  const temperature = options.temperature ?? 0.2;
-  const maxTokens = options.maxTokens ?? 900;
+function supportsMaxCompletionTokens(model: string) {
+  // Some newer OpenAI models (e.g., gpt-5*) require `max_completion_tokens`
+  // instead of `max_tokens` in Chat Completions requests.
+  return model.startsWith("gpt-5") || model.startsWith("o1") || model.startsWith("o3");
+}
 
+async function postChatCompletions(apiKey: string, payload: Record<string, unknown>) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model,
-      temperature,
-      max_tokens: maxTokens,
-      messages: options.messages
-    })
+    body: JSON.stringify(payload)
   });
 
+  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
     const msg = typeof body?.error?.message === "string" ? body.error.message : res.statusText;
-    throw new Error(`OpenAI error: ${msg}`);
+    const err = new Error(`OpenAI error: ${msg}`);
+    (err as Error & { openai_message?: string }).openai_message = msg;
+    throw err;
   }
 
-  const data = (await res.json()) as {
+  return body;
+}
+
+export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
+  const { apiKey, defaultModel, allowlist } = getOpenAIConfig();
+  const model = resolveModel(options.model, allowlist, defaultModel);
+  const temperature = options.temperature ?? 0.2;
+  const maxTokens = options.maxTokens ?? 900;
+
+  const basePayload = {
+    model,
+    temperature,
+    messages: options.messages
+  } satisfies Record<string, unknown>;
+
+  const buildPayload = (useMaxCompletionTokens: boolean) => ({
+    ...basePayload,
+    ...(useMaxCompletionTokens ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens })
+  });
+
+  let useMaxCompletionTokens = supportsMaxCompletionTokens(model);
+  let data: {
     model?: string;
     choices?: Array<{ message?: { content?: string } }>;
     usage?: OpenAIChatResult["usage"];
   };
+  try {
+    data = (await postChatCompletions(apiKey, buildPayload(useMaxCompletionTokens))) as typeof data;
+  } catch (e) {
+    const msg =
+      e instanceof Error && "openai_message" in e
+        ? String((e as Error & { openai_message?: string }).openai_message || e.message)
+        : e instanceof Error
+          ? e.message
+          : "";
+
+    // Some models are strict about which token-limit parameter is accepted.
+    if (!useMaxCompletionTokens && msg.includes("Unsupported parameter: 'max_tokens'")) {
+      useMaxCompletionTokens = true;
+      data = (await postChatCompletions(apiKey, buildPayload(true))) as typeof data;
+    } else if (useMaxCompletionTokens && msg.includes("Unsupported parameter: 'max_completion_tokens'")) {
+      useMaxCompletionTokens = false;
+      data = (await postChatCompletions(apiKey, buildPayload(false))) as typeof data;
+    } else {
+      throw e;
+    }
+  }
 
   const content = data?.choices?.[0]?.message?.content?.trim() ?? "";
   if (!content) throw new Error("OpenAI returned an empty response");

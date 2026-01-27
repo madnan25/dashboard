@@ -44,6 +44,14 @@ export default function CmoProjectsPage() {
 
   const [status, setStatus] = useState<string>("");
   const [profileRole, setProfileRole] = useState<string | null>(null);
+  const [intelligenceSyncTime, setIntelligenceSyncTime] = useState("12:00");
+  const [intelligenceSyncMeta, setIntelligenceSyncMeta] = useState<{
+    timezone: string;
+    schedule_utc: string | null;
+    updated_at: string | null;
+  } | null>(null);
+  const [intelligenceSyncStatus, setIntelligenceSyncStatus] = useState<string>("");
+  const [intelligenceSyncSaving, setIntelligenceSyncSaving] = useState(false);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<string>("");
@@ -84,6 +92,53 @@ export default function CmoProjectsPage() {
     });
   }
 
+  async function loadIntelligenceSync() {
+    setIntelligenceSyncStatus("");
+    try {
+      const res = await fetch("/api/cmo/intelligence-sync", { cache: "no-store" });
+      const body = (await res.json().catch(() => null)) as
+        | null
+        | { error?: string; sync_time?: string; timezone?: string; schedule_utc?: string | null; updated_at?: string | null };
+      if (!res.ok || !body || body.error) throw new Error(body?.error || "Failed to load sync settings");
+      if (typeof body.sync_time === "string" && body.sync_time) setIntelligenceSyncTime(body.sync_time);
+      setIntelligenceSyncMeta({
+        timezone: typeof body.timezone === "string" ? body.timezone : "Asia/Karachi",
+        schedule_utc: (body.schedule_utc as string | null) ?? null,
+        updated_at: (body.updated_at as string | null) ?? null
+      });
+    } catch (e) {
+      setIntelligenceSyncStatus(e instanceof Error ? e.message : "Failed to load sync settings");
+      setIntelligenceSyncMeta(null);
+    }
+  }
+
+  async function onSaveIntelligenceSync() {
+    setIntelligenceSyncStatus("");
+    setIntelligenceSyncSaving(true);
+    try {
+      const res = await fetch("/api/cmo/intelligence-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sync_time: intelligenceSyncTime, timezone: "Asia/Karachi" })
+      });
+      const body = (await res.json().catch(() => null)) as
+        | null
+        | { ok?: boolean; error?: string; sync_time?: string; timezone?: string; schedule_utc?: string | null; updated_at?: string | null };
+      if (!res.ok || !body || body.error) throw new Error(body?.error || "Failed to update schedule");
+      setIntelligenceSyncStatus("Saved.");
+      if (typeof body.sync_time === "string" && body.sync_time) setIntelligenceSyncTime(body.sync_time);
+      setIntelligenceSyncMeta({
+        timezone: typeof body.timezone === "string" ? body.timezone : "Asia/Karachi",
+        schedule_utc: (body.schedule_utc as string | null) ?? null,
+        updated_at: (body.updated_at as string | null) ?? null
+      });
+    } catch (e) {
+      setIntelligenceSyncStatus(e instanceof Error ? e.message : "Failed to update schedule");
+    } finally {
+      setIntelligenceSyncSaving(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function boot() {
@@ -94,6 +149,9 @@ export default function CmoProjectsPage() {
         setProfileRole(p?.role ?? null);
         setProjects(projs);
         if (!projectId && projs.length > 0) setProjectId(projs[0]!.id);
+        if (p?.role === "cmo") {
+          await loadIntelligenceSync();
+        }
       } catch (e) {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load");
@@ -295,6 +353,42 @@ export default function CmoProjectsPage() {
             <div className="text-sm text-white/60">{status}</div>
           </Surface>
         ) : null}
+
+        <Surface>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-widest text-white/45">Intelligence Desk sync</div>
+              <div className="mt-1 text-sm text-white/80">Controls the daily cached snapshot used by Intelligence Desk.</div>
+              <div className="mt-1 text-xs text-white/50">
+                Timezone: <span className="text-white/70">PKT (Asia/Karachi)</span>
+                {intelligenceSyncMeta?.schedule_utc ? (
+                  <>
+                    {" "}
+                    • UTC schedule: <span className="text-white/70">{intelligenceSyncMeta.schedule_utc}</span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="time"
+                value={intelligenceSyncTime}
+                onChange={(e) => setIntelligenceSyncTime(e.target.value)}
+                className="h-10 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-sm text-white/85 outline-none focus:border-white/20"
+              />
+              <Button
+                color="primary"
+                onPress={() => void onSaveIntelligenceSync()}
+                isDisabled={intelligenceSyncSaving || !/^\d{2}:\d{2}$/.test(intelligenceSyncTime)}
+              >
+                {intelligenceSyncSaving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+          {intelligenceSyncStatus ? (
+            <div className="mt-2 text-xs text-white/55">{intelligenceSyncStatus}</div>
+          ) : null}
+        </Surface>
 
         <div className="grid gap-4 md:grid-cols-12">
           <CmoProjectsPanel
