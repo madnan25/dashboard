@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { Surface } from "@/components/ds/Surface";
@@ -49,6 +50,10 @@ type Insights = {
       blocked_by_dependencies: number;
       top_blocked: string[];
     } | null;
+  }>;
+  tasks?: Array<{
+    id: string;
+    title: string;
   }>;
   recent_comments: Array<{
     task_id: string;
@@ -144,7 +149,7 @@ function parseSummaryPayload(raw: string): SummaryPayload | null {
 function normalizeList(list: unknown, max = 3): string[] {
   if (!Array.isArray(list)) return [];
   return list
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .map((item) => (typeof item === "string" ? stripIdsFromText(item).trim() : ""))
     .filter(Boolean)
     .slice(0, max);
 }
@@ -153,9 +158,9 @@ function formatBlockerItem(item: unknown): string {
   if (typeof item === "string") return item.trim();
   if (!item || typeof item !== "object") return "";
   const obj = item as { task?: unknown; reason?: unknown; dependency?: unknown };
-  const task = typeof obj.task === "string" ? obj.task.trim() : "";
-  const reason = typeof obj.reason === "string" ? obj.reason.trim() : "";
-  const dependency = typeof obj.dependency === "string" ? obj.dependency.trim() : "";
+  const task = typeof obj.task === "string" ? stripIdsFromText(obj.task).trim() : "";
+  const reason = typeof obj.reason === "string" ? stripIdsFromText(obj.reason).trim() : "";
+  const dependency = typeof obj.dependency === "string" ? stripIdsFromText(obj.dependency).trim() : "";
   const base = [task, reason ? `— ${reason}` : ""].filter(Boolean).join(" ");
   return dependency ? `${base} (${dependency})` : base;
 }
@@ -169,12 +174,14 @@ function SummaryCard({
   title,
   tone,
   items,
-  empty
+  empty,
+  linkMap
 }: {
   title: string;
   tone: SummaryTone;
   items: string[];
   empty: string;
+  linkMap?: Map<string, string>;
 }) {
   const toneClass =
     tone === "rose"
@@ -199,7 +206,7 @@ function SummaryCard({
 
   return (
     <motion.div
-      className={`rounded-2xl border ${toneClass} bg-white/[0.02] px-4 py-3`}
+      className={`rounded-2xl border ${toneClass} bg-white/[0.02] px-4 py-3 transition-transform duration-200 hover:-translate-y-0.5 hover:border-white/20`}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
@@ -213,12 +220,67 @@ function SummaryCard({
       ) : (
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-white/85">
           {items.map((item, idx) => (
-            <li key={`${title}-${idx}`}>{item}</li>
+            <li key={`${title}-${idx}`}>{linkMap ? renderTextWithLinks(item, linkMap) : item}</li>
           ))}
         </ul>
       )}
     </motion.div>
   );
+}
+
+const TICKET_CODE_REGEX = /\b[A-Z0-9]{2,8}-\d+\b/g;
+
+function stripIdsFromText(value: string) {
+  return value
+    .replace(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, "")
+    .replace(/\(\s*id\s*:\s*[^)]+\)/gi, "")
+    .replace(/\bid\s*:\s*[^)\s,]+/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\(\s*\)/g, "")
+    .trim();
+}
+
+function getTicketCode(title: string) {
+  const match = title.match(/^([A-Z0-9]{2,8}-\d+)\b/);
+  return match ? match[1] : null;
+}
+
+function renderTextWithLinks(text: string, ticketMap: Map<string, string>) {
+  const cleaned = stripIdsFromText(text);
+  const parts: Array<string | { code: string }> = [];
+  let lastIndex = 0;
+  for (const match of cleaned.matchAll(TICKET_CODE_REGEX)) {
+    const start = match.index ?? 0;
+    if (start > lastIndex) parts.push(cleaned.slice(lastIndex, start));
+    parts.push({ code: match[0] });
+    lastIndex = start + match[0].length;
+  }
+  if (lastIndex < cleaned.length) parts.push(cleaned.slice(lastIndex));
+
+  return parts.map((part, idx) => {
+    if (typeof part === "string") return <span key={`text-${idx}`}>{part}</span>;
+    const href = ticketMap.get(part.code);
+    if (!href) return <span key={`code-${idx}`}>{part.code}</span>;
+    return (
+      <Link
+        key={`code-${idx}`}
+        href={href}
+        className="underline underline-offset-2 decoration-sky-400/70 text-sky-200 hover:text-sky-100"
+      >
+        {part.code}
+      </Link>
+    );
+  });
+}
+
+function renderMultilineText(text: string, ticketMap: Map<string, string>) {
+  const lines = stripIdsFromText(text).split("\n");
+  return lines.map((line, idx) => (
+    <span key={`line-${idx}`}>
+      {renderTextWithLinks(line, ticketMap)}
+      {idx < lines.length - 1 ? <br /> : null}
+    </span>
+  ));
 }
 
 export function IntelligenceDeskPage() {
@@ -239,6 +301,19 @@ export function IntelligenceDeskPage() {
   const [chatDeepDive, setChatDeepDive] = useState(false);
   const parsedSummary = useMemo(() => parseSummaryPayload(summary), [summary]);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const ticketLinkMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const tasks = summaryMeta?.insights?.tasks ?? [];
+    const blocked = summaryMeta?.insights?.blocked_tasks ?? [];
+    for (const t of [...tasks, ...blocked]) {
+      if (!t?.id || !t?.title) continue;
+      const code = getTicketCode(t.title);
+      if (code && !map.has(code)) {
+        map.set(code, `/tasks/${t.id}`);
+      }
+    }
+    return map;
+  }, [summaryMeta]);
 
   useEffect(() => {
     let cancelled = false;
@@ -443,7 +518,9 @@ export function IntelligenceDeskPage() {
               transition={{ duration: 0.35, ease: "easeOut" }}
             >
               {parsedSummary.headline ? (
-                <div className="text-sm font-semibold text-white/90">{parsedSummary.headline}</div>
+                <div className="text-sm font-semibold text-white/90">
+                  {renderTextWithLinks(parsedSummary.headline, ticketLinkMap)}
+                </div>
               ) : null}
               <div className="grid gap-3 md:grid-cols-3">
                 <SummaryCard
@@ -451,18 +528,21 @@ export function IntelligenceDeskPage() {
                   tone="sky"
                   items={normalizeList(parsedSummary.snapshot)}
                   empty="No snapshot yet."
+                  linkMap={ticketLinkMap}
                 />
                 <SummaryCard
                   title="Blockers"
                   tone="rose"
                   items={normalizeBlockers(parsedSummary.blockers)}
                   empty="No blockers noted."
+                  linkMap={ticketLinkMap}
                 />
                 <SummaryCard
                   title="Next actions"
                   tone="emerald"
                   items={normalizeList(parsedSummary.next_actions)}
                   empty="No next actions yet."
+                  linkMap={ticketLinkMap}
                 />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -471,12 +551,14 @@ export function IntelligenceDeskPage() {
                   tone="amber"
                   items={normalizeList(parsedSummary.priorities)}
                   empty="No priorities noted."
+                  linkMap={ticketLinkMap}
                 />
                 <SummaryCard
                   title="Risks"
                   tone="slate"
                   items={normalizeList(parsedSummary.risks)}
                   empty="No risks noted."
+                  linkMap={ticketLinkMap}
                 />
               </div>
             </motion.div>
@@ -502,7 +584,14 @@ export function IntelligenceDeskPage() {
               ) : (
                 blockedTasks.map((t) => (
                   <div key={t.id} className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                    <div className="text-sm font-semibold text-white/90">{t.title}</div>
+                    <div className="text-sm font-semibold text-white/90">
+                      <Link
+                        href={`/tasks/${t.id}`}
+                        className="underline underline-offset-2 decoration-white/20 hover:decoration-white/60"
+                      >
+                        {stripIdsFromText(t.title)}
+                      </Link>
+                    </div>
                     <div className="mt-1 text-xs text-white/60">
                       {t.team} · {t.assignee} · {t.priority} · {t.status}
                     </div>
@@ -511,7 +600,7 @@ export function IntelligenceDeskPage() {
                         Blocked by:{" "}
                         {t.dependency_summary
                           .slice(0, 3)
-                          .map((d) => d.label)
+                          .map((d) => stripIdsFromText(d.label))
                           .join(", ")}
                       </div>
                     ) : null}
@@ -523,7 +612,7 @@ export function IntelligenceDeskPage() {
                     ) : null}
                     {t.latest_comment_snippet || t.description_snippet ? (
                       <div className="mt-2 text-xs text-white/55">
-                        {t.latest_comment_snippet || t.description_snippet}
+                        {stripIdsFromText(t.latest_comment_snippet || t.description_snippet || "")}
                       </div>
                     ) : null}
                   </div>
@@ -590,8 +679,15 @@ export function IntelligenceDeskPage() {
                   recentComments.map((c) => (
                     <div key={`${c.task_id}-${c.created_at}`} className="rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2">
                       <div className="text-xs text-white/60">{c.project} · {c.team}</div>
-                      <div className="mt-1 text-sm text-white/85">{c.title}</div>
-                      <div className="mt-1 text-xs text-white/55">{c.snippet}</div>
+                    <div className="mt-1 text-sm text-white/85">
+                      <Link
+                        href={`/tasks/${c.task_id}`}
+                        className="underline underline-offset-2 decoration-white/20 hover:decoration-white/60"
+                      >
+                        {stripIdsFromText(c.title)}
+                      </Link>
+                    </div>
+                    <div className="mt-1 text-xs text-white/55">{stripIdsFromText(c.snippet)}</div>
                     </div>
                   ))
                 )}
@@ -618,7 +714,7 @@ export function IntelligenceDeskPage() {
               <button
                 key={q}
                 type="button"
-                className="rounded-full border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.05]"
+                className="rounded-full border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-white/70 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
                 onClick={() => setChatInput(q)}
               >
                 {q}
@@ -708,11 +804,27 @@ export function IntelligenceDeskPage() {
                     ].join(" ")}
                   >
                     <div className="text-xs uppercase tracking-widest text-white/40">{m.role === "user" ? "You" : "Desk"}</div>
-                    <div className="mt-2 whitespace-pre-wrap">{m.content}</div>
+                    <div className="mt-2 whitespace-pre-wrap">
+                      {renderMultilineText(m.content, ticketLinkMap)}
+                    </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
             )}
+            {chatLoading ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.01] px-4 py-3 text-sm text-white/75">
+                <div className="text-xs uppercase tracking-widest text-white/40">Desk</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="typing-dots inline-flex items-center gap-1">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span className="text-xs text-white/55">Thinking…</span>
+                </div>
+                <div className="mt-3 h-2 w-2/3 rounded-full shimmer" />
+              </div>
+            ) : null}
           </div>
 
           {chatStatus ? <div className="mt-3 text-xs text-amber-200/90">{chatStatus}</div> : null}
