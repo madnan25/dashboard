@@ -26,7 +26,7 @@ const SUMMARY_USER_PROMPT = [
   '  "priorities": string[] (max 3),',
   '  "risks": string[] (max 3),',
   '  "next_actions": string[] (max 3, action verbs),',
-  '  "what_im_noticing": string[] (max 3, natural and personal tone)'
+  '  "what_im_noticing": string[] (max 3, natural and personal tone)',
   "}",
   "Rules:",
   "- If data is missing, use 'unknown'.",
