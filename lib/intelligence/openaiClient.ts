@@ -146,6 +146,32 @@ function extractResponseOutput(data: unknown): string {
   return text;
 }
 
+function summarizeResponseShape(data: unknown): string {
+  if (!data || typeof data !== "object") return `response_type=${typeof data}`;
+  const obj = data as Record<string, unknown>;
+  const keys = Object.keys(obj).slice(0, 12);
+  const choices = Array.isArray(obj.choices) ? (obj.choices as Array<Record<string, unknown>>) : null;
+  const firstChoice = choices?.[0] ?? null;
+  const message = firstChoice && typeof firstChoice === "object" ? (firstChoice as Record<string, unknown>).message : null;
+  const content = message && typeof message === "object" ? (message as Record<string, unknown>).content : null;
+  const contentType = Array.isArray(content) ? "array" : typeof content;
+  const output = Array.isArray(obj.output) ? (obj.output as Array<Record<string, unknown>>) : null;
+  const outputText = typeof obj.output_text === "string" ? obj.output_text.length : 0;
+
+  const choiceKeys = firstChoice && typeof firstChoice === "object" ? Object.keys(firstChoice).slice(0, 12) : [];
+  const messageKeys = message && typeof message === "object" ? Object.keys(message as Record<string, unknown>).slice(0, 12) : [];
+
+  return [
+    `keys=${keys.join(",") || "none"}`,
+    `choices=${choices ? choices.length : 0}`,
+    `choice_keys=${choiceKeys.join(",") || "none"}`,
+    `message_keys=${messageKeys.join(",") || "none"}`,
+    `content_type=${contentType}`,
+    `output_items=${output ? output.length : 0}`,
+    `output_text_len=${outputText}`
+  ].join(" ");
+}
+
 export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
   const { apiKey, defaultModel, allowlist } = getOpenAIConfig();
   const model = resolveModel(options.model, allowlist, defaultModel);
@@ -207,7 +233,11 @@ export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIC
   }
 
   const content = extractChoiceContent(data.choices?.[0]) || extractResponseOutput(data);
-  if (!content) throw new Error("OpenAI returned an empty response");
+  if (!content) {
+    const summary = summarizeResponseShape(data);
+    console.warn("OpenAI empty response", { model, summary });
+    throw new Error(`OpenAI returned an empty response. ${summary}`);
+  }
 
   return {
     content,
