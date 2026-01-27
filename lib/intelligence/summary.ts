@@ -9,19 +9,25 @@ const SUMMARY_SYSTEM_PROMPT = [
   "Use only the provided data pack. If data is missing, say you do not have it.",
   "Use task description snippets and latest comment snippets for context.",
   "Pay special attention to dependency summaries and blocked chains.",
-  "Be concise, high-signal, and avoid filler.",
-  "Prioritize blockers, risks, and urgent priorities.",
-  "Use short sections with bullet points."
+  "Write in plain, simple language for a 1-second skim.",
+  "Be concise, high-signal, and avoid filler."
 ].join(" ");
 
 const SUMMARY_USER_PROMPT = [
-  "Create a CMO summary report with these sections:",
-  "1) Overview",
-  "2) Blockers (what is blocked by what, based on descriptions/comments)",
-  "3) Priorities (P0/P1 and overdue items)",
-  "4) Team Highlights (who is overloaded or idle)",
-  "5) Project Risks",
-  "6) Next Actions (what to follow up on)"
+  "Return JSON only. No markdown, no extra text.",
+  "Schema:",
+  "{",
+  '  "headline": string (<= 90 chars),',
+  '  "snapshot": string[] (max 3 items, each <= 12 words),',
+  '  "blockers": Array<{ "task": string, "reason": string, "dependency": string } | string> (max 3),',
+  '  "priorities": string[] (max 3),',
+  '  "risks": string[] (max 3),',
+  '  "next_actions": string[] (max 3, action verbs)',
+  "}",
+  "Rules:",
+  "- If data is missing, use 'unknown'.",
+  "- Keep items short and skimmable.",
+  "- Focus on blockers, risks, and urgent priorities."
 ].join("\n");
 
 export async function generateSummaryFromInsights(insights: TaskInsights) {

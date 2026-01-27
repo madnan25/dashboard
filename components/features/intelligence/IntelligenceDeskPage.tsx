@@ -67,10 +67,21 @@ type SummaryResponse = {
   insights: Insights | null;
 };
 
+type SummaryPayload = {
+  headline?: string;
+  snapshot?: string[];
+  blockers?: Array<string | { task?: string; reason?: string; dependency?: string }>;
+  priorities?: string[];
+  risks?: string[];
+  next_actions?: string[];
+};
+
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
 };
+
+type SummaryTone = "sky" | "rose" | "amber" | "emerald" | "slate";
 
 const SUGGESTED_QUESTIONS = [
   "What is blocking the team right now?",
@@ -85,6 +96,98 @@ function formatWhen(value: string | null) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
+}
+
+function stripCodeFence(raw: string) {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
+function parseSummaryPayload(raw: string): SummaryPayload | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(stripCodeFence(raw)) as SummaryPayload;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeList(list: unknown, max = 3): string[] {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+function formatBlockerItem(item: unknown): string {
+  if (typeof item === "string") return item.trim();
+  if (!item || typeof item !== "object") return "";
+  const obj = item as { task?: unknown; reason?: unknown; dependency?: unknown };
+  const task = typeof obj.task === "string" ? obj.task.trim() : "";
+  const reason = typeof obj.reason === "string" ? obj.reason.trim() : "";
+  const dependency = typeof obj.dependency === "string" ? obj.dependency.trim() : "";
+  const base = [task, reason ? `— ${reason}` : ""].filter(Boolean).join(" ");
+  return dependency ? `${base} (${dependency})` : base;
+}
+
+function normalizeBlockers(list: unknown, max = 3): string[] {
+  if (!Array.isArray(list)) return [];
+  return list.map(formatBlockerItem).filter(Boolean).slice(0, max);
+}
+
+function SummaryCard({
+  title,
+  tone,
+  items,
+  empty
+}: {
+  title: string;
+  tone: SummaryTone;
+  items: string[];
+  empty: string;
+}) {
+  const toneClass =
+    tone === "rose"
+      ? "border-rose-400/30 text-rose-100"
+      : tone === "amber"
+        ? "border-amber-400/30 text-amber-100"
+        : tone === "emerald"
+          ? "border-emerald-400/30 text-emerald-100"
+          : tone === "sky"
+            ? "border-sky-400/30 text-sky-100"
+            : "border-white/10 text-white/80";
+  const dotClass =
+    tone === "rose"
+      ? "bg-rose-300"
+      : tone === "amber"
+        ? "bg-amber-300"
+        : tone === "emerald"
+          ? "bg-emerald-300"
+          : tone === "sky"
+            ? "bg-sky-300"
+            : "bg-white/50";
+
+  return (
+    <div className={`rounded-2xl border ${toneClass} bg-white/[0.02] px-4 py-3`}>
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest">
+        <span className={`inline-block h-2 w-2 rounded-full ${dotClass}`} />
+        <span>{title}</span>
+      </div>
+      {items.length === 0 ? (
+        <div className="mt-2 text-xs text-white/55">{empty}</div>
+      ) : (
+        <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-white/85">
+          {items.map((item, idx) => (
+            <li key={`${title}-${idx}`}>{item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function IntelligenceDeskPage() {
@@ -103,6 +206,7 @@ export function IntelligenceDeskPage() {
   const [chatScopeType, setChatScopeType] = useState<"" | "team" | "project" | "assignee" | "task">("");
   const [chatScopeValue, setChatScopeValue] = useState("");
   const [chatDeepDive, setChatDeepDive] = useState(false);
+  const parsedSummary = useMemo(() => parseSummaryPayload(summary), [summary]);
 
   useEffect(() => {
     let cancelled = false;
@@ -268,14 +372,56 @@ export function IntelligenceDeskPage() {
 
         <Surface>
           <div className="text-xs uppercase tracking-widest text-white/45">Executive Summary</div>
-          <div className="mt-3 whitespace-pre-wrap text-sm text-white/85">
-            {summaryLoading
-              ? "Generating summary…"
-              : summary ||
+          {summaryLoading ? (
+            <div className="mt-3 text-sm text-white/70">Generating summary…</div>
+          ) : parsedSummary ? (
+            <div className="mt-3 space-y-3">
+              {parsedSummary.headline ? (
+                <div className="text-sm font-semibold text-white/90">{parsedSummary.headline}</div>
+              ) : null}
+              <div className="grid gap-3 md:grid-cols-3">
+                <SummaryCard
+                  title="Snapshot"
+                  tone="sky"
+                  items={normalizeList(parsedSummary.snapshot)}
+                  empty="No snapshot yet."
+                />
+                <SummaryCard
+                  title="Blockers"
+                  tone="rose"
+                  items={normalizeBlockers(parsedSummary.blockers)}
+                  empty="No blockers noted."
+                />
+                <SummaryCard
+                  title="Next actions"
+                  tone="emerald"
+                  items={normalizeList(parsedSummary.next_actions)}
+                  empty="No next actions yet."
+                />
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <SummaryCard
+                  title="Priorities"
+                  tone="amber"
+                  items={normalizeList(parsedSummary.priorities)}
+                  empty="No priorities noted."
+                />
+                <SummaryCard
+                  title="Risks"
+                  tone="slate"
+                  items={normalizeList(parsedSummary.risks)}
+                  empty="No risks noted."
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 whitespace-pre-wrap text-sm text-white/85">
+              {summary ||
                 (summaryMeta
                   ? "Summary will appear here."
                   : "No cached summary yet. Use Refresh or wait for the 12 PM PKT sync.")}
-          </div>
+            </div>
+          )}
           <div className="mt-2 text-xs text-white/45">
             {summaryMeta?.cached ? "Cached summary (12 PM PKT sync)" : "Manual refresh"} • Session-only chat history
           </div>
