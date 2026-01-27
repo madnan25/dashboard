@@ -37,25 +37,27 @@ function toNumber(value: string) {
   return Number.isFinite(v) ? v : null;
 }
 
-function formatTimeLabel(hhmm: string) {
-  const m = hhmm.match(/^(\d{2}):(\d{2})$/);
-  if (!m) return hhmm;
-  const h24 = Number(m[1]);
-  const mins = m[2];
-  const ampm = h24 >= 12 ? "PM" : "AM";
+const TIME_HOURS = Array.from({ length: 12 }, (_, idx) => String(idx + 1).padStart(2, "0"));
+const TIME_MINUTES = Array.from({ length: 60 }, (_, idx) => String(idx).padStart(2, "0"));
+const TIME_PERIODS = ["AM", "PM"] as const;
+type TimePeriod = (typeof TIME_PERIODS)[number];
+
+function parseTimeParts(value: string) {
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) {
+    return { hour: "12", minute: "00", period: "PM" as TimePeriod };
+  }
+  const h24 = Number(match[1]);
+  const minute = match[2];
+  const period = h24 >= 12 ? "PM" : "AM";
   const h12 = ((h24 + 11) % 12) + 1;
-  return `${String(h12).padStart(2, "0")}:${mins} ${ampm}`;
+  return { hour: String(h12).padStart(2, "0"), minute, period: period as TimePeriod };
 }
 
-function buildTimeOptions(stepMinutes = 15) {
-  const opts: Array<{ value: string; label: string }> = [];
-  for (let h = 0; h < 24; h += 1) {
-    for (let m = 0; m < 60; m += stepMinutes) {
-      const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      opts.push({ value, label: formatTimeLabel(value) });
-    }
-  }
-  return opts;
+function to24Time(hour: string, minute: string, period: TimePeriod) {
+  const h12 = Number(hour) % 12;
+  const h24 = period === "PM" ? h12 + 12 : h12;
+  return `${String(h24).padStart(2, "0")}:${minute}`;
 }
 
 export default function CmoProjectsPage() {
@@ -67,6 +69,9 @@ export default function CmoProjectsPage() {
   const [status, setStatus] = useState<string>("");
   const [profileRole, setProfileRole] = useState<string | null>(null);
   const [intelligenceSyncTime, setIntelligenceSyncTime] = useState("12:00");
+  const [syncHour, setSyncHour] = useState("12");
+  const [syncMinute, setSyncMinute] = useState("00");
+  const [syncPeriod, setSyncPeriod] = useState<TimePeriod>("PM");
   const [intelligenceSyncMeta, setIntelligenceSyncMeta] = useState<{
     timezone: string;
     schedule_utc: string | null;
@@ -90,7 +95,7 @@ export default function CmoProjectsPage() {
   });
 
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([]);
-  const timeOptions = useMemo(() => buildTimeOptions(15), []);
+  const isSyncTimeValid = /^\d{2}:\d{2}$/.test(intelligenceSyncTime);
 
   const envMissing =
     typeof window !== "undefined" &&
@@ -123,7 +128,13 @@ export default function CmoProjectsPage() {
         | null
         | { error?: string; sync_time?: string; timezone?: string; schedule_utc?: string | null; updated_at?: string | null };
       if (!res.ok || !body || body.error) throw new Error(body?.error || "Failed to load sync settings");
-      if (typeof body.sync_time === "string" && body.sync_time) setIntelligenceSyncTime(body.sync_time);
+      if (typeof body.sync_time === "string" && body.sync_time) {
+        const parts = parseTimeParts(body.sync_time);
+        setSyncHour(parts.hour);
+        setSyncMinute(parts.minute);
+        setSyncPeriod(parts.period);
+        setIntelligenceSyncTime(to24Time(parts.hour, parts.minute, parts.period));
+      }
       setIntelligenceSyncMeta({
         timezone: typeof body.timezone === "string" ? body.timezone : "Asia/Karachi",
         schedule_utc: (body.schedule_utc as string | null) ?? null,
@@ -149,7 +160,13 @@ export default function CmoProjectsPage() {
         | { ok?: boolean; error?: string; sync_time?: string; timezone?: string; schedule_utc?: string | null; updated_at?: string | null };
       if (!res.ok || !body || body.error) throw new Error(body?.error || "Failed to update schedule");
       setIntelligenceSyncStatus("Saved.");
-      if (typeof body.sync_time === "string" && body.sync_time) setIntelligenceSyncTime(body.sync_time);
+      if (typeof body.sync_time === "string" && body.sync_time) {
+        const parts = parseTimeParts(body.sync_time);
+        setSyncHour(parts.hour);
+        setSyncMinute(parts.minute);
+        setSyncPeriod(parts.period);
+        setIntelligenceSyncTime(to24Time(parts.hour, parts.minute, parts.period));
+      }
       setIntelligenceSyncMeta({
         timezone: typeof body.timezone === "string" ? body.timezone : "Asia/Karachi",
         schedule_utc: (body.schedule_utc as string | null) ?? null,
@@ -394,21 +411,56 @@ export default function CmoProjectsPage() {
             </div>
             <div className="flex items-center gap-2">
               <PillSelect
-                value={/^\d{2}:\d{2}$/.test(intelligenceSyncTime) ? intelligenceSyncTime : "12:00"}
-                onChange={(v) => setIntelligenceSyncTime(v)}
-                ariaLabel="Intelligence Desk sync time (PKT)"
-                className="min-w-[170px]"
+                value={syncHour}
+                onChange={(v) => {
+                  setSyncHour(v);
+                  setIntelligenceSyncTime(to24Time(v, syncMinute, syncPeriod));
+                }}
+                ariaLabel="Sync hour"
+                className="min-w-[84px]"
               >
-                {timeOptions.map((t) => (
-                  <option key={t.value} value={t.value} className="bg-zinc-900">
-                    {t.label}
+                {TIME_HOURS.map((h) => (
+                  <option key={h} value={h} className="bg-zinc-900">
+                    {h}
+                  </option>
+                ))}
+              </PillSelect>
+              <span className="text-white/40">:</span>
+              <PillSelect
+                value={syncMinute}
+                onChange={(v) => {
+                  setSyncMinute(v);
+                  setIntelligenceSyncTime(to24Time(syncHour, v, syncPeriod));
+                }}
+                ariaLabel="Sync minute"
+                className="min-w-[84px]"
+              >
+                {TIME_MINUTES.map((m) => (
+                  <option key={m} value={m} className="bg-zinc-900">
+                    {m}
+                  </option>
+                ))}
+              </PillSelect>
+              <PillSelect
+                value={syncPeriod}
+                onChange={(v) => {
+                  const period = v === "PM" ? "PM" : "AM";
+                  setSyncPeriod(period);
+                  setIntelligenceSyncTime(to24Time(syncHour, syncMinute, period));
+                }}
+                ariaLabel="AM or PM"
+                className="min-w-[90px]"
+              >
+                {TIME_PERIODS.map((p) => (
+                  <option key={p} value={p} className="bg-zinc-900">
+                    {p}
                   </option>
                 ))}
               </PillSelect>
               <Button
                 color="primary"
                 onPress={() => void onSaveIntelligenceSync()}
-                isDisabled={intelligenceSyncSaving || !/^\d{2}:\d{2}$/.test(intelligenceSyncTime)}
+                isDisabled={intelligenceSyncSaving || !isSyncTimeValid}
               >
                 {intelligenceSyncSaving ? "Saving..." : "Save"}
               </Button>

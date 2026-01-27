@@ -77,9 +77,41 @@ async function postChatCompletions(apiKey: string, payload: Record<string, unkno
 
 type ChatCompletionsResponse = {
   model?: string;
-  choices?: Array<{ message?: { content?: string } }>;
+  choices?: Array<{ message?: { content?: unknown; refusal?: unknown }; text?: unknown }>;
   usage?: OpenAIChatResult["usage"];
 };
+
+function extractContent(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) {
+    const text = value
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object") {
+          const maybeText = (part as { text?: unknown }).text;
+          if (typeof maybeText === "string") return maybeText;
+          const maybeContent = (part as { content?: unknown }).content;
+          if (typeof maybeContent === "string") return maybeContent;
+        }
+        return "";
+      })
+      .join("")
+      .trim();
+    return text;
+  }
+  return "";
+}
+
+function extractChoiceContent(choice: unknown): string {
+  if (!choice || typeof choice !== "object") return "";
+  const choiceObj = choice as { message?: { content?: unknown; refusal?: unknown }; text?: unknown };
+  const message = choiceObj.message;
+  const messageContent = extractContent(message?.content);
+  if (messageContent) return messageContent;
+  if (typeof message?.refusal === "string" && message.refusal.trim()) return message.refusal.trim();
+  if (typeof choiceObj.text === "string" && choiceObj.text.trim()) return choiceObj.text.trim();
+  return "";
+}
 
 export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
   const { apiKey, defaultModel, allowlist } = getOpenAIConfig();
@@ -141,7 +173,7 @@ export async function runOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIC
     throw lastError instanceof Error ? lastError : new Error("OpenAI request failed");
   }
 
-  const content = data.choices?.[0]?.message?.content?.trim() ?? "";
+  const content = extractChoiceContent(data.choices?.[0]);
   if (!content) throw new Error("OpenAI returned an empty response");
 
   return {
