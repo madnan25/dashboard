@@ -206,7 +206,7 @@ function SummaryCard({
 
   return (
     <motion.div
-      className={`glow-card rounded-2xl border ${toneClass} bg-white/[0.02] px-4 py-3 transition-transform duration-200 hover:-translate-y-0.5 hover:border-white/20`}
+      className={`glow-card rounded-2xl border ${toneClass} bg-white/[0.02] px-4 py-3`}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
