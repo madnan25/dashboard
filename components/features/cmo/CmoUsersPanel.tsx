@@ -6,7 +6,15 @@ import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { Surface } from "@/components/ds/Surface";
 import type { Profile, UserRole } from "@/lib/dashboardDb";
-import { cmoCreateUser, listProfiles, updateUserIsMarketingManager, updateUserIsMarketingTeam, updateUserRole } from "@/lib/dashboardDb";
+import {
+  cmoCreateUser,
+  cmoDeleteUser,
+  getCurrentProfile,
+  listProfiles,
+  updateUserIsMarketingManager,
+  updateUserIsMarketingTeam,
+  updateUserRole
+} from "@/lib/dashboardDb";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "brand_manager", label: "Brand" },
@@ -25,6 +33,8 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [showNonMarketing, setShowNonMarketing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   const [createEmail, setCreateEmail] = useState("");
   const [createName, setCreateName] = useState("");
@@ -34,8 +44,9 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
   async function refresh() {
     setLoading(true);
     try {
-      const data = await listProfiles();
+      const [data, me] = await Promise.all([listProfiles(), getCurrentProfile().catch(() => null)]);
       setRows(data);
+      setCurrentUserId(me?.id ?? null);
     } finally {
       setLoading(false);
     }
@@ -151,6 +162,36 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
     }
   }
 
+  async function onDeleteUser(row: Profile) {
+    if (!row.id) return;
+    if (row.id === currentUserId) {
+      onStatus("You cannot delete your own account.");
+      return;
+    }
+    const label = row.full_name?.trim() || row.email || row.id;
+    const confirmed = window.confirm(`Delete ${label}? This removes the account and cannot be undone.`);
+    if (!confirmed) return;
+    onStatus("");
+    setLocalStatus("");
+    setDeletingUserId(row.id);
+    try {
+      onStatus("Deleting user…");
+      const res = await cmoDeleteUser(row.id);
+      await refresh();
+      if (res.warnings && res.warnings.length > 0) {
+        onStatus("User deleted with warnings. Check server logs if needed.");
+      } else {
+        onStatus("User deleted.");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to delete user";
+      onStatus(msg);
+      setLocalStatus(msg);
+    } finally {
+      setDeletingUserId(null);
+    }
+  }
+
   return (
     <Surface>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -191,6 +232,7 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                   <div className="mt-3 space-y-2">
                     {marketing.map((r) => {
                       const isCmo = r.role === "cmo";
+                      const isSelf = currentUserId != null && r.id === currentUserId;
                       const tasksBlocked = r.role === "sales_ops";
                       const planningBlocked = r.role === "viewer";
                       const readOnlyTasks = r.role === "viewer";
@@ -248,6 +290,15 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                                 isDisabled={isCmo}
                               >
                                 Remove
+                              </AppButton>
+                              <AppButton
+                                intent="danger"
+                                size="sm"
+                                className="h-10 px-4 whitespace-nowrap"
+                                onPress={() => onDeleteUser(r)}
+                                isDisabled={isSelf || deletingUserId === r.id}
+                              >
+                                {deletingUserId === r.id ? "Deleting…" : "Delete"}
                               </AppButton>
                             </div>
                           </div>
@@ -309,6 +360,15 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                                 onPress={() => onAddToMarketing(r.id)}
                               >
                                 Add to marketing
+                              </AppButton>
+                              <AppButton
+                                intent="danger"
+                                size="sm"
+                                className="h-10 px-4 whitespace-nowrap"
+                                onPress={() => onDeleteUser(r)}
+                                isDisabled={deletingUserId === r.id}
+                              >
+                                {deletingUserId === r.id ? "Deleting…" : "Delete"}
                               </AppButton>
                             </div>
                           </div>

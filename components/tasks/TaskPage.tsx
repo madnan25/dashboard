@@ -2256,7 +2256,106 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   </div>
                   {commentsStatus ? <div className="mt-2 text-xs text-amber-200/90">{commentsStatus}</div> : null}
 
-                  <div className="mt-3">
+                  <div className="mt-3 space-y-2">
+                    {comments.length === 0 ? (
+                      <div className="text-sm text-white/45">No comments yet.</div>
+                    ) : (
+                      comments.map((c) => {
+                        const author =
+                          profiles.find((p) => p.id === c.author_id)?.full_name ||
+                          profiles.find((p) => p.id === c.author_id)?.email ||
+                          c.author_id.slice(0, 8) + "…";
+                        const createdAt = new Date(c.created_at);
+                        const updatedAt = new Date(c.updated_at);
+                        const edited = Number.isFinite(updatedAt.getTime()) && updatedAt.getTime() - createdAt.getTime() > 1000;
+                        const when = createdAt.toLocaleString();
+                        const isEditing = editingCommentId === c.id;
+                        const canEditThisComment = profile?.id != null && c.author_id === profile.id;
+                        const mentionIdsForComment = commentMentionsByCommentId[c.id] ?? [];
+                        const attachmentIdsForComment = commentAttachmentsByCommentId[c.id] ?? [];
+                        return (
+                          <div key={c.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="text-sm text-white/80">
+                                <span className="font-semibold text-white/90">{author}</span> ·{" "}
+                                <span className="text-white/50">
+                                  {when}
+                                  {edited ? (
+                                    <span className="text-white/40" title={`Edited ${updatedAt.toLocaleString()}`}>
+                                      {" "}
+                                      (edited)
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </div>
+                              {canEditThisComment ? (
+                                <div className="flex items-center gap-2">
+                                  {isEditing ? null : (
+                                    <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onEditComment(c)}>
+                                      Edit
+                                    </button>
+                                  )}
+                                  <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onDeleteComment(c.id)}>
+                                    Delete
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+
+                            {isEditing ? (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  value={editingBody}
+                                  onChange={(e) => setEditingBody(e.target.value)}
+                                  rows={3}
+                                  disabled={savingComment}
+                                  className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 outline-none focus:border-white/20"
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <AppButton intent="secondary" className="h-9 px-4" onPress={onCancelEditComment} isDisabled={savingComment}>
+                                    Cancel
+                                  </AppButton>
+                                  <AppButton
+                                    intent="primary"
+                                    className="h-9 px-4"
+                                    onPress={() => onSaveCommentEdit(c.id)}
+                                    isDisabled={savingComment || !editingBody.trim()}
+                                  >
+                                    Save
+                                  </AppButton>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">
+                                {renderCommentBody(c.body, mentionIdsForComment)}
+                              </div>
+                            )}
+                            {attachmentIdsForComment.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {attachmentIdsForComment.map((id) => {
+                                  const att = attachmentById.get(id);
+                                  if (!att) return null;
+                                  return (
+                                    <button
+                                      key={id}
+                                      type="button"
+                                      className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-100 hover:bg-sky-500/20"
+                                      onClick={() => onDownloadAttachment(att)}
+                                    >
+                                      <span className="truncate max-w-[160px]">{att.file_name}</span>
+                                      <span className="text-sky-200/70">{formatBytes(att.size_bytes)}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="mt-4">
                     <textarea
                       value={commentBody}
                       ref={commentTextareaRef}
@@ -2372,105 +2471,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         {savingComment ? "Posting…" : "Post comment"}
                       </AppButton>
                     </div>
-                  </div>
-
-                  <div className="mt-3 space-y-2">
-                    {comments.length === 0 ? (
-                      <div className="text-sm text-white/45">No comments yet.</div>
-                    ) : (
-                      comments.map((c) => {
-                        const author =
-                          profiles.find((p) => p.id === c.author_id)?.full_name ||
-                          profiles.find((p) => p.id === c.author_id)?.email ||
-                          c.author_id.slice(0, 8) + "…";
-                        const createdAt = new Date(c.created_at);
-                        const updatedAt = new Date(c.updated_at);
-                        const edited = Number.isFinite(updatedAt.getTime()) && updatedAt.getTime() - createdAt.getTime() > 1000;
-                        const when = createdAt.toLocaleString();
-                        const isEditing = editingCommentId === c.id;
-                        const canEditThisComment = profile?.id != null && c.author_id === profile.id;
-                        const mentionIdsForComment = commentMentionsByCommentId[c.id] ?? [];
-                        const attachmentIdsForComment = commentAttachmentsByCommentId[c.id] ?? [];
-                        return (
-                          <div key={c.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="text-sm text-white/80">
-                                <span className="font-semibold text-white/90">{author}</span> ·{" "}
-                                <span className="text-white/50">
-                                  {when}
-                                  {edited ? (
-                                    <span className="text-white/40" title={`Edited ${updatedAt.toLocaleString()}`}>
-                                      {" "}
-                                      (edited)
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </div>
-                              {canEditThisComment ? (
-                                <div className="flex items-center gap-2">
-                                  {isEditing ? null : (
-                                    <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onEditComment(c)}>
-                                      Edit
-                                    </button>
-                                  )}
-                                  <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onDeleteComment(c.id)}>
-                                    Delete
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-
-                            {isEditing ? (
-                              <div className="mt-2 space-y-2">
-                                <textarea
-                                  value={editingBody}
-                                  onChange={(e) => setEditingBody(e.target.value)}
-                                  rows={3}
-                                  disabled={savingComment}
-                                  className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 outline-none focus:border-white/20"
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <AppButton intent="secondary" className="h-9 px-4" onPress={onCancelEditComment} isDisabled={savingComment}>
-                                    Cancel
-                                  </AppButton>
-                                  <AppButton
-                                    intent="primary"
-                                    className="h-9 px-4"
-                                    onPress={() => onSaveCommentEdit(c.id)}
-                                    isDisabled={savingComment || !editingBody.trim()}
-                                  >
-                                    Save
-                                  </AppButton>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">
-                                {renderCommentBody(c.body, mentionIdsForComment)}
-                              </div>
-                            )}
-                            {attachmentIdsForComment.length > 0 ? (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {attachmentIdsForComment.map((id) => {
-                                  const att = attachmentById.get(id);
-                                  if (!att) return null;
-                                  return (
-                                    <button
-                                      key={id}
-                                      type="button"
-                                      className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-100 hover:bg-sky-500/20"
-                                      onClick={() => onDownloadAttachment(att)}
-                                    >
-                                      <span className="truncate max-w-[160px]">{att.file_name}</span>
-                                      <span className="text-sky-200/70">{formatBytes(att.size_bytes)}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })
-                    )}
                   </div>
                 </div>
               </div>

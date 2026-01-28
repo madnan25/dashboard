@@ -570,3 +570,15 @@ export async function cmoCreateUser(input: { email: string; role: UserRole; full
   return { userId: body.userId };
 }
 
+export async function cmoDeleteUser(userId: string): Promise<{ ok: true; warnings?: string[] }> {
+  const res = await fetch("/api/cmo/users", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ userId })
+  });
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; warnings?: string[]; error?: string };
+  if (!res.ok) throw new Error(body.error || "Failed to delete user");
+  if (!body.ok) throw new Error(body.error || "Failed to delete user");
+  return { ok: true, warnings: body.warnings };
+}
+

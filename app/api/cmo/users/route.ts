@@ -85,4 +85,83 @@ export async function POST(req: Request) {
   return json(200, { userId: data.user.id });
 }
 
+export async function DELETE(req: Request) {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    return json(500, { error: "Server auth is not configured. Missing SUPABASE_SERVICE_ROLE_KEY." });
+  }
+
+  let supabaseUrl: string;
+  try {
+    supabaseUrl = getSupabaseEnv().url;
+  } catch (e) {
+    return json(500, { error: e instanceof Error ? e.message : "Missing Supabase env vars" });
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: userRes, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userRes.user) return json(401, { error: "Not authenticated" });
+
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userRes.user.id)
+    .maybeSingle();
+  if (profileErr) return json(500, { error: "Failed to verify role" });
+  if (!profile || profile.role !== "cmo") return json(403, { error: "CMO only" });
+
+  const body = (await req.json().catch(() => null)) as null | { userId?: unknown };
+  if (!body) return json(400, { error: "Invalid JSON body" });
+  const targetUserId = typeof body.userId === "string" ? body.userId.trim() : "";
+  if (!targetUserId) return json(400, { error: "User ID is required" });
+  if (targetUserId === userRes.user.id) return json(400, { error: "You cannot delete your own account." });
+
+  const admin = createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+
+  const warnings: string[] = [];
+  const recordError = (label: string, error: { message: string } | null) => {
+    if (error) warnings.push(`${label}: ${error.message}`);
+  };
+
+  // Clear FK references that would block profile deletion.
+  {
+    const { error } = await admin.from("project_plan_versions").update({ approved_by: null }).eq("approved_by", targetUserId);
+    recordError("Clear plan approvals", error);
+  }
+  {
+    const { error } = await admin.from("tasks").update({ assignee_id: null }).eq("assignee_id", targetUserId);
+    recordError("Unassign tickets", error);
+  }
+  {
+    const { error } = await admin
+      .from("project_plan_versions")
+      .update({ created_by: userRes.user.id })
+      .eq("created_by", targetUserId);
+    recordError("Reassign plan versions", error);
+  }
+  {
+    const { error } = await admin.from("project_targets").update({ created_by: null }).eq("created_by", targetUserId);
+    recordError("Clear project targets", error);
+  }
+  {
+    const { error } = await admin.from("project_actuals").update({ updated_by: null }).eq("updated_by", targetUserId);
+    recordError("Clear project actuals", error);
+  }
+  {
+    const { error } = await admin.from("project_actuals_channels").update({ updated_by: null }).eq("updated_by", targetUserId);
+    recordError("Clear project actuals channels", error);
+  }
+  {
+    const { error } = await admin.from("sales_attribution_events").update({ created_by: null }).eq("created_by", targetUserId);
+    recordError("Clear sales attribution", error);
+  }
+
+  const { error: deleteErr } = await admin.auth.admin.deleteUser(targetUserId);
+  if (deleteErr) return json(500, { error: deleteErr.message, warnings: warnings.length > 0 ? warnings : undefined });
+
+  return json(200, { ok: true, warnings: warnings.length > 0 ? warnings : undefined });
+}
+
 
