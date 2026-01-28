@@ -158,6 +158,11 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
     (task) => !awaitingApprovalIds.has(task.id) && !assignedIds.has(task.id) && task.created_by !== userId
   );
 
+  const isOverdue = (task: InboxTask) => task.due_at != null && task.due_at < todayIso;
+  const teamOverdueApprovals = awaitingApprovalAll.filter((task) => task.assignee_id !== userId && isOverdue(task));
+  const teamOverdueIds = new Set(teamOverdueApprovals.map((t) => t.id));
+  const awaitingApprovalNonOverdue = awaitingApprovalAll.filter((task) => !teamOverdueIds.has(task.id));
+
   const byUpdatedDesc = (a: InboxTask, b: InboxTask) => toTime(b.updated_at) - toTime(a.updated_at);
   const byAssignedPriority = (a: InboxTask, b: InboxTask) => {
     const aOverdue = a.due_at ? a.due_at < todayIso : false;
@@ -171,23 +176,22 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
     return byUpdatedDesc(a, b);
   };
 
-  const awaitingApproval = awaitingApprovalAll.sort(byUpdatedDesc).slice(0, maxItems);
+  const awaitingApproval = awaitingApprovalNonOverdue.sort(byUpdatedDesc).slice(0, maxItems);
   const assigned = assignedAll.sort(byAssignedPriority).slice(0, maxItems);
   const collaborating = collaboratingAll.sort(byUpdatedDesc).slice(0, maxItems);
   const collaboratingHelper =
     collaborating.length > 0 ? "Tickets where you are a contributor or subtask owner." : "No shared tickets yet.";
-  const overdueApprovals = awaitingApprovalAll.filter(
-    (task) => task.assignee_id !== userId && task.due_at != null && task.due_at < todayIso
-  );
-  const overdueApprovalCount = overdueApprovals.length;
+  const teamOverdue = teamOverdueApprovals.sort(byUpdatedDesc).slice(0, maxItems);
+  const personalOverdueCount = assignedAll.filter(isOverdue).length;
+  const teamOverdueCount = teamOverdueApprovals.length;
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Assigned" value={inbox.assigned_count} helper="Tickets with you" tone="accent" />
         <SummaryCard label="Awaiting approval" value={inbox.approval_count} helper="Needs your sign-off" />
-        <SummaryCard label="Overdue" value={inbox.overdue_count} helper="Past due items" tone={inbox.overdue_count > 0 ? "alert" : "default"} />
-        <SummaryCard label="Involved" value={inbox.involved_count} helper="Tickets you touch" />
+        <SummaryCard label="My overdue" value={personalOverdueCount} helper="Past due assignments" tone={personalOverdueCount > 0 ? "alert" : "default"} />
+        <SummaryCard label="Team overdue" value={teamOverdueCount} helper="Past due approvals" tone={teamOverdueCount > 0 ? "alert" : "default"} />
       </div>
 
       <div className="glass-inset rounded-3xl border border-white/10 bg-white/[0.02] p-4 md:p-5">
@@ -212,17 +216,31 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
                 {assigned.length === 0 ? (
                   <div className="text-sm text-white/55">Nothing assigned right now.</div>
                 ) : (
-                  assigned.map((task) => <TaskRow key={task.id} task={task} badge="Assigned to you" badgeTone="accent" todayIso={todayIso} />)
+                  assigned.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      badge="Assigned to you"
+                      badgeTone="accent"
+                      extraBadge={
+                        task.approver_user_id === userId && task.approval_state === "pending" && task.status === "submitted"
+                          ? "Approval needed"
+                          : isOverdue(task)
+                            ? "Overdue"
+                            : undefined
+                      }
+                      extraBadgeTone={
+                        task.approver_user_id === userId && task.approval_state === "pending" && task.status === "submitted"
+                          ? "approval"
+                          : "alert"
+                      }
+                      todayIso={todayIso}
+                    />
+                  ))
                 )}
               </Section>
 
-              <Section
-                title="Awaiting your approval"
-                count={inbox.approval_count}
-                statusLabel={overdueApprovalCount > 0 ? "Overdue" : undefined}
-                statusTone="alert"
-                defaultOpen
-              >
+              <Section title="Awaiting your approval" count={awaitingApprovalAll.length - teamOverdueCount} defaultOpen>
                 {awaitingApproval.length === 0 ? (
                   <div className="text-sm text-white/55">No approvals waiting.</div>
                 ) : (
@@ -232,7 +250,29 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
                       task={task}
                       badge="Approval needed"
                       badgeTone="approval"
-                      extraBadge={task.assignee_id !== userId && task.due_at != null && task.due_at < todayIso ? "Overdue" : undefined}
+                      todayIso={todayIso}
+                    />
+                  ))
+                )}
+              </Section>
+
+              <Section
+                title="Team overdue"
+                count={teamOverdueCount}
+                helper="Overdue tickets waiting on your approval."
+                statusLabel={teamOverdueCount > 0 ? "Overdue" : undefined}
+                statusTone="alert"
+              >
+                {teamOverdue.length === 0 ? (
+                  <div className="text-sm text-white/55">No team tickets overdue.</div>
+                ) : (
+                  teamOverdue.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      badge="Approval needed"
+                      badgeTone="approval"
+                      extraBadge="Overdue"
                       extraBadgeTone="alert"
                       todayIso={todayIso}
                     />
