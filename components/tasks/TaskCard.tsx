@@ -112,7 +112,7 @@ export function TaskCard({
         ? { kind: "approved", label: "Approved" }
         : task.status === "submitted"
           ? { kind: "pending", label: "Pending approval" }
-          : { kind: "draft", label: "Not submitted" };
+          : null;
   const assignedViaSubtask = subtaskAssignments && subtaskAssignments.length > 0 ? subtaskAssignments : null;
   const subtaskTone = assignedViaSubtask ? subtaskIndicatorTone(assignedViaSubtask.map((s) => s.status)) : null;
   const subtaskClasses = subtaskTone ? subtaskPillClass(subtaskTone) : null;
