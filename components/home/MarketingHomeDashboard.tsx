@@ -146,22 +146,21 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
   const todayIso = isoDate(new Date());
   const maxItems = 6;
 
+  const isOverdue = (task: InboxTask) => task.due_at != null && task.due_at < todayIso;
+  const assignedAll = inbox.items.filter((task) => task.assignee_id === userId);
+  const assignedIds = new Set(assignedAll.map((t) => t.id));
+  const teamTicketsAll = inbox.items.filter(
+    (task) => task.approver_user_id === userId && task.assignee_id !== userId && task.status !== "closed" && task.status !== "dropped"
+  );
+  const teamTicketIds = new Set(teamTicketsAll.map((t) => t.id));
   const awaitingApprovalAll = inbox.items.filter(
     (task) => task.approver_user_id === userId && task.approval_state === "pending" && task.status === "submitted"
   );
-  const awaitingApprovalIds = new Set(awaitingApprovalAll.map((t) => t.id));
-
-  const assignedAll = inbox.items.filter((task) => task.assignee_id === userId && !awaitingApprovalIds.has(task.id));
-  const assignedIds = new Set(assignedAll.map((t) => t.id));
+  const teamOverdueApprovals = teamTicketsAll.filter((task) => isOverdue(task));
 
   const collaboratingAll = inbox.items.filter(
-    (task) => !awaitingApprovalIds.has(task.id) && !assignedIds.has(task.id) && task.created_by !== userId
+    (task) => !assignedIds.has(task.id) && !teamTicketIds.has(task.id) && task.created_by !== userId
   );
-
-  const isOverdue = (task: InboxTask) => task.due_at != null && task.due_at < todayIso;
-  const teamOverdueApprovals = awaitingApprovalAll.filter((task) => task.assignee_id !== userId && isOverdue(task));
-  const teamOverdueIds = new Set(teamOverdueApprovals.map((t) => t.id));
-  const awaitingApprovalNonOverdue = awaitingApprovalAll.filter((task) => !teamOverdueIds.has(task.id));
 
   const byUpdatedDesc = (a: InboxTask, b: InboxTask) => toTime(b.updated_at) - toTime(a.updated_at);
   const byAssignedPriority = (a: InboxTask, b: InboxTask) => {
@@ -176,8 +175,8 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
     return byUpdatedDesc(a, b);
   };
 
-  const awaitingApproval = awaitingApprovalNonOverdue.sort(byUpdatedDesc).slice(0, maxItems);
   const assigned = assignedAll.sort(byAssignedPriority).slice(0, maxItems);
+  const teamTickets = teamTicketsAll.sort(byUpdatedDesc).slice(0, maxItems);
   const collaborating = collaboratingAll.sort(byUpdatedDesc).slice(0, maxItems);
   const collaboratingHelper =
     collaborating.length > 0 ? "Tickets where you are a contributor or subtask owner." : "No shared tickets yet.";
@@ -189,9 +188,9 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Assigned" value={inbox.assigned_count} helper="Tickets with you" tone="accent" />
-        <SummaryCard label="Awaiting approval" value={inbox.approval_count} helper="Needs your sign-off" />
+        <SummaryCard label="Awaiting approval" value={awaitingApprovalAll.length} helper="Needs your sign-off" />
         <SummaryCard label="My overdue" value={personalOverdueCount} helper="Past due assignments" tone={personalOverdueCount > 0 ? "alert" : "default"} />
-        <SummaryCard label="Team overdue" value={teamOverdueCount} helper="Past due approvals" tone={teamOverdueCount > 0 ? "alert" : "default"} />
+        <SummaryCard label="Team overdue" value={teamOverdueCount} helper="Past due team tickets" tone={teamOverdueCount > 0 ? "alert" : "default"} />
       </div>
 
       <div className="glass-inset rounded-3xl border border-white/10 bg-white/[0.02] p-4 md:p-5">
@@ -240,16 +239,26 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
                 )}
               </Section>
 
-              <Section title="Awaiting your approval" count={awaitingApprovalAll.length - teamOverdueCount} defaultOpen>
-                {awaitingApproval.length === 0 ? (
-                  <div className="text-sm text-white/55">No approvals waiting.</div>
+              <Section title="Team tickets" count={teamTicketsAll.length} helper="All tickets where you are the approver." defaultOpen>
+                {teamTickets.length === 0 ? (
+                  <div className="text-sm text-white/55">No team tickets yet.</div>
                 ) : (
-                  awaitingApproval.map((task) => (
+                  teamTickets.map((task) => (
                     <TaskRow
                       key={task.id}
                       task={task}
-                      badge="Approval needed"
-                      badgeTone="approval"
+                      badge="Team ticket"
+                      badgeTone="muted"
+                      extraBadge={
+                        task.approval_state === "pending" && task.status === "submitted"
+                          ? "Needs approval"
+                          : isOverdue(task)
+                            ? "Overdue"
+                            : undefined
+                      }
+                      extraBadgeTone={
+                        task.approval_state === "pending" && task.status === "submitted" ? "approval" : "alert"
+                      }
                       todayIso={todayIso}
                     />
                   ))
@@ -259,7 +268,7 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
               <Section
                 title="Team overdue"
                 count={teamOverdueCount}
-                helper="Overdue tickets waiting on your approval."
+                helper="Past due team tickets you approve."
                 statusLabel={teamOverdueCount > 0 ? "Overdue" : undefined}
                 statusTone="alert"
               >
