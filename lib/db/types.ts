@@ -328,7 +328,7 @@ export type TaskEvent = {
   created_at: string;
 };
 
-export type NotificationType = "task_assigned" | "task_approval_requested" | "task_approved";
+export type NotificationType = "task_assigned" | "task_approval_requested" | "task_approved" | "subtask_assigned";
 
 export type Notification = {
   id: string;
