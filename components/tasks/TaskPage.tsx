@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -100,6 +101,10 @@ function formatBytes(size: number) {
 
 function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function formatProductionTicketTitle(number: number, label: string) {
@@ -233,6 +238,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const team = useMemo(() => teams.find((t) => t.id === teamId) ?? null, [teamId, teams]);
   const approverProfile = useMemo(() => profiles.find((p) => p.id === approverUserId) ?? null, [approverUserId, profiles]);
   const attachmentById = useMemo(() => new Map(attachments.map((a) => [a.id, a])), [attachments]);
+  const referencedAttachmentIds = useMemo(() => {
+    const ids = new Set<string>();
+    Object.values(commentAttachmentsByCommentId).forEach((list) => {
+      list.forEach((id) => ids.add(id));
+    });
+    return ids;
+  }, [commentAttachmentsByCommentId]);
+  const taggedMentionLabels = useMemo(() => {
+    return commentMentionIds
+      .map((id) => {
+        const profileForMention = profiles.find((p) => p.id === id);
+        return profileForMention ? toOptionLabel(profileForMention) : null;
+      })
+      .filter((label): label is string => Boolean(label));
+  }, [commentMentionIds, profiles]);
   const approverLabel = useMemo(() => {
     if (!approverUserId) return "—";
     return approverProfile ? toOptionLabel(approverProfile) : `${approverUserId.slice(0, 8)}…`;
@@ -661,6 +681,31 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
+  async function onDeleteAttachment(att: TaskAttachment) {
+    if (!profile) return;
+    setAttachmentsStatus("");
+    try {
+      await supabase.storage.from("task-attachments").remove([att.storage_path]);
+    } catch {
+      // best-effort; continue to delete DB row
+    }
+    try {
+      await deleteTaskAttachment(att.id);
+      setAttachments((prev) => prev.filter((row) => row.id !== att.id));
+      setCommentAttachmentIds((prev) => prev.filter((id) => id !== att.id));
+      setCommentAttachmentsByCommentId((prev) => {
+        const next: Record<string, string[]> = {};
+        Object.entries(prev).forEach(([commentId, list]) => {
+          const filtered = list.filter((id) => id !== att.id);
+          if (filtered.length > 0) next[commentId] = filtered;
+        });
+        return next;
+      });
+    } catch (e) {
+      setAttachmentsStatus(getErrorMessage(e, "Failed to delete attachment."));
+    }
+  }
+
   function syncMentionIds(nextBody: string, ids: string[]) {
     if (ids.length === 0) return ids;
     return ids.filter((id) => {
@@ -670,6 +715,45 @@ export function TaskPage({ taskId }: { taskId: string }) {
       return nextBody.includes(`@${label}`);
     });
   }
+
+  const renderCommentBody = useCallback(
+    (body: string, mentionIds: string[]) => {
+      if (!mentionIds || mentionIds.length === 0) return body;
+      const labels = Array.from(
+        new Set(
+          mentionIds
+            .map((id) => profiles.find((p) => p.id === id))
+            .filter(Boolean)
+            .map((p) => (p ? toOptionLabel(p) : ""))
+            .filter((label) => label.length > 0)
+        )
+      );
+      if (labels.length === 0) return body;
+      const escaped = labels.map(escapeRegExp).sort((a, b) => b.length - a.length);
+      const pattern = new RegExp(`@(${escaped.join("|")})`, "g");
+      const nodes: ReactNode[] = [];
+      let lastIndex = 0;
+      let match: RegExpExecArray | null = null;
+      let tokenIndex = 0;
+      while ((match = pattern.exec(body)) !== null) {
+        if (match.index > lastIndex) {
+          nodes.push(body.slice(lastIndex, match.index));
+        }
+        const label = match[1] ?? "";
+        nodes.push(
+          <span key={`${label}-${match.index}-${tokenIndex++}`} className="font-medium text-sky-200">
+            {label}
+          </span>
+        );
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < body.length) {
+        nodes.push(body.slice(lastIndex));
+      }
+      return nodes.length > 0 ? nodes : body;
+    },
+    [profiles]
+  );
 
   function updateMentionSearch(nextBody: string, caret: number) {
     const upto = nextBody.slice(0, caret);
@@ -2112,18 +2196,43 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         const uploaderLabel = uploader ? toOptionLabel(uploader) : "Unknown";
                         const created = new Date(att.created_at);
                         const when = Number.isFinite(created.getTime()) ? created.toLocaleDateString() : "—";
+                        const isReferenced = referencedAttachmentIds.has(att.id);
+                        const canDeleteAttachment =
+                          profile != null && (isMarketingManagerProfile(profile) || (att.uploader_id != null && att.uploader_id === profile.id));
                         return (
-                          <div key={att.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                          <div
+                            key={att.id}
+                            className={[
+                              "glass-inset rounded-2xl border px-4 py-3",
+                              isReferenced ? "border-sky-400/30 bg-sky-500/[0.08]" : "border-white/10 bg-white/[0.02]"
+                            ].join(" ")}
+                          >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="text-sm font-semibold text-white/90 truncate">{att.file_name}</div>
                                 <div className="mt-1 text-xs text-white/55">
                                   {formatBytes(att.size_bytes)} · {uploaderLabel} · {when}
+                                  {isReferenced ? (
+                                    <span className="ml-2 inline-flex items-center rounded-full border border-sky-300/30 bg-sky-500/20 px-2 py-0.5 text-[10px] text-sky-100">
+                                      Referenced
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
-                              <AppButton intent="secondary" size="sm" className="h-9 px-4" onPress={() => onDownloadAttachment(att)}>
-                                Download
-                              </AppButton>
+                              <div className="flex items-center gap-2">
+                                <AppButton intent="secondary" size="sm" className="h-9 px-4" onPress={() => onDownloadAttachment(att)}>
+                                  Download
+                                </AppButton>
+                                {canDeleteAttachment ? (
+                                  <button
+                                    type="button"
+                                    className="h-9 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-semibold text-rose-100 hover:bg-rose-500/20"
+                                    onClick={() => onDeleteAttachment(att)}
+                                  >
+                                    Delete
+                                  </button>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
                         );
@@ -2190,6 +2299,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             ));
                           })()}
                         </div>
+                      </div>
+                    ) : null}
+                    {taggedMentionLabels.length > 0 ? (
+                      <div className="mt-2 text-xs text-white/60">
+                        Tagged:{" "}
+                        {taggedMentionLabels.map((label, idx) => (
+                          <span key={`${label}-${idx}`} className="font-medium text-sky-200">
+                            {label}
+                            {idx < taggedMentionLabels.length - 1 ? ", " : ""}
+                          </span>
+                        ))}
                       </div>
                     ) : null}
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -2318,24 +2438,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 </div>
                               </div>
                             ) : (
-                              <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">{c.body}</div>
-                            )}
-                            {mentionIdsForComment.length > 0 ? (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {mentionIdsForComment.map((id) => {
-                                  const p = profiles.find((x) => x.id === id);
-                                  const label = p ? toOptionLabel(p) : id.slice(0, 8);
-                                  return (
-                                    <span
-                                      key={id}
-                                      className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-white/70"
-                                    >
-                                      @{label}
-                                    </span>
-                                  );
-                                })}
+                              <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">
+                                {renderCommentBody(c.body, mentionIdsForComment)}
                               </div>
-                            ) : null}
+                            )}
                             {attachmentIdsForComment.length > 0 ? (
                               <div className="mt-2 flex flex-wrap gap-2">
                                 {attachmentIdsForComment.map((id) => {
@@ -2345,11 +2451,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                     <button
                                       key={id}
                                       type="button"
-                                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-white/70 hover:bg-white/[0.06]"
+                                      className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-100 hover:bg-sky-500/20"
                                       onClick={() => onDownloadAttachment(att)}
                                     >
                                       <span className="truncate max-w-[160px]">{att.file_name}</span>
-                                      <span className="text-white/45">{formatBytes(att.size_bytes)}</span>
+                                      <span className="text-sky-200/70">{formatBytes(att.size_bytes)}</span>
                                     </button>
                                   );
                                 })}

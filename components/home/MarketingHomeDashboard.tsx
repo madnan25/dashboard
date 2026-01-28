@@ -50,10 +50,10 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <details open={defaultOpen} className="rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+    <details open={defaultOpen} className="group rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 select-none">
         <div className="flex items-center gap-2">
-          <span className="text-white/35">{">"}</span>
+          <span className="text-white/35 transition-transform duration-150 group-open:rotate-90">›</span>
           <div className="text-sm font-semibold text-white/90">{title}</div>
         </div>
         <div className="flex items-center gap-2">
