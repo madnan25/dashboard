@@ -2760,6 +2760,20 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       (e.actor_id ? e.actor_id.slice(0, 8) + "…" : "Someone");
                     const when = new Date(e.created_at).toLocaleString();
                     const isCommentEvent = e.type === "comment_edited" || e.type === "comment_deleted";
+                    const resolveProfileLabel = (value: string | null | undefined, fallback = "Someone") => {
+                      if (!value) return fallback;
+                      const p = profiles.find((x) => x.id === value) ?? null;
+                      return p ? toOptionLabel(p) : `${value.slice(0, 8)}…`;
+                    };
+                    const commentAuthorId = isCommentEvent ? e.from_value : null;
+                    const commentAuthorLabel = commentAuthorId ? resolveProfileLabel(commentAuthorId) : "";
+                    const commentTarget =
+                      commentAuthorId && e.actor_id && commentAuthorId === e.actor_id
+                        ? "their comment"
+                        : commentAuthorLabel
+                          ? `${commentAuthorLabel}'s comment`
+                          : "comment";
+                    const commentVerb = e.type === "comment_deleted" ? "Deleted" : "Edited";
                     const typeLabel =
                       e.type === "created"
                         ? "Created"
@@ -2785,7 +2799,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         if (e.type === "due_at") return "No due date";
                         return "—";
                       }
-                      if (isCommentEvent) return `Comment ${value.slice(0, 8)}…`;
                       if (e.type === "assignee") {
                         const p = profiles.find((x) => x.id === value) ?? null;
                         return p ? toOptionLabel(p) : `${value.slice(0, 8)}…`;
@@ -2806,22 +2819,23 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           <span className="font-semibold text-white/90">{who}</span> · <span className="text-white/50">{when}</span>
                         </div>
                         <div className="mt-1 text-sm text-white/70">
-                          {typeLabel}
                           {isCommentEvent ? (
-                            toLabel ? (
-                              <>
-                                {" "}
-                                <span className="text-white/85">{toLabel}</span>
-                              </>
-                            ) : null
-                          ) : fromLabel || toLabel ? (
+                            <span className="text-white/85">
+                              {commentVerb} {commentTarget}
+                            </span>
+                          ) : (
                             <>
-                              {" "}
-                              <span className="text-white/60">{fromLabel}</span>
-                              {arrow}
-                              <span className="text-white/85">{toLabel}</span>
+                              {typeLabel}
+                              {fromLabel || toLabel ? (
+                                <>
+                                  {" "}
+                                  <span className="text-white/60">{fromLabel}</span>
+                                  {arrow}
+                                  <span className="text-white/85">{toLabel}</span>
+                                </>
+                              ) : null}
                             </>
-                          ) : null}
+                          )}
                         </div>
                       </div>
                     );

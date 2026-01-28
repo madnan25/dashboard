@@ -107,10 +107,12 @@ function TaskRow({
 }) {
   const isOverdue = task.due_at ? task.due_at < todayIso : false;
   const dueTone = isOverdue ? "text-rose-200" : "text-white/70";
+  const isSubtask = task.item_type === "subtask";
+  const hrefId = task.task_id || task.id;
 
   return (
     <Link
-      href={`/tasks/${task.id}`}
+      href={`/tasks/${hrefId}`}
       className="block rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2 transition-colors hover:border-white/20 hover:bg-white/[0.04]"
     >
       <div className="flex items-start justify-between gap-3">
@@ -118,9 +120,19 @@ function TaskRow({
           <div className="text-sm font-semibold text-white/90 truncate">{task.title}</div>
           <div className="mt-0.5 text-xs text-white/55">
             {statusLabel(task.status)} - {task.priority.toUpperCase()}
+            {isSubtask && task.subtask_title ? (
+              <>
+                {" "}
+                <span className="text-white/45">·</span> <span className="text-white/70">Subtask:</span>{" "}
+                <span className="text-white/80">{task.subtask_title}</span>
+              </>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {isSubtask ? (
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass("muted")}`}>Subtask</span>
+          ) : null}
           {badge ? (
             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass(badgeTone ?? "muted")}`}>
               {badge}
@@ -196,27 +208,33 @@ export function MarketingHomeDashboard({
 
     void refreshInbox();
 
-    function onFocus() {
-      void refreshInbox();
-    }
-    function onOnline() {
-      void refreshInbox();
-    }
-    function onVisibilityChange() {
-      if (document.visibilityState === "visible") void refreshInbox();
-    }
-
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("online", onOnline);
-    document.addEventListener("visibilitychange", onVisibilityChange);
+    const channel = supabase
+      .channel(`marketing-home-inbox:${userId}`)
+      // Changes to tasks directly assigned to you.
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks", filter: `assignee_id=eq.${userId}` },
+        () => void refreshInbox()
+      )
+      // Changes to tasks where you're the approver (team tickets).
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks", filter: `approver_user_id=eq.${userId}` },
+        () => void refreshInbox()
+      )
+      // Changes to subtasks assigned to you (even if the parent ticket isn't assigned to you).
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_subtasks", filter: `assignee_id=eq.${userId}` },
+        () => void refreshInbox()
+      )
+      .subscribe();
 
     return () => {
       cancelled = true;
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("online", onOnline);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      void supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, [supabase, userId]);
 
   const todayIso = isoDate(new Date());
   const maxItems = 6;

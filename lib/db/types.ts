@@ -371,7 +371,13 @@ export type Notification = {
 
 export type MarketingHomeInboxTask = {
   id: string;
+  // "task" (default) or "subtask" rows returned by the inbox RPC.
+  item_type?: "task" | "subtask";
+  // For subtasks, this points to the parent ticket id used for navigation.
+  task_id?: string;
   title: string;
+  // For subtasks, the actual subtask title (shown with a pill marker in UI).
+  subtask_title?: string | null;
   status: TaskStatus;
   priority: TaskPriority;
   approval_state: TaskApprovalState;
