@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Surface } from "@/components/ds/Surface";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getCurrentProfile, Profile } from "@/lib/dashboardDb";
 
@@ -77,6 +79,7 @@ export function TopNav() {
   }, [email, profile?.full_name]);
 
   const isCmo = profile?.role === "cmo";
+  const isMarketingTeam = isMarketingTeamProfile(profile);
   // Avoid a "clickable for 1 second" flicker: until we know the role, don't render the link.
   const canSeePlanning = profile?.role != null && profile.role !== "viewer" && profile.role !== "member";
   const canAccessTasks =
@@ -211,6 +214,7 @@ export function TopNav() {
           </div>
 
           <div className="flex items-center gap-2">
+            {isMarketingTeam ? <NotificationBell userId={profile?.id ?? null} className={navPill} /> : null}
             <Link
               href="/account"
               prefetch

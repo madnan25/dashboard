@@ -328,3 +328,37 @@ export type TaskEvent = {
   created_at: string;
 };
 
+export type NotificationType = "task_assigned" | "task_approval_requested" | "task_approved";
+
+export type Notification = {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  related_task_id: string | null;
+  created_at: string;
+  read_at: string | null;
+};
+
+export type MarketingHomeInboxTask = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  approval_state: TaskApprovalState;
+  approver_user_id: string | null;
+  assignee_id: string | null;
+  created_by: string | null;
+  due_at: string | null;
+  updated_at: string;
+};
+
+export type MarketingHomeInbox = {
+  assigned_count: number;
+  approval_count: number;
+  overdue_count: number;
+  involved_count: number;
+  items: MarketingHomeInboxTask[];
+};
+

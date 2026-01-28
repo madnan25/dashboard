@@ -35,6 +35,10 @@ export type {
   TaskFlowStepStatus,
   TaskFlowTemplate,
   TaskFlowTemplateStep,
+  Notification,
+  NotificationType,
+  MarketingHomeInbox,
+  MarketingHomeInboxTask,
   TaskPointsLedgerEntry,
   TaskPriority,
   TaskStatus,
@@ -75,6 +79,8 @@ import type {
   TaskSubtask,
   TaskSubtaskDependency,
   TaskSubtaskStatus,
+  Notification,
+  MarketingHomeInbox,
   UserRole
 } from "@/lib/db/types";
 
@@ -482,6 +488,26 @@ export async function createTaskFlowInstanceFromTemplate(
 
 export async function approveTaskFlowStep(stepInstanceId: string): Promise<void> {
   return await repo().approveTaskFlowStep(stepInstanceId);
+}
+
+export async function listNotifications(filters?: { userId?: string; limit?: number; unreadOnly?: boolean }): Promise<Notification[]> {
+  return await repo().listNotifications(filters);
+}
+
+export async function countUnreadNotifications(userId?: string): Promise<number> {
+  return await repo().countUnreadNotifications(userId);
+}
+
+export async function markNotificationRead(id: string, userId?: string): Promise<void> {
+  return await repo().markNotificationRead(id, userId);
+}
+
+export async function markAllNotificationsRead(userId?: string): Promise<void> {
+  return await repo().markAllNotificationsRead(userId);
+}
+
+export async function getMarketingHomeInbox(limit?: number): Promise<MarketingHomeInbox> {
+  return await repo().getMarketingHomeInbox(limit);
 }
 
 export async function cmoCreateUser(input: { email: string; role: UserRole; full_name?: string | null }): Promise<{ userId: string }> {

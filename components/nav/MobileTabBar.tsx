@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Surface } from "@/components/ds/Surface";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getCurrentProfile, type Profile } from "@/lib/dashboardDb";
 
@@ -78,6 +80,7 @@ export function MobileTabBar() {
   }, []);
 
   const isCmo = profile?.role === "cmo";
+  const isMarketingTeam = isMarketingTeamProfile(profile);
   const canSeePlanning = profile?.role != null && profile.role !== "viewer" && profile.role !== "member";
   const canAccessTasks =
     profile?.role != null &&
@@ -131,6 +134,16 @@ export function MobileTabBar() {
             disabled: true,
             title: "View-only access: Planning & Actuals is disabled for this role."
           },
+      ...(isMarketingTeam
+        ? [
+            {
+              key: "notifications",
+              href: "/notifications",
+              label: "Alerts",
+              icon: "M15 17H9m6 0a3 3 0 0 1-6 0m6 0h3.2a1 1 0 0 0 .8-1.6l-1.4-1.9a3 3 0 0 1-.6-1.7V9a4.8 4.8 0 1 0-9.6 0v2.8a3 3 0 0 1-.6 1.7l-1.4 1.9a1 1 0 0 0 .8 1.6H9"
+            }
+          ]
+        : []),
       { key: "account", href: "/account", label: "Account", icon: "M12 12a4 4 0 1 0-0.001-8.001A4 4 0 0 0 12 12Zm-7.5 9a7.5 7.5 0 0 1 15 0" }
     ];
 
@@ -172,6 +185,9 @@ export function MobileTabBar() {
             aria-label="Primary"
           >
             {tabs.map((t) => {
+              if (t.key === "notifications") {
+                return <NotificationBell key={t.key} userId={profile?.id ?? null} variant="tab" />;
+              }
               const active = isActivePath(pathname, t.href);
               const content = (
                 <div

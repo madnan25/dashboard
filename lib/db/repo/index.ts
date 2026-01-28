@@ -7,6 +7,8 @@ import * as plans from "./plans";
 import * as actuals from "./actuals";
 import * as attribution from "./attribution";
 import * as tasks from "./tasks";
+import * as notifications from "./notifications";
+import * as home from "./home";
 
 export function createDashboardRepo(supabase: SupabaseClient) {
   return {
@@ -130,7 +132,16 @@ export function createDashboardRepo(supabase: SupabaseClient) {
       templateId: string,
       resolvedSteps: Parameters<typeof tasks.createTaskFlowInstanceFromTemplate>[3]
     ) => tasks.createTaskFlowInstanceFromTemplate(supabase, taskId, templateId, resolvedSteps),
-    approveTaskFlowStep: (stepInstanceId: string) => tasks.approveTaskFlowStep(supabase, stepInstanceId)
+    approveTaskFlowStep: (stepInstanceId: string) => tasks.approveTaskFlowStep(supabase, stepInstanceId),
+
+    // notifications
+    listNotifications: (filters?: Parameters<typeof notifications.listNotifications>[1]) => notifications.listNotifications(supabase, filters),
+    countUnreadNotifications: (userId?: string) => notifications.countUnreadNotifications(supabase, userId),
+    markNotificationRead: (id: string, userId?: string) => notifications.markNotificationRead(supabase, id, userId),
+    markAllNotificationsRead: (userId?: string) => notifications.markAllNotificationsRead(supabase, userId),
+
+    // home dashboard
+    getMarketingHomeInbox: (limit?: number) => home.getMarketingHomeInbox(supabase, limit)
   };
 }
 
