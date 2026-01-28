@@ -125,20 +125,21 @@ export function useNotifications({
   const markRead = useCallback(
     async (id: string) => {
       if (!userId) return;
-      let shouldDecrement = false;
       setItems((prev) => {
         if (unreadOnly) {
-          const target = prev.find((n) => n.id === id);
-          if (target && !target.read_at) shouldDecrement = true;
           return prev.filter((n) => n.id !== id);
         }
         return prev.map((n) => {
           if (n.id !== id) return n;
-          if (!n.read_at) shouldDecrement = true;
           return { ...n, read_at: n.read_at ?? new Date().toISOString() };
         });
       });
-      if (shouldDecrement) {
+      // In unread-only mode, anything you click is by definition unread in this list.
+      // Decrement immediately so the badge feels instant.
+      if (unreadOnly) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } else {
+        // Best-effort: decrement if we likely marked an unread item.
         setUnreadCount((prev) => Math.max(0, prev - 1));
       }
       try {
