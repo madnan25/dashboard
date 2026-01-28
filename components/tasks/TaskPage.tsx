@@ -1443,10 +1443,53 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       const canEditTitle = canEditSubtaskTitle(s);
                       const isEditingTitle = editingSubtaskTitleId === s.id;
                       const titleValue = subtaskDrafts[s.id]?.title ?? s.title ?? "";
+                      const assigneeProfileForRow = profiles.find((p) => p.id === (s.assignee_id ?? "")) ?? null;
+                      const assigneeLabelForRow = s.assignee_id
+                        ? assigneeProfileForRow
+                          ? toOptionLabel(assigneeProfileForRow)
+                          : `${s.assignee_id.slice(0, 8)}…`
+                        : "Unassigned";
+                      const effectiveSubtaskDueAt =
+                        s.due_at ??
+                        (s.linked_task_id ? (linkedTaskDueAt[s.linked_task_id.toLowerCase()] ?? null) : null);
                       return (
-                        <div key={s.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4">
-                          {/* Title Section - Full Width */}
-                          <div className="mb-4">
+                        <details key={s.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                          <summary className="flex cursor-pointer list-none items-start justify-between gap-3 select-none">
+                            <div className="flex min-w-0 items-start gap-3">
+                              <span className="mt-0.5 text-white/35">{">"}</span>
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-white/90 truncate">{s.title || "Untitled subtask"}</div>
+                                <div className="mt-0.5 text-xs text-white/55">
+                                  With <span className="text-white/75">{assigneeLabelForRow}</span> ·{" "}
+                                  <span className="text-white/70">{subtaskStatusLabel(s.status)}</span>
+                                  {effectiveSubtaskDueAt ? (
+                                    <>
+                                      {" "}
+                                      · <span className="tabular-nums text-white/70">Due {effectiveSubtaskDueAt}</span>
+                                    </>
+                                  ) : null}
+                                  {s.linked_task_id ? (
+                                    <>
+                                      {" "}
+                                      · <span className="text-white/50">Linked</span>
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="shrink-0 flex items-center gap-2">
+                              {s.status === "blocked" && (subtaskDependencies[s.id]?.length ?? 0) > 0 ? (
+                                <span className="inline-flex items-center rounded-full border border-rose-400/25 bg-rose-500/[0.12] px-2 py-0.5 text-[11px] text-rose-100">
+                                  Blocked
+                                </span>
+                              ) : null}
+                            </div>
+                          </summary>
+
+                          <div className="mt-4">
+                            {/* Title Section - Full Width */}
+                            <div className="mb-4">
                             {isEditingTitle && canEditTitle ? (
                               <input
                                 type="text"
@@ -1767,44 +1810,45 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                           <div className="mt-4">
                             <div className="text-[11px] uppercase tracking-widest text-white/40">Due</div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <div className="w-full md:max-w-[260px]">
-                              <DayDatePicker
-                                value={
-                                  s.linked_task_id
-                                    ? (linkedTaskDueAt[s.linked_task_id.toLowerCase()] ?? "")
-                                    : (s.due_at ?? "")
-                                }
-                                onChange={(v) => onUpdateSubtask(s.id, { due_at: v || null })}
-                                placeholder="Select due date"
-                                isDisabled={!canEditSubtasks || Boolean(s.linked_task_id)}
-                                showClear={!s.linked_task_id}
-                              />
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <div className="w-full md:max-w-[260px]">
+                                <DayDatePicker
+                                  value={
+                                    s.linked_task_id
+                                      ? (linkedTaskDueAt[s.linked_task_id.toLowerCase()] ?? "")
+                                      : (s.due_at ?? "")
+                                  }
+                                  onChange={(v) => onUpdateSubtask(s.id, { due_at: v || null })}
+                                  placeholder="Select due date"
+                                  isDisabled={!canEditSubtasks || Boolean(s.linked_task_id)}
+                                  showClear={!s.linked_task_id}
+                                />
+                              </div>
+                              {s.linked_task_id ? <div className="text-xs text-white/45">Synced from linked ticket.</div> : null}
                             </div>
-                            {s.linked_task_id ? <div className="text-xs text-white/45">Synced from linked ticket.</div> : null}
-                          </div>
                           </div>
 
                           <div className="mt-4">
                             <div className="text-[11px] uppercase tracking-widest text-white/40">Description</div>
-                          <textarea
-                            value={subtaskDrafts[s.id]?.description ?? s.description ?? ""}
-                            onChange={(e) => {
-                              onUpdateSubtaskDescriptionDraft(s.id, e.target.value);
-                              resizeTextareaToContent(e.currentTarget, 240);
-                            }}
-                            disabled={!canEditSubtasks}
-                            rows={2}
-                            ref={(el) => {
-                              if (!el) return;
-                              // Ensure it sizes correctly on first render / after data loads.
-                              resizeTextareaToContent(el, 240);
-                            }}
-                            className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-white/20 transition-[height] duration-150 ease-out"
-                            placeholder="What is this subtask?"
-                          />
+                            <textarea
+                              value={subtaskDrafts[s.id]?.description ?? s.description ?? ""}
+                              onChange={(e) => {
+                                onUpdateSubtaskDescriptionDraft(s.id, e.target.value);
+                                resizeTextareaToContent(e.currentTarget, 240);
+                              }}
+                              disabled={!canEditSubtasks}
+                              rows={2}
+                              ref={(el) => {
+                                if (!el) return;
+                                // Ensure it sizes correctly on first render / after data loads.
+                                resizeTextareaToContent(el, 240);
+                              }}
+                              className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-white/20 transition-[height] duration-150 ease-out"
+                              placeholder="What is this subtask?"
+                            />
+                          </div>
                         </div>
-                      </div>
+                        </details>
                     );
                     })}
                   </div>
