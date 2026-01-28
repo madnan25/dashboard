@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { Surface } from "@/components/ds/Surface";
 import { NotificationList } from "@/components/notifications/NotificationList";
 import { useNotifications } from "@/components/notifications/useNotifications";
-import type { Notification } from "@/lib/dashboardDb";
 
 function BellIcon({ className = "" }: { className?: string }) {
   return (
@@ -40,32 +39,34 @@ export function NotificationBell({
 }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const [toast, setToast] = useState<Notification | null>(null);
-  const [toastVisible, setToastVisible] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const openModeRef = useRef<"auto" | "manual" | null>(null);
+  const autoCloseRef = useRef<number | null>(null);
 
   const { items, unreadCount, loading, markAllRead, markRead } = useNotifications({
     userId,
     limit: variant === "nav" ? 6 : 30,
-    onNewNotification: (n) => setToast(n)
+    unreadOnly: variant === "nav",
+    onNewNotification: () => {
+      if (variant !== "nav") return;
+      setIsOpen(true);
+      openModeRef.current = "auto";
+      if (autoCloseRef.current) window.clearTimeout(autoCloseRef.current);
+      autoCloseRef.current = window.setTimeout(() => {
+        if (openModeRef.current === "auto") {
+          setIsOpen(false);
+          openModeRef.current = null;
+        }
+      }, 3200);
+    }
   });
-
-  useEffect(() => {
-    if (!toast) return;
-    setToastVisible(true);
-    const hide = window.setTimeout(() => setToastVisible(false), 3200);
-    const clear = window.setTimeout(() => setToast(null), 3800);
-    return () => {
-      window.clearTimeout(hide);
-      window.clearTimeout(clear);
-    };
-  }, [toast]);
 
   useEffect(() => {
     if (!isOpen) return;
     function onDocClick(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        openModeRef.current = null;
       }
     }
     document.addEventListener("mousedown", onDocClick);
@@ -110,7 +111,17 @@ export function NotificationBell({
     <div ref={wrapperRef} className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => {
+          setIsOpen((prev) => {
+            const next = !prev;
+            openModeRef.current = next ? "manual" : null;
+            return next;
+          });
+          if (autoCloseRef.current) {
+            window.clearTimeout(autoCloseRef.current);
+            autoCloseRef.current = null;
+          }
+        }}
         className={`relative inline-flex items-center justify-center px-3 py-2 text-sm ${buttonClass}`}
         aria-label="Notifications"
       >
@@ -130,7 +141,10 @@ export function NotificationBell({
               {unreadCount > 0 ? (
                 <button
                   type="button"
-                  onClick={() => markAllRead()}
+                  onClick={() => {
+                    markAllRead();
+                    if (variant === "nav") setIsOpen(false);
+                  }}
                   className="text-[11px] font-medium text-white/60 hover:text-white/80"
                 >
                   Mark all read
@@ -146,24 +160,6 @@ export function NotificationBell({
               </div>
               {loading ? <div className="mt-2 text-[11px] text-white/45">Refreshing...</div> : null}
             </div>
-          </Surface>
-        </div>
-      ) : null}
-
-      {toast ? (
-        <div
-          className={[
-            "fixed right-6 top-24 z-50 max-w-[320px] transition-all duration-300",
-            toastVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2",
-            "sm:right-6 sm:left-auto",
-            "left-4 right-4 sm:w-auto"
-          ].join(" ")}
-          aria-live="polite"
-        >
-          <Surface className="p-3 border border-white/10">
-            <div className="text-xs font-semibold uppercase tracking-wide text-white/50">New</div>
-            <div className="mt-1 text-sm font-semibold text-white/90">{toast.title}</div>
-            {toast.body ? <div className="mt-0.5 text-xs text-white/60">{toast.body}</div> : null}
           </Surface>
         </div>
       ) : null}

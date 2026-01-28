@@ -43,3 +43,12 @@ export async function markAllNotificationsRead(supabase: SupabaseClient, userId?
   const { error } = await q;
   if (error) throw error;
 }
+
+export async function deleteNotificationsBefore(supabase: SupabaseClient, userId: string, beforeIso: string): Promise<void> {
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .eq("user_id", userId)
+    .lt("created_at", beforeIso);
+  if (error) throw error;
+}

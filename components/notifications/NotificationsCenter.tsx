@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { Surface } from "@/components/ds/Surface";
 import { NotificationList } from "@/components/notifications/NotificationList";
 import { useNotifications } from "@/components/notifications/useNotifications";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { deleteNotificationsBefore } from "@/lib/db/repo/notifications";
 import type { Notification } from "@/lib/dashboardDb";
 
 export function NotificationsCenter({
@@ -14,12 +17,20 @@ export function NotificationsCenter({
   initialItems: Notification[];
   initialUnreadCount: number;
 }) {
-  const { items, unreadCount, loading, markAllRead, markRead } = useNotifications({
+  const { items, unreadCount, loading, markAllRead, markRead, refresh } = useNotifications({
     userId,
     limit: 50,
     initialItems,
     initialUnreadCount
   });
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  useEffect(() => {
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    deleteNotificationsBefore(supabase, userId, cutoff)
+      .then(() => refresh())
+      .catch(() => {});
+  }, [refresh, supabase, userId]);
 
   return (
     <Surface className="border border-white/10 p-4 md:p-5">

@@ -506,6 +506,10 @@ export async function markAllNotificationsRead(userId?: string): Promise<void> {
   return await repo().markAllNotificationsRead(userId);
 }
 
+export async function deleteNotificationsBefore(userId: string, beforeIso: string): Promise<void> {
+  return await repo().deleteNotificationsBefore(userId, beforeIso);
+}
+
 export async function getMarketingHomeInbox(limit?: number): Promise<MarketingHomeInbox> {
   return await repo().getMarketingHomeInbox(limit);
 }

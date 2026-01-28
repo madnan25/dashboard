@@ -139,6 +139,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     countUnreadNotifications: (userId?: string) => notifications.countUnreadNotifications(supabase, userId),
     markNotificationRead: (id: string, userId?: string) => notifications.markNotificationRead(supabase, id, userId),
     markAllNotificationsRead: (userId?: string) => notifications.markAllNotificationsRead(supabase, userId),
+    deleteNotificationsBefore: (userId: string, beforeIso: string) => notifications.deleteNotificationsBefore(supabase, userId, beforeIso),
 
     // home dashboard
     getMarketingHomeInbox: (limit?: number) => home.getMarketingHomeInbox(supabase, limit)

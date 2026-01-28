@@ -15,6 +15,7 @@ type UseNotificationsOptions = {
   limit?: number;
   initialItems?: Notification[];
   initialUnreadCount?: number;
+  unreadOnly?: boolean;
   onNewNotification?: (notification: Notification) => void;
 };
 
@@ -23,6 +24,7 @@ export function useNotifications({
   limit = 6,
   initialItems,
   initialUnreadCount,
+  unreadOnly = false,
   onNewNotification
 }: UseNotificationsOptions) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -39,7 +41,7 @@ export function useNotifications({
     setLoading(true);
     try {
       const [list, count] = await Promise.all([
-        listNotifications(supabase, { userId, limit }),
+        listNotifications(supabase, { userId, limit, unreadOnly }),
         countUnreadNotifications(supabase, userId)
       ]);
       setItems(list);
@@ -49,7 +51,7 @@ export function useNotifications({
     } finally {
       setLoading(false);
     }
-  }, [limit, supabase, userId]);
+  }, [limit, supabase, unreadOnly, userId]);
 
   useEffect(() => {
     refresh();
@@ -80,13 +82,18 @@ export function useNotifications({
     async (id: string) => {
       if (!userId) return;
       let shouldDecrement = false;
-      setItems((prev) =>
-        prev.map((n) => {
+      setItems((prev) => {
+        if (unreadOnly) {
+          const target = prev.find((n) => n.id === id);
+          if (target && !target.read_at) shouldDecrement = true;
+          return prev.filter((n) => n.id !== id);
+        }
+        return prev.map((n) => {
           if (n.id !== id) return n;
           if (!n.read_at) shouldDecrement = true;
           return { ...n, read_at: n.read_at ?? new Date().toISOString() };
-        })
-      );
+        });
+      });
       if (shouldDecrement) {
         setUnreadCount((prev) => Math.max(0, prev - 1));
       }
@@ -96,20 +103,20 @@ export function useNotifications({
         refresh();
       }
     },
-    [refresh, supabase, userId]
+    [refresh, supabase, unreadOnly, userId]
   );
 
   const markAllRead = useCallback(async () => {
     if (!userId) return;
     const now = new Date().toISOString();
-    setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: now })));
+    setItems((prev) => (unreadOnly ? [] : prev.map((n) => (n.read_at ? n : { ...n, read_at: now }))));
     setUnreadCount(0);
     try {
       await markAllNotificationsRead(supabase, userId);
     } catch {
       refresh();
     }
-  }, [refresh, supabase, userId]);
+  }, [refresh, supabase, unreadOnly, userId]);
 
   return { items, unreadCount, loading, refresh, markRead, markAllRead };
 }
