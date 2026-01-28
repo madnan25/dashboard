@@ -60,8 +60,8 @@ export function useNotifications({
     const channel = supabase
       .channel(`notifications:${userId}`)
       .on(
-        \"postgres_changes\",
-        { event: \"INSERT\", schema: \"public\", table: \"notifications\", filter: `user_id=eq.${userId}` },
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
         (payload) => {
           const next = payload.new as Notification;
           setItems((prev) => [next, ...prev].slice(0, limit));

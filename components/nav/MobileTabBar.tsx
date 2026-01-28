@@ -163,7 +163,7 @@ export function MobileTabBar() {
     }
 
     return base;
-  }, [canAccessTasks, canSeePlanning, isCmo, profile?.role]);
+  }, [canAccessTasks, canSeePlanning, isCmo, isMarketingTeam, profile?.role]);
 
   // Hide on auth-only routes
   if (hide) return null;
