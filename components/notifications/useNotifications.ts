@@ -71,12 +71,56 @@ export function useNotifications({
           onNewNotification?.(next);
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const next = payload.new as Notification;
+          const prevRow = (payload.old ?? null) as Notification | null;
+          setItems((prev) => {
+            const existing = prev.find((n) => n.id === next.id);
+            const wasUnread = existing ? !existing.read_at : prevRow ? !prevRow.read_at : false;
+            if (unreadOnly) {
+              if (next.read_at) {
+                if (existing && wasUnread) setUnreadCount((count) => Math.max(0, count - 1));
+                return prev.filter((n) => n.id !== next.id);
+              }
+              if (existing) {
+                return prev.map((n) => (n.id === next.id ? next : n));
+              }
+              return [next, ...prev].slice(0, limit);
+            }
+            if (existing) {
+              if (wasUnread && next.read_at) setUnreadCount((count) => Math.max(0, count - 1));
+              return prev.map((n) => (n.id === next.id ? next : n));
+            }
+            if (!next.read_at) {
+              return [next, ...prev].slice(0, limit);
+            }
+            return prev;
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const prevRow = (payload.old ?? null) as Notification | null;
+          if (!prevRow) return;
+          setItems((prev) => {
+            const existing = prev.find((n) => n.id === prevRow.id);
+            if (!existing) return prev;
+            if (!existing.read_at) setUnreadCount((count) => Math.max(0, count - 1));
+            return prev.filter((n) => n.id !== prevRow.id);
+          });
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [limit, onNewNotification, supabase, userId]);
+  }, [limit, onNewNotification, supabase, unreadOnly, userId]);
 
   const markRead = useCallback(
     async (id: string) => {

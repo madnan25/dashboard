@@ -1,6 +1,6 @@
 import { NavCard } from "@/components/ds/NavCard";
 import { MarketingHomeDashboard } from "@/components/home/MarketingHomeDashboard";
-import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
+import { isMarketingManagerProfile, isMarketingTeamProfile } from "@/components/tasks/taskModel";
 import { createServerDbClient } from "@/lib/db/client/server";
 import { createDashboardRepo } from "@/lib/db/repo";
 
@@ -18,6 +18,7 @@ export default async function HomePage() {
       profile.role !== "sales_ops" &&
       (profile.role === "brand_manager" || profile.role === "member" || profile.is_marketing_team === true));
   const marketingInbox = isMarketingTeam && profile ? await repo.getMarketingHomeInbox(30) : null;
+  const canSeeTeamSections = isMarketingManagerProfile(profile);
 
   return (
     <main className="min-h-screen px-4 md:px-6 pb-10">
@@ -37,7 +38,7 @@ export default async function HomePage() {
                 We keep the noise low and the next steps clear.
               </div>
             </div>
-            <MarketingHomeDashboard inbox={marketingInbox} userId={profile.id} />
+            <MarketingHomeDashboard inbox={marketingInbox} userId={profile.id} showTeamSections={canSeeTeamSections} />
           </div>
         ) : null}
 

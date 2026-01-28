@@ -142,7 +142,15 @@ function toTime(value: string | null | undefined) {
   return Number.isFinite(t) ? t : 0;
 }
 
-export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHomeInbox; userId: string }) {
+export function MarketingHomeDashboard({
+  inbox,
+  userId,
+  showTeamSections
+}: {
+  inbox: MarketingHomeInbox;
+  userId: string;
+  showTeamSections: boolean;
+}) {
   const todayIso = isoDate(new Date());
   const maxItems = 6;
 
@@ -183,14 +191,19 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
   const teamOverdue = teamOverdueApprovals.sort(byUpdatedDesc).slice(0, maxItems);
   const personalOverdueCount = assignedAll.filter(isOverdue).length;
   const teamOverdueCount = teamOverdueApprovals.length;
+  const canSeeTeam = showTeamSections || teamTicketsAll.length > 0 || awaitingApprovalAll.length > 0 || teamOverdueCount > 0;
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`grid gap-4 ${canSeeTeam ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-2"}`}>
         <SummaryCard label="Assigned" value={inbox.assigned_count} helper="Tickets with you" tone="accent" />
-        <SummaryCard label="Awaiting approval" value={awaitingApprovalAll.length} helper="Needs your sign-off" />
+        {canSeeTeam ? (
+          <SummaryCard label="Awaiting approval" value={awaitingApprovalAll.length} helper="Needs your sign-off" />
+        ) : null}
         <SummaryCard label="My overdue" value={personalOverdueCount} helper="Past due assignments" tone={personalOverdueCount > 0 ? "alert" : "default"} />
-        <SummaryCard label="Team overdue" value={teamOverdueCount} helper="Past due team tickets" tone={teamOverdueCount > 0 ? "alert" : "default"} />
+        {canSeeTeam ? (
+          <SummaryCard label="Team overdue" value={teamOverdueCount} helper="Past due team tickets" tone={teamOverdueCount > 0 ? "alert" : "default"} />
+        ) : null}
       </div>
 
       <div className="glass-inset rounded-3xl border border-white/10 bg-white/[0.02] p-4 md:p-5">
@@ -239,55 +252,59 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
                 )}
               </Section>
 
-              <Section title="Team tickets" count={teamTicketsAll.length} helper="All tickets where you are the approver." defaultOpen>
-                {teamTickets.length === 0 ? (
-                  <div className="text-sm text-white/55">No team tickets yet.</div>
-                ) : (
-                  teamTickets.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      badge="Team ticket"
-                      badgeTone="muted"
-                      extraBadge={
-                        task.approval_state === "pending" && task.status === "submitted"
-                          ? "Needs approval"
-                          : isOverdue(task)
-                            ? "Overdue"
-                            : undefined
-                      }
-                      extraBadgeTone={
-                        task.approval_state === "pending" && task.status === "submitted" ? "approval" : "alert"
-                      }
-                      todayIso={todayIso}
-                    />
-                  ))
-                )}
-              </Section>
+              {canSeeTeam ? (
+                <>
+                  <Section title="Team tickets" count={teamTicketsAll.length} helper="All tickets where you are the approver." defaultOpen>
+                    {teamTickets.length === 0 ? (
+                      <div className="text-sm text-white/55">No team tickets yet.</div>
+                    ) : (
+                      teamTickets.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          badge="Team ticket"
+                          badgeTone="muted"
+                          extraBadge={
+                            task.approval_state === "pending" && task.status === "submitted"
+                              ? "Needs approval"
+                              : isOverdue(task)
+                                ? "Overdue"
+                                : undefined
+                          }
+                          extraBadgeTone={
+                            task.approval_state === "pending" && task.status === "submitted" ? "approval" : "alert"
+                          }
+                          todayIso={todayIso}
+                        />
+                      ))
+                    )}
+                  </Section>
 
-              <Section
-                title="Team overdue"
-                count={teamOverdueCount}
-                helper="Past due team tickets you approve."
-                statusLabel={teamOverdueCount > 0 ? "Overdue" : undefined}
-                statusTone="alert"
-              >
-                {teamOverdue.length === 0 ? (
-                  <div className="text-sm text-white/55">No team tickets overdue.</div>
-                ) : (
-                  teamOverdue.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      badge="Approval needed"
-                      badgeTone="approval"
-                      extraBadge="Overdue"
-                      extraBadgeTone="alert"
-                      todayIso={todayIso}
-                    />
-                  ))
-                )}
-              </Section>
+                  <Section
+                    title="Team overdue"
+                    count={teamOverdueCount}
+                    helper="Past due team tickets you approve."
+                    statusLabel={teamOverdueCount > 0 ? "Overdue" : undefined}
+                    statusTone="alert"
+                  >
+                    {teamOverdue.length === 0 ? (
+                      <div className="text-sm text-white/55">No team tickets overdue.</div>
+                    ) : (
+                      teamOverdue.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          badge="Approval needed"
+                          badgeTone="approval"
+                          extraBadge="Overdue"
+                          extraBadgeTone="alert"
+                          todayIso={todayIso}
+                        />
+                      ))
+                    )}
+                  </Section>
+                </>
+              ) : null}
 
               <Section title="Shared with you" count={collaboratingAll.length} helper={collaboratingHelper}>
                 {collaborating.length === 0 ? (

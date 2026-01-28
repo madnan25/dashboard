@@ -135,7 +135,15 @@ export function NotificationBell({
 
       {isOpen ? (
         <div className="absolute right-0 mt-2 w-[360px]">
-          <Surface className="p-3 border border-white/10">
+          <Surface
+            className="p-3 border border-white/10"
+            style={{
+              backgroundColor: "rgba(18, 23, 40, 0.94)",
+              backdropFilter: "blur(18px)",
+              WebkitBackdropFilter: "blur(18px)",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)"
+            }}
+          >
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-white/90">Notifications</div>
               {unreadCount > 0 ? (
