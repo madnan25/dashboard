@@ -3,8 +3,57 @@ import { MarketingHomeDashboard } from "@/components/home/MarketingHomeDashboard
 import { isMarketingManagerProfile, isMarketingTeamProfile } from "@/components/tasks/taskModel";
 import { createServerDbClient } from "@/lib/db/client/server";
 import { createDashboardRepo } from "@/lib/db/repo";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
+
+function MarketingHomeSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 md:p-6 shimmer">
+        <div className="h-3 w-24 rounded bg-white/10" />
+        <div className="mt-3 h-7 w-80 max-w-full rounded bg-white/10" />
+        <div className="mt-2 h-4 w-[520px] max-w-full rounded bg-white/10" />
+      </div>
+      <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-4 md:p-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 shimmer">
+              <div className="h-3 w-24 rounded bg-white/10" />
+              <div className="mt-3 h-8 w-16 rounded bg-white/10" />
+              <div className="mt-2 h-3 w-32 rounded bg-white/10" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.02] p-4 md:p-5 shimmer">
+          <div className="h-4 w-40 rounded bg-white/10" />
+          <div className="mt-2 h-3 w-64 rounded bg-white/10" />
+          <div className="mt-4 space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-12 rounded-2xl border border-white/10 bg-white/[0.02]" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+async function MarketingHomeBlock({ userId, showTeamSections }: { userId: string; showTeamSections: boolean }) {
+  const supabase = await createServerDbClient();
+  const repo = createDashboardRepo(supabase);
+  const marketingInbox = await repo.getMarketingHomeInbox(30);
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
+        <div className="text-xs uppercase tracking-[0.25em] text-white/50">Your space</div>
+        <div className="mt-2 text-2xl font-semibold text-white/95">Take a breath. Here is what needs you.</div>
+        <div className="mt-1 text-sm text-white/60">We keep the noise low and the next steps clear.</div>
+      </div>
+      <MarketingHomeDashboard inbox={marketingInbox} userId={userId} showTeamSections={showTeamSections} />
+    </div>
+  );
+}
 
 export default async function HomePage() {
   const supabase = await createServerDbClient();
@@ -17,7 +66,6 @@ export default async function HomePage() {
     (profile?.role != null &&
       profile.role !== "sales_ops" &&
       (profile.role === "brand_manager" || profile.role === "member" || profile.is_marketing_team === true));
-  const marketingInbox = isMarketingTeam && profile ? await repo.getMarketingHomeInbox(30) : null;
   const canSeeTeamSections = isMarketingManagerProfile(profile);
 
   return (
@@ -29,17 +77,10 @@ export default async function HomePage() {
           <div className="mt-1 text-sm text-white/55">Choose where you want to start.</div>
         </div>
 
-        {isMarketingTeam && marketingInbox ? (
-          <div className="space-y-4">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
-              <div className="text-xs uppercase tracking-[0.25em] text-white/50">Your space</div>
-              <div className="mt-2 text-2xl font-semibold text-white/95">Take a breath. Here is what needs you.</div>
-              <div className="mt-1 text-sm text-white/60">
-                We keep the noise low and the next steps clear.
-              </div>
-            </div>
-            <MarketingHomeDashboard inbox={marketingInbox} userId={profile.id} showTeamSections={canSeeTeamSections} />
-          </div>
+        {isMarketingTeam && profile ? (
+          <Suspense fallback={<MarketingHomeSkeleton />}>
+            <MarketingHomeBlock userId={profile.id} showTeamSections={canSeeTeamSections} />
+          </Suspense>
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">

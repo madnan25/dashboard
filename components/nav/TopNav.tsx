@@ -115,7 +115,7 @@ export function TopNav() {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Link href="/" className="group inline-flex items-center gap-2">
+            <Link href="/" prefetch onMouseEnter={() => router.prefetch("/")} className="group inline-flex items-center gap-2">
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/90"
                 aria-hidden="true"

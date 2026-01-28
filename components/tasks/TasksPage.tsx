@@ -249,6 +249,21 @@ export function TasksPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (assigneeFilter && assigneeFilter !== "__me__" && assigneeFilter !== "__none__") {
+      const exists = profiles.some((p) => p.id === assigneeFilter);
+      if (!exists) setAssigneeFilter("");
+    }
+    if (projectFilter) {
+      const exists = projects.some((p) => p.id === projectFilter);
+      if (!exists) setProjectFilter("");
+    }
+    if (teamFilter) {
+      const exists = teams.some((t) => t.id === teamFilter);
+      if (!exists) setTeamFilter("");
+    }
+  }, [assigneeFilter, profiles, projectFilter, projects, teamFilter, teams]);
+
   const meId = profile?.id ?? null;
   const assigneeMode = useMemo<"all" | "me" | "unassigned" | "user">(() => {
     if (!assigneeFilter) return "all";
