@@ -1,7 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { MarketingHomeInbox } from "@/lib/dashboardDb";
 import { isoDate, statusLabel } from "@/components/tasks/taskModel";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type InboxTask = MarketingHomeInbox["items"][number];
 
@@ -151,22 +155,85 @@ export function MarketingHomeDashboard({
   userId: string;
   showTeamSections: boolean;
 }) {
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [liveInbox, setLiveInbox] = useState<MarketingHomeInbox>(inbox);
+  const lastRefreshAtRef = useRef<number>(0);
+  const refreshingRef = useRef(false);
+
+  useEffect(() => {
+    setLiveInbox(inbox);
+  }, [inbox]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshInbox() {
+      const now = Date.now();
+      // Avoid spamming refreshes on repeated focus/visibility events.
+      if (refreshingRef.current) return;
+      if (now - lastRefreshAtRef.current < 2500) return;
+      lastRefreshAtRef.current = now;
+      refreshingRef.current = true;
+      try {
+        const { data, error } = await supabase.rpc("get_marketing_home_inbox", { p_limit: 30 });
+        if (cancelled) return;
+        if (error) throw error;
+        if (!data || typeof data !== "object") return;
+        const payload = data as MarketingHomeInbox;
+        setLiveInbox({
+          assigned_count: Number(payload.assigned_count ?? 0),
+          approval_count: Number(payload.approval_count ?? 0),
+          overdue_count: Number(payload.overdue_count ?? 0),
+          involved_count: Number(payload.involved_count ?? 0),
+          items: Array.isArray(payload.items) ? payload.items : []
+        });
+      } catch {
+        // Keep UX smooth: ignore transient refresh failures.
+      } finally {
+        refreshingRef.current = false;
+      }
+    }
+
+    void refreshInbox();
+
+    function onFocus() {
+      void refreshInbox();
+    }
+    function onOnline() {
+      void refreshInbox();
+    }
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") void refreshInbox();
+    }
+
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [supabase]);
+
   const todayIso = isoDate(new Date());
   const maxItems = 6;
 
   const isOverdue = (task: InboxTask) => task.due_at != null && task.due_at < todayIso;
-  const assignedAll = inbox.items.filter((task) => task.assignee_id === userId);
+  const assignedAll = liveInbox.items.filter((task) => task.assignee_id === userId);
   const assignedIds = new Set(assignedAll.map((t) => t.id));
-  const teamTicketsAll = inbox.items.filter(
+  const teamTicketsAll = liveInbox.items.filter(
     (task) => task.approver_user_id === userId && task.assignee_id !== userId && task.status !== "closed" && task.status !== "dropped"
   );
   const teamTicketIds = new Set(teamTicketsAll.map((t) => t.id));
-  const awaitingApprovalAll = inbox.items.filter(
+  const awaitingApprovalAll = liveInbox.items.filter(
     (task) => task.approver_user_id === userId && task.approval_state === "pending" && task.status === "submitted"
   );
   const teamOverdueApprovals = teamTicketsAll.filter((task) => isOverdue(task));
 
-  const collaboratingAll = inbox.items.filter(
+  const collaboratingAll = liveInbox.items.filter(
     (task) => !assignedIds.has(task.id) && !teamTicketIds.has(task.id) && task.created_by !== userId
   );
 
@@ -196,7 +263,7 @@ export function MarketingHomeDashboard({
   return (
     <div className="space-y-4">
       <div className={`grid gap-4 ${canSeeTeam ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-2"}`}>
-        <SummaryCard label="Assigned" value={inbox.assigned_count} helper="Tickets with you" tone="accent" />
+        <SummaryCard label="Assigned" value={liveInbox.assigned_count} helper="Tickets with you" tone="accent" />
         {canSeeTeam ? (
           <SummaryCard label="Awaiting approval" value={awaitingApprovalAll.length} helper="Needs your sign-off" />
         ) : null}
@@ -218,13 +285,13 @@ export function MarketingHomeDashboard({
         </div>
 
         <div className="mt-4 space-y-3">
-          {inbox.items.length === 0 ? (
+          {liveInbox.items.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white/55">
               No open tickets yet.
             </div>
           ) : (
             <>
-              <Section title="Assigned to you" count={inbox.assigned_count} helper="Overdue items bubble to the top.">
+              <Section title="Assigned to you" count={liveInbox.assigned_count} helper="Overdue items bubble to the top.">
                 {assigned.length === 0 ? (
                   <div className="text-sm text-white/55">Nothing assigned right now.</div>
                 ) : (

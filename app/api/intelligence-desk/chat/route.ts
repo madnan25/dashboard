@@ -30,7 +30,10 @@ const CHAT_SYSTEM_PROMPT = [
   "You are Intelligence Desk, an executive operations assistant.",
   "Answer questions using only the provided data pack.",
   "If data is not available, say you do not have it.",
-  "Be concise and actionable."
+  "Do not dump raw data. Synthesize into a clear brief.",
+  "Format: short labeled sections with 2-4 bullets each.",
+  "Prefer: Summary, Key details, Next actions. Omit empty sections.",
+  "Use names without @ mentions. Avoid long paragraphs."
 ].join(" ");
 
 const DEEP_DIVE_LIMITS = {
@@ -439,7 +442,7 @@ export async function POST(req: Request) {
         "- Use recent_events and recent_comments for what changed and who owns it.",
         "- If asked who owns a subtask, use the subtask assignee.",
         "- Never mention raw IDs or UUIDs; use titles and names only.",
-        "- Answer in short, clear bullets (2-5)."
+        "- Keep the same brief format with labeled sections and 2-5 bullets."
       ].join("\n")
     : "";
 

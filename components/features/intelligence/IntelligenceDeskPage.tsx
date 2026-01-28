@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -253,6 +254,39 @@ function stripIdsFromText(value: string) {
     .trim();
 }
 
+function renderMentions(text: string, keyPrefix: string) {
+  const pattern = /(^|\s)@([A-Za-z][A-Za-z0-9._-]*)(?:\s+([A-Za-z][A-Za-z0-9._-]*))?/g;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = null;
+  let tokenIndex = 0;
+  while ((match = pattern.exec(text)) !== null) {
+    const start = match.index;
+    if (start > lastIndex) nodes.push(text.slice(lastIndex, start));
+    const leading = match[1] ?? "";
+    if (leading) nodes.push(leading);
+    const first = match[2] ?? "";
+    const last = match[3] ?? "";
+    const label = last ? `${first} ${last}` : first;
+    if (label) {
+      nodes.push(
+        <span key={`${keyPrefix}-mention-${match.index}-${tokenIndex++}`} className="font-medium text-sky-200">
+          {label}
+        </span>
+      );
+    } else {
+      nodes.push(match[0]);
+    }
+    lastIndex = start + match[0].length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes.length > 0 ? nodes : [text];
+}
+
+function renderSnippetWithMentions(raw: string) {
+  return renderMentions(stripIdsFromText(raw), "snippet");
+}
+
 function getTicketCode(title: string) {
   const match = title.match(/^([A-Z0-9]{2,8}-\d+)\b/);
   return match ? match[1] : null;
@@ -272,7 +306,9 @@ function renderTextWithLinks(text: string, ticketMap: Map<string, string>, refer
   if (lastIndex < normalized.length) parts.push(normalized.slice(lastIndex));
 
   return parts.map((part, idx) => {
-    if (typeof part === "string") return <span key={`text-${idx}`}>{part}</span>;
+    if (typeof part === "string") {
+      return <span key={`text-${idx}`}>{renderMentions(part, `text-${idx}`)}</span>;
+    }
     const href = ticketMap.get(part.code);
     if (!href) return <span key={`code-${idx}`}>{part.code}</span>;
     return (
@@ -749,7 +785,7 @@ export function IntelligenceDeskPage() {
                         {stripIdsFromText(c.title)}
                       </Link>
                     </div>
-                    <div className="mt-1 text-xs text-white/55">{stripIdsFromText(c.snippet)}</div>
+                    <div className="mt-1 text-xs text-white/55">{renderSnippetWithMentions(c.snippet)}</div>
                     </div>
                   ))
                 )}

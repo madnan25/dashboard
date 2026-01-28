@@ -884,8 +884,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
   async function onDeleteComment(id: string) {
     if (!profile) return;
     const existing = comments.find((c) => c.id === id) ?? null;
-    if (!existing || existing.author_id !== profile.id) return;
-    if (!confirm("Delete this comment?")) return;
+    if (!existing) return;
+    const canDeleteThisComment = existing.author_id === profile.id || isMarketingManagerProfile(profile);
+    if (!canDeleteThisComment) return;
+    const prompt =
+      existing.author_id === profile.id ? "Delete this comment?" : "Delete this comment (as a marketing manager)?";
+    if (!confirm(prompt)) return;
     setSavingComment(true);
     setStatus("Deleting comment…");
     try {
@@ -2271,6 +2275,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         const when = createdAt.toLocaleString();
                         const isEditing = editingCommentId === c.id;
                         const canEditThisComment = profile?.id != null && c.author_id === profile.id;
+                        const canDeleteThisComment = profile != null && (c.author_id === profile.id || isMarketingManagerProfile(profile));
                         const mentionIdsForComment = commentMentionsByCommentId[c.id] ?? [];
                         const attachmentIdsForComment = commentAttachmentsByCommentId[c.id] ?? [];
                         return (
@@ -2288,16 +2293,18 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                   ) : null}
                                 </span>
                               </div>
-                              {canEditThisComment ? (
+                              {canEditThisComment || canDeleteThisComment ? (
                                 <div className="flex items-center gap-2">
-                                  {isEditing ? null : (
+                                  {canEditThisComment && !isEditing ? (
                                     <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onEditComment(c)}>
                                       Edit
                                     </button>
-                                  )}
-                                  <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onDeleteComment(c.id)}>
-                                    Delete
-                                  </button>
+                                  ) : null}
+                                  {canDeleteThisComment ? (
+                                    <button className="text-xs text-white/60 hover:text-white/80" onClick={() => onDeleteComment(c.id)}>
+                                      Delete
+                                    </button>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </div>
@@ -2752,6 +2759,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       profiles.find((p) => p.id === e.actor_id)?.email ||
                       (e.actor_id ? e.actor_id.slice(0, 8) + "…" : "Someone");
                     const when = new Date(e.created_at).toLocaleString();
+                    const isCommentEvent = e.type === "comment_edited" || e.type === "comment_deleted";
                     const typeLabel =
                       e.type === "created"
                         ? "Created"
@@ -2765,6 +2773,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 ? "Priority"
                                 : e.type === "due_at"
                                   ? "Due"
+                                  : e.type === "comment_edited"
+                                    ? "Comment edited"
+                                    : e.type === "comment_deleted"
+                                      ? "Comment deleted"
                                   : e.type;
 
                     function formatEventValue(value: string | null) {
@@ -2773,6 +2785,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         if (e.type === "due_at") return "No due date";
                         return "—";
                       }
+                      if (isCommentEvent) return `Comment ${value.slice(0, 8)}…`;
                       if (e.type === "assignee") {
                         const p = profiles.find((x) => x.id === value) ?? null;
                         return p ? toOptionLabel(p) : `${value.slice(0, 8)}…`;
@@ -2794,7 +2807,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         </div>
                         <div className="mt-1 text-sm text-white/70">
                           {typeLabel}
-                          {fromLabel || toLabel ? (
+                          {isCommentEvent ? (
+                            toLabel ? (
+                              <>
+                                {" "}
+                                <span className="text-white/85">{toLabel}</span>
+                              </>
+                            ) : null
+                          ) : fromLabel || toLabel ? (
                             <>
                               {" "}
                               <span className="text-white/60">{fromLabel}</span>
