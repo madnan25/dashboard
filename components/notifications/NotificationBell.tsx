@@ -138,7 +138,7 @@ export function NotificationBell({
           <Surface
             className="p-3 border border-white/10"
             style={{
-              backgroundColor: "rgba(18, 23, 40, 0.94)",
+              backgroundColor: "rgba(12, 16, 28, 0.97)",
               backdropFilter: "blur(18px)",
               WebkitBackdropFilter: "blur(18px)",
               boxShadow: "0 12px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)"
