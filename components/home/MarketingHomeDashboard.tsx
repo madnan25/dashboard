@@ -232,8 +232,6 @@ export function MarketingHomeDashboard({
                     <TaskRow
                       key={task.id}
                       task={task}
-                      badge="Assigned to you"
-                      badgeTone="accent"
                       extraBadge={
                         task.approver_user_id === userId && task.approval_state === "pending" && task.status === "submitted"
                           ? "Approval needed"
@@ -262,8 +260,6 @@ export function MarketingHomeDashboard({
                         <TaskRow
                           key={task.id}
                           task={task}
-                          badge="Team ticket"
-                          badgeTone="muted"
                           extraBadge={
                             task.approval_state === "pending" && task.status === "submitted"
                               ? "Needs approval"
@@ -294,10 +290,10 @@ export function MarketingHomeDashboard({
                         <TaskRow
                           key={task.id}
                           task={task}
-                          badge="Approval needed"
-                          badgeTone="approval"
-                          extraBadge="Overdue"
-                          extraBadgeTone="alert"
+                          extraBadge={
+                            task.approval_state === "pending" && task.status === "submitted" ? "Approval needed" : undefined
+                          }
+                          extraBadgeTone="approval"
                           todayIso={todayIso}
                         />
                       ))
