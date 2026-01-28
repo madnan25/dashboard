@@ -200,12 +200,15 @@ export async function DELETE(req: Request) {
     recordError("Clear task event actors", error);
   }
   {
-    const { error } = await admin.from("task_dependencies").update({ created_by: null }).eq("created_by", targetUserId);
-    recordError("Clear task dependency authors", error);
+    const { error } = await admin.from("task_dependencies").update({ created_by: userRes.user.id }).eq("created_by", targetUserId);
+    recordError("Reassign task dependency authors", error);
   }
   {
-    const { error } = await admin.from("task_subtask_dependencies").update({ created_by: null }).eq("created_by", targetUserId);
-    recordError("Clear subtask dependency authors", error);
+    const { error } = await admin
+      .from("task_subtask_dependencies")
+      .update({ created_by: userRes.user.id })
+      .eq("created_by", targetUserId);
+    recordError("Reassign subtask dependency authors", error);
   }
   {
     const { error } = await admin.from("task_weight_config").update({ updated_by: null }).eq("updated_by", targetUserId);
