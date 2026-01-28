@@ -12,6 +12,9 @@ import { getCurrentProfile } from "@/lib/dashboardDb";
 
 type Insights = {
   generated_at: string;
+  window?: {
+    today: string;
+  };
   counts: {
     total: number;
     open: number;
@@ -163,7 +166,12 @@ function formatBlockerItem(item: unknown): string {
   const reason = typeof obj.reason === "string" ? stripIdsFromText(obj.reason).trim() : "";
   const dependency = typeof obj.dependency === "string" ? stripIdsFromText(obj.dependency).trim() : "";
   const base = [task, reason ? `— ${reason}` : ""].filter(Boolean).join(" ");
-  return dependency ? `${base} (${dependency})` : base;
+  if (!dependency) return base;
+  if (!base) return dependency;
+  const baseLower = base.toLowerCase();
+  const depLower = dependency.toLowerCase();
+  if (baseLower.includes(depLower)) return base;
+  return `${base} (${dependency})`;
 }
 
 function normalizeBlockers(list: unknown, max = 3): string[] {
@@ -176,13 +184,15 @@ function SummaryCard({
   tone,
   items,
   empty,
-  linkMap
+  linkMap,
+  referenceDate
 }: {
   title: string;
   tone: SummaryTone;
   items: string[];
   empty: string;
   linkMap?: Map<string, string>;
+  referenceDate?: string;
 }) {
   const toneClass =
     tone === "rose"
@@ -221,7 +231,9 @@ function SummaryCard({
       ) : (
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-white/85">
           {items.map((item, idx) => (
-            <li key={`${title}-${idx}`}>{linkMap ? renderTextWithLinks(item, linkMap) : item}</li>
+            <li key={`${title}-${idx}`}>
+              {linkMap ? renderTextWithLinks(item, linkMap, referenceDate) : item}
+            </li>
           ))}
         </ul>
       )}
@@ -246,17 +258,18 @@ function getTicketCode(title: string) {
   return match ? match[1] : null;
 }
 
-function renderTextWithLinks(text: string, ticketMap: Map<string, string>) {
+function renderTextWithLinks(text: string, ticketMap: Map<string, string>, referenceDate?: string) {
   const cleaned = stripIdsFromText(text);
+  const normalized = replaceIsoDatesWithRelative(cleaned, referenceDate);
   const parts: Array<string | { code: string }> = [];
   let lastIndex = 0;
-  for (const match of cleaned.matchAll(TICKET_CODE_REGEX)) {
+  for (const match of normalized.matchAll(TICKET_CODE_REGEX)) {
     const start = match.index ?? 0;
-    if (start > lastIndex) parts.push(cleaned.slice(lastIndex, start));
+    if (start > lastIndex) parts.push(normalized.slice(lastIndex, start));
     parts.push({ code: match[0] });
     lastIndex = start + match[0].length;
   }
-  if (lastIndex < cleaned.length) parts.push(cleaned.slice(lastIndex));
+  if (lastIndex < normalized.length) parts.push(normalized.slice(lastIndex));
 
   return parts.map((part, idx) => {
     if (typeof part === "string") return <span key={`text-${idx}`}>{part}</span>;
@@ -272,6 +285,33 @@ function renderTextWithLinks(text: string, ticketMap: Map<string, string>) {
       </Link>
     );
   });
+}
+
+function isoToDayNumber(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return Date.UTC(year, month - 1, day);
+}
+
+function relativeDateLabel(iso: string, todayIso: string) {
+  const due = isoToDayNumber(iso);
+  const today = isoToDayNumber(todayIso);
+  if (!due || !today) return iso;
+  const diffDays = Math.round((due - today) / 86400000);
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "tomorrow";
+  if (diffDays === -1) return "yesterday";
+  if (diffDays < 0) return `${Math.abs(diffDays)} days ago`;
+  if (diffDays <= 6) return `in ${diffDays} days`;
+  if (diffDays <= 8) return "in about a week";
+  if (diffDays <= 13) return "in about two weeks";
+  const weeks = Math.max(2, Math.round(diffDays / 7));
+  return `in about ${weeks} weeks`;
+}
+
+function replaceIsoDatesWithRelative(text: string, todayIso?: string) {
+  if (!todayIso) return text;
+  return text.replace(/\b\d{4}-\d{2}-\d{2}\b/g, (match) => relativeDateLabel(match, todayIso));
 }
 
 function renderMultilineText(text: string, ticketMap: Map<string, string>) {
@@ -302,6 +342,7 @@ export function IntelligenceDeskPage() {
   const [chatDeepDive, setChatDeepDive] = useState(false);
   const parsedSummary = useMemo(() => parseSummaryPayload(summary), [summary]);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const summaryReferenceDate = summaryMeta?.insights?.window?.today;
   const ticketLinkMap = useMemo(() => {
     const map = new Map<string, string>();
     const tasks = summaryMeta?.insights?.tasks ?? [];
@@ -499,8 +540,8 @@ export function IntelligenceDeskPage() {
                   </div>
                 ))}
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                {[0, 1, 2].map((idx) => (
+              <div className="grid gap-3 md:grid-cols-2">
+                {[0, 1].map((idx) => (
                   <div key={`summary-skeleton-bottom-${idx}`} className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
                     <div className="h-3 w-24 rounded-full shimmer" />
                     <div className="mt-3 space-y-2">
@@ -509,6 +550,13 @@ export function IntelligenceDeskPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                <div className="h-3 w-32 rounded-full shimmer" />
+                <div className="mt-3 space-y-2">
+                  <div className="h-3 w-4/5 rounded-full shimmer" />
+                  <div className="h-3 w-3/5 rounded-full shimmer" />
+                </div>
               </div>
             </div>
           ) : parsedSummary ? (
@@ -520,7 +568,7 @@ export function IntelligenceDeskPage() {
             >
               {parsedSummary.headline ? (
                 <div className="text-sm font-semibold text-white/90">
-                  {renderTextWithLinks(parsedSummary.headline, ticketLinkMap)}
+                  {renderTextWithLinks(parsedSummary.headline, ticketLinkMap, summaryReferenceDate)}
                 </div>
               ) : null}
               <div className="grid gap-3 md:grid-cols-3">
@@ -530,6 +578,7 @@ export function IntelligenceDeskPage() {
                   items={normalizeList(parsedSummary.snapshot)}
                   empty="No snapshot yet."
                   linkMap={ticketLinkMap}
+                  referenceDate={summaryReferenceDate}
                 />
                 <SummaryCard
                   title="Blockers"
@@ -537,6 +586,7 @@ export function IntelligenceDeskPage() {
                   items={normalizeBlockers(parsedSummary.blockers)}
                   empty="No blockers noted."
                   linkMap={ticketLinkMap}
+                  referenceDate={summaryReferenceDate}
                 />
                 <SummaryCard
                   title="Next actions"
@@ -544,6 +594,7 @@ export function IntelligenceDeskPage() {
                   items={normalizeList(parsedSummary.next_actions)}
                   empty="No next actions yet."
                   linkMap={ticketLinkMap}
+                  referenceDate={summaryReferenceDate}
                 />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -553,6 +604,7 @@ export function IntelligenceDeskPage() {
                   items={normalizeList(parsedSummary.priorities)}
                   empty="No priorities noted."
                   linkMap={ticketLinkMap}
+                  referenceDate={summaryReferenceDate}
                 />
                 <SummaryCard
                   title="Risks"
@@ -560,15 +612,17 @@ export function IntelligenceDeskPage() {
                   items={normalizeList(parsedSummary.risks)}
                   empty="No risks noted."
                   linkMap={ticketLinkMap}
-                />
-                <SummaryCard
-                  title="What I'm noticing"
-                  tone="sky"
-                  items={normalizeList(parsedSummary.what_im_noticing)}
-                  empty="No observations yet."
-                  linkMap={ticketLinkMap}
+                  referenceDate={summaryReferenceDate}
                 />
               </div>
+              <SummaryCard
+                title="What I'm noticing"
+                tone="sky"
+                items={normalizeList(parsedSummary.what_im_noticing)}
+                empty="No observations yet."
+                linkMap={ticketLinkMap}
+                referenceDate={summaryReferenceDate}
+              />
             </motion.div>
           ) : (
             <div className="mt-3 whitespace-pre-wrap text-sm text-white/85">

@@ -12,6 +12,7 @@ const SUMMARY_SYSTEM_PROMPT = [
   "Prioritize blockers, risks, and urgent priorities.",
   "Use blocker_ranked signals to infer genuine blockers; deprioritize low-severity dependency-only items.",
   "Use assignee_pressure and comment_signals to surface overload or urgent context.",
+  "When referencing dates, use relative phrasing (yesterday, in 2 days, in about a week), never explicit calendar dates.",
   "Use short sections with bullet points to ensure clarity and actionable insights."
 ].join(" ");
 
@@ -35,6 +36,7 @@ const SUMMARY_USER_PROMPT = [
   "- Use blocker_ranked (pre-scored) to decide genuine blockers. Prefer critical/high severity; omit low-severity blockers unless nothing else exists.",
   "- Order each list by severity/urgency with the worst items first.",
   "- Use what_im_noticing for overload/throughput risks or comment urgency (natural tone).",
+  "- Use relative date language (yesterday, in 2 days, in about a week); never use explicit YYYY-MM-DD dates.",
   "- Do not include newlines inside string values.",
   "- Do not use smart quotes or trailing commas."
 ].join("\n");
