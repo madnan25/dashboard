@@ -37,12 +37,16 @@ function Section({
   count,
   helper,
   defaultOpen = false,
+  statusLabel,
+  statusTone = "muted",
   children
 }: {
   title: string;
   count?: number;
   helper?: string;
   defaultOpen?: boolean;
+  statusLabel?: string;
+  statusTone?: "accent" | "approval" | "created" | "muted" | "alert";
   children: ReactNode;
 }) {
   return (
@@ -52,7 +56,14 @@ function Section({
           <span className="text-white/35">{">"}</span>
           <div className="text-sm font-semibold text-white/90">{title}</div>
         </div>
-        {typeof count === "number" ? <span className="text-xs text-white/55">{count}</span> : null}
+        <div className="flex items-center gap-2">
+          {statusLabel ? (
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass(statusTone)}`}>
+              {statusLabel}
+            </span>
+          ) : null}
+          {typeof count === "number" ? <span className="text-xs text-white/55">{count}</span> : null}
+        </div>
       </summary>
       {helper ? <div className="mt-1 pl-5 text-xs text-white/50">{helper}</div> : null}
       <div className="mt-3 space-y-2 pl-5 pb-2">{children}</div>
@@ -60,7 +71,7 @@ function Section({
   );
 }
 
-function badgeClass(tone: "accent" | "approval" | "created" | "muted") {
+function badgeClass(tone: "accent" | "approval" | "created" | "muted" | "alert") {
   switch (tone) {
     case "accent":
       return "border-sky-400/25 bg-sky-500/[0.12] text-sky-100";
@@ -68,6 +79,8 @@ function badgeClass(tone: "accent" | "approval" | "created" | "muted") {
       return "border-fuchsia-400/30 bg-fuchsia-500/[0.12] text-fuchsia-100";
     case "created":
       return "border-purple-400/25 bg-purple-500/[0.12] text-purple-100";
+    case "alert":
+      return "border-rose-400/30 bg-rose-500/[0.12] text-rose-100";
     default:
       return "border-white/10 bg-white/[0.06] text-white/70";
   }
@@ -77,11 +90,15 @@ function TaskRow({
   task,
   badge,
   badgeTone,
+  extraBadge,
+  extraBadgeTone,
   todayIso
 }: {
   task: InboxTask;
   badge?: string;
-  badgeTone?: "accent" | "approval" | "created" | "muted";
+  badgeTone?: "accent" | "approval" | "created" | "muted" | "alert";
+  extraBadge?: string;
+  extraBadgeTone?: "accent" | "approval" | "created" | "muted" | "alert";
   todayIso: string;
 }) {
   const isOverdue = task.due_at ? task.due_at < todayIso : false;
@@ -103,6 +120,13 @@ function TaskRow({
           {badge ? (
             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass(badgeTone ?? "muted")}`}>
               {badge}
+            </span>
+          ) : null}
+          {extraBadge ? (
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass(extraBadgeTone ?? "muted")}`}
+            >
+              {extraBadge}
             </span>
           ) : null}
           {task.due_at ? <span className={`text-[11px] tabular-nums ${dueTone}`}>Due {task.due_at}</span> : null}
@@ -130,13 +154,8 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
   const assignedAll = inbox.items.filter((task) => task.assignee_id === userId && !awaitingApprovalIds.has(task.id));
   const assignedIds = new Set(assignedAll.map((t) => t.id));
 
-  const createdAll = inbox.items.filter(
-    (task) => task.created_by === userId && !awaitingApprovalIds.has(task.id) && !assignedIds.has(task.id)
-  );
-  const createdIds = new Set(createdAll.map((t) => t.id));
-
   const collaboratingAll = inbox.items.filter(
-    (task) => !awaitingApprovalIds.has(task.id) && !assignedIds.has(task.id) && !createdIds.has(task.id)
+    (task) => !awaitingApprovalIds.has(task.id) && !assignedIds.has(task.id) && task.created_by !== userId
   );
 
   const byUpdatedDesc = (a: InboxTask, b: InboxTask) => toTime(b.updated_at) - toTime(a.updated_at);
@@ -154,10 +173,13 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
 
   const awaitingApproval = awaitingApprovalAll.sort(byUpdatedDesc).slice(0, maxItems);
   const assigned = assignedAll.sort(byAssignedPriority).slice(0, maxItems);
-  const created = createdAll.sort(byUpdatedDesc).slice(0, maxItems);
   const collaborating = collaboratingAll.sort(byUpdatedDesc).slice(0, maxItems);
-  const createdHelper = created.length > 0 ? `Showing the latest ${created.length}.` : undefined;
-  const collaboratingHelper = collaborating.length > 0 ? `Showing the latest ${collaborating.length}.` : undefined;
+  const collaboratingHelper =
+    collaborating.length > 0 ? "Tickets where you are a contributor or subtask owner." : "No shared tickets yet.";
+  const overdueApprovals = awaitingApprovalAll.filter(
+    (task) => task.assignee_id !== userId && task.due_at != null && task.due_at < todayIso
+  );
+  const overdueApprovalCount = overdueApprovals.length;
 
   return (
     <div className="space-y-4">
@@ -194,29 +216,35 @@ export function MarketingHomeDashboard({ inbox, userId }: { inbox: MarketingHome
                 )}
               </Section>
 
-              <Section title="Awaiting your approval" count={inbox.approval_count} defaultOpen>
+              <Section
+                title="Awaiting your approval"
+                count={inbox.approval_count}
+                statusLabel={overdueApprovalCount > 0 ? "Overdue" : undefined}
+                statusTone="alert"
+                defaultOpen
+              >
                 {awaitingApproval.length === 0 ? (
                   <div className="text-sm text-white/55">No approvals waiting.</div>
                 ) : (
                   awaitingApproval.map((task) => (
-                    <TaskRow key={task.id} task={task} badge="Approval needed" badgeTone="approval" todayIso={todayIso} />
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      badge="Approval needed"
+                      badgeTone="approval"
+                      extraBadge={task.assignee_id !== userId && task.due_at != null && task.due_at < todayIso ? "Overdue" : undefined}
+                      extraBadgeTone="alert"
+                      todayIso={todayIso}
+                    />
                   ))
                 )}
               </Section>
 
-              <Section title="Created by you" helper={createdHelper}>
-                {created.length === 0 ? (
-                  <div className="text-sm text-white/55">Nothing new from you yet.</div>
-                ) : (
-                  created.map((task) => <TaskRow key={task.id} task={task} badge="Created by you" badgeTone="created" todayIso={todayIso} />)
-                )}
-              </Section>
-
-              <Section title="Collaborating" helper={collaboratingHelper}>
+              <Section title="Shared with you" count={collaboratingAll.length} helper={collaboratingHelper}>
                 {collaborating.length === 0 ? (
-                  <div className="text-sm text-white/55">No shared tickets yet.</div>
+                  <div className="text-sm text-white/55">Nothing shared yet.</div>
                 ) : (
-                  collaborating.map((task) => <TaskRow key={task.id} task={task} badge="Collaborating" badgeTone="muted" todayIso={todayIso} />)
+                  collaborating.map((task) => <TaskRow key={task.id} task={task} badge="Shared" badgeTone="muted" todayIso={todayIso} />)
                 )}
               </Section>
             </>

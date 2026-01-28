@@ -31,10 +31,10 @@ export default async function HomePage() {
         {isMarketingTeam && marketingInbox ? (
           <div className="space-y-4">
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
-              <div className="text-xs uppercase tracking-[0.25em] text-white/50">Marketing Command</div>
-              <div className="mt-2 text-2xl font-semibold text-white/95">Your execution control room</div>
+              <div className="text-xs uppercase tracking-[0.25em] text-white/50">Your space</div>
+              <div className="mt-2 text-2xl font-semibold text-white/95">Take a breath. Here is what needs you.</div>
               <div className="mt-1 text-sm text-white/60">
-                Live assignments, approvals, and focus work - tuned for speed and clarity.
+                We keep the noise low and the next steps clear.
               </div>
             </div>
             <MarketingHomeDashboard inbox={marketingInbox} userId={profile.id} />
