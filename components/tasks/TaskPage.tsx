@@ -10,6 +10,7 @@ import { AppButton } from "@/components/ds/AppButton";
 import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { DayDatePicker } from "@/components/ds/DayDatePicker";
+import { DropdownItem, DropdownMenu } from "@/components/ds/DropdownMenu";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type {
   Profile,
@@ -2244,8 +2245,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div className="my-2 h-px bg-white/10" />
 
                 <div>
-                  <div className="text-xs uppercase tracking-widest text-white/45">Comments</div>
-                  <div className="mt-2 text-sm text-white/55">Leave context for the team.</div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-widest text-white/45">Comments</div>
+                      <div className="mt-2 text-sm text-white/55">Leave context for the team.</div>
+                    </div>
+                    <AppButton intent="secondary" size="sm" className="h-9 px-4 shrink-0" onPress={refresh}>
+                      Refresh
+                    </AppButton>
+                  </div>
                   {commentsStatus ? <div className="mt-2 text-xs text-amber-200/90">{commentsStatus}</div> : null}
 
                   <div className="mt-3">
@@ -2272,32 +2280,27 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     />
                     {mentionOpen ? (
                       <div className="relative">
-                        <div className="absolute left-0 right-0 mt-2 rounded-2xl border border-white/10 bg-[#0b1220] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
-                          <div className="px-2 py-1 text-[11px] uppercase tracking-widest text-white/45">Mention</div>
-                          {(() => {
-                            const matches = mentionableProfiles
-                              .filter((p) => {
-                                const label = toOptionLabel(p).toLowerCase();
-                                const q = mentionQuery.trim().toLowerCase();
-                                if (!q) return true;
-                                return label.includes(q);
-                              })
-                              .slice(0, 6);
-                            if (matches.length === 0) {
-                              return <div className="px-3 py-2 text-sm text-white/50">No matches.</div>;
-                            }
-                            return matches.map((p) => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-white/85 hover:bg-white/[0.04]"
-                                onClick={() => onInsertMention(p)}
-                              >
-                                <span className="truncate">@{toOptionLabel(p)}</span>
-                                <span className="text-[11px] text-white/45">{p.role === "cmo" ? "CMO" : ""}</span>
-                              </button>
-                            ));
-                          })()}
+                        <div className="absolute left-0 right-0 mt-2 z-30">
+                          <DropdownMenu title="Mention">
+                            {(() => {
+                              const matches = mentionableProfiles
+                                .filter((p) => {
+                                  const label = toOptionLabel(p).toLowerCase();
+                                  const q = mentionQuery.trim().toLowerCase();
+                                  if (!q) return true;
+                                  return label.includes(q);
+                                })
+                                .slice(0, 6);
+                              if (matches.length === 0) {
+                                return <div className="px-3 py-2 text-sm text-white/50">No matches.</div>;
+                              }
+                              return matches.map((p) => (
+                                <DropdownItem key={p.id} onClick={() => onInsertMention(p)} trailing={p.role === "cmo" ? "CMO" : ""}>
+                                  {toOptionLabel(p)}
+                                </DropdownItem>
+                              ));
+                            })()}
+                          </DropdownMenu>
                         </div>
                       </div>
                     ) : null}
@@ -2313,7 +2316,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       </div>
                     ) : null}
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <div className="min-w-[180px]">
+                      <div className="min-w-[220px]">
                         <PillSelect
                           value=""
                           onChange={(v) => {
@@ -2321,10 +2324,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             if (!id) return;
                             setCommentAttachmentIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
                           }}
-                          ariaLabel="Attach from ticket"
+                          ariaLabel="Reference attachment in comment"
                         >
                           <option value="" className="bg-zinc-900">
-                            Attach from ticket…
+                            Reference attachment…
                           </option>
                           {attachments
                             .filter((a) => !commentAttachmentIds.includes(a.id))
@@ -2334,6 +2337,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                               </option>
                             ))}
                         </PillSelect>
+                        <div className="mt-1 text-[11px] text-white/45">
+                          Adds a link to an existing attachment on this ticket (doesn’t upload a file).
+                        </div>
                       </div>
                       {commentAttachmentIds.map((id) => {
                         const att = attachmentById.get(id);
@@ -2466,12 +2472,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       })
                     )}
                   </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2">
-                  <AppButton intent="secondary" className="h-11 px-6" onPress={refresh}>
-                    Refresh
-                  </AppButton>
                 </div>
               </div>
             </Surface>

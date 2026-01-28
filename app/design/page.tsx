@@ -8,6 +8,7 @@ import { MonthYearPicker } from "@/components/ds/MonthYearPicker";
 import { AppButton } from "@/components/ds/AppButton";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { DayDatePicker } from "@/components/ds/DayDatePicker";
+import { DropdownItem, DropdownMenu } from "@/components/ds/DropdownMenu";
 import { BackButton } from "@/components/nav/BackButton";
 import { FunnelComparisonLineChart } from "@/components/charts/FunnelComparisonLineChart";
 import { TargetActualBars } from "@/components/charts/TargetActualBars";
@@ -120,6 +121,22 @@ export default function DesignSystemPage() {
                   Fractional
                 </option>
               </PillSelect>
+            </div>
+          </div>
+        </PageShell>
+
+        <PageShell>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-semibold text-white/90">DropdownMenu</div>
+              <div className="text-sm text-white/55">Popover list styling for typeahead + custom menus.</div>
+            </div>
+            <div className="w-full max-w-[260px]">
+              <DropdownMenu title="Mention">
+                <DropdownItem>Natasha</DropdownItem>
+                <DropdownItem>Sehar</DropdownItem>
+                <DropdownItem trailing="CMO">Dayem</DropdownItem>
+              </DropdownMenu>
             </div>
           </div>
         </PageShell>
