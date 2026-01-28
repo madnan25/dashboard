@@ -122,7 +122,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const isCmo = profile?.role === "cmo";
   const isCreator = profile?.id != null && task?.created_by != null && task.created_by === profile.id;
   const isManager = isMarketingManagerProfile(profile) || isCmo;
-  const canEditDetails = isCreator;
+  const canEditDetails = isCreator || isManager;
   // Properties (priority/assignee/team/project/due) are creator or marketing manager/CMO.
   const canEditProperties = isCreator || isManager;
   // Status is collaborative for marketing team, but approval/close still requires assigned approver/CMO.
@@ -1408,9 +1408,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   )}
                 </div>
 
-                {!canEditDetails ? (
-                  <div className="text-xs text-white/45">Only the creator can edit the title and description.</div>
-                ) : null}
+                {!canEditDetails ? <div className="text-xs text-white/45">Only the creator, marketing managers, or the CMO can edit title and description.</div> : null}
                 {!canEditProperties ? (
                   <div className="text-xs text-white/45">
                     Only the creator, marketing managers, or the CMO can edit priority, status, assignments, or due dates.
