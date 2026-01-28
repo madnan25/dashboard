@@ -1453,10 +1453,13 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         s.due_at ??
                         (s.linked_task_id ? (linkedTaskDueAt[s.linked_task_id.toLowerCase()] ?? null) : null);
                       return (
-                        <details key={s.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                        <details
+                          key={s.id}
+                          className="group glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3"
+                        >
                           <summary className="flex cursor-pointer list-none items-start justify-between gap-3 select-none">
                             <div className="flex min-w-0 items-start gap-3">
-                              <span className="mt-0.5 text-white/35">{">"}</span>
+                              <span className="mt-0.5 text-white/35 transition-transform duration-150 group-open:rotate-90">›</span>
                               <div className="min-w-0">
                                 <div className="text-sm font-semibold text-white/90 truncate">{s.title || "Untitled subtask"}</div>
                                 <div className="mt-0.5 text-xs text-white/55">
