@@ -41,14 +41,11 @@ export function NotificationList({
           <Link
             key={n.id}
             href={href}
-            onPointerDown={() => {
-              // Marking read on pointer down keeps the bell badge in sync
-              // even if navigation interrupts click handlers.
-              if (isUnread) onMarkRead?.(n.id);
-            }}
             onClick={() => {
-              if (isUnread) onMarkRead?.(n.id);
+              // Let navigation win, then mark read on the microtask.
+              // Otherwise unread-only lists can unmount the link before navigation runs.
               onItemClick?.();
+              if (isUnread) queueMicrotask(() => onMarkRead?.(n.id));
             }}
             className={[
               "block rounded-2xl border px-3 py-2 transition-colors",
