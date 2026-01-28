@@ -131,8 +131,28 @@ export async function DELETE(req: Request) {
     recordError("Clear plan approvals", error);
   }
   {
+    const { error } = await admin.from("task_teams").update({ approver_user_id: userRes.user.id }).eq("approver_user_id", targetUserId);
+    recordError("Reassign team approver", error);
+  }
+  {
+    const { error } = await admin.from("task_teams").update({ created_by: userRes.user.id }).eq("created_by", targetUserId);
+    recordError("Reassign team owners", error);
+  }
+  {
+    const { error } = await admin.from("tasks").update({ created_by: userRes.user.id }).eq("created_by", targetUserId);
+    recordError("Reassign task creators", error);
+  }
+  {
     const { error } = await admin.from("tasks").update({ assignee_id: null }).eq("assignee_id", targetUserId);
     recordError("Unassign tickets", error);
+  }
+  {
+    const { error } = await admin.from("tasks").update({ approved_by: null }).eq("approved_by", targetUserId);
+    recordError("Clear task approvals", error);
+  }
+  {
+    const { error } = await admin.from("tasks").update({ approver_user_id: null }).eq("approver_user_id", targetUserId);
+    recordError("Clear task approvers", error);
   }
   {
     const { error } = await admin
@@ -140,6 +160,60 @@ export async function DELETE(req: Request) {
       .update({ created_by: userRes.user.id })
       .eq("created_by", targetUserId);
     recordError("Reassign plan versions", error);
+  }
+  {
+    const { error } = await admin.from("task_flow_templates").update({ created_by: null }).eq("created_by", targetUserId);
+    recordError("Clear flow template owners", error);
+  }
+  {
+    const { error } = await admin.from("task_flow_template_steps").update({ approver_user_id: null }).eq("approver_user_id", targetUserId);
+    recordError("Clear flow template approvers", error);
+  }
+  {
+    const { error } = await admin.from("task_flow_instances").update({ created_by: null }).eq("created_by", targetUserId);
+    recordError("Clear flow instance owners", error);
+  }
+  {
+    const { error } = await admin
+      .from("task_flow_step_instances")
+      .update({ approver_user_id: null })
+      .eq("approver_user_id", targetUserId);
+    recordError("Clear flow step approvers", error);
+  }
+  {
+    const { error } = await admin
+      .from("task_flow_step_instances")
+      .update({ approved_by: null })
+      .eq("approved_by", targetUserId);
+    recordError("Clear flow step approvals", error);
+  }
+  {
+    const { error } = await admin.from("task_subtasks").update({ assignee_id: null }).eq("assignee_id", targetUserId);
+    recordError("Unassign subtasks", error);
+  }
+  {
+    const { error } = await admin.from("task_subtasks").update({ created_by: null }).eq("created_by", targetUserId);
+    recordError("Clear subtask authors", error);
+  }
+  {
+    const { error } = await admin.from("task_events").update({ actor_id: null }).eq("actor_id", targetUserId);
+    recordError("Clear task event actors", error);
+  }
+  {
+    const { error } = await admin.from("task_dependencies").update({ created_by: null }).eq("created_by", targetUserId);
+    recordError("Clear task dependency authors", error);
+  }
+  {
+    const { error } = await admin.from("task_subtask_dependencies").update({ created_by: null }).eq("created_by", targetUserId);
+    recordError("Clear subtask dependency authors", error);
+  }
+  {
+    const { error } = await admin.from("task_weight_config").update({ updated_by: null }).eq("updated_by", targetUserId);
+    recordError("Clear weight config editors", error);
+  }
+  {
+    const { error } = await admin.from("task_attachments").update({ uploader_id: null }).eq("uploader_id", targetUserId);
+    recordError("Clear attachment owners", error);
   }
   {
     const { error } = await admin.from("project_targets").update({ created_by: null }).eq("created_by", targetUserId);
@@ -152,6 +226,10 @@ export async function DELETE(req: Request) {
   {
     const { error } = await admin.from("project_actuals_channels").update({ updated_by: null }).eq("updated_by", targetUserId);
     recordError("Clear project actuals channels", error);
+  }
+  {
+    const { error } = await admin.from("project_actuals_digital_sources").update({ updated_by: null }).eq("updated_by", targetUserId);
+    recordError("Clear digital actuals editors", error);
   }
   {
     const { error } = await admin.from("sales_attribution_events").update({ created_by: null }).eq("created_by", targetUserId);
