@@ -224,7 +224,7 @@ export function MarketingHomeDashboard({
             </div>
           ) : (
             <>
-              <Section title="Assigned to you" count={inbox.assigned_count} helper="Overdue items bubble to the top." defaultOpen>
+              <Section title="Assigned to you" count={inbox.assigned_count} helper="Overdue items bubble to the top.">
                 {assigned.length === 0 ? (
                   <div className="text-sm text-white/55">Nothing assigned right now.</div>
                 ) : (
@@ -254,7 +254,7 @@ export function MarketingHomeDashboard({
 
               {canSeeTeam ? (
                 <>
-                  <Section title="Team tickets" count={teamTicketsAll.length} helper="All tickets where you are the approver." defaultOpen>
+                  <Section title="Team tickets" count={teamTicketsAll.length} helper="All tickets where you are the approver.">
                     {teamTickets.length === 0 ? (
                       <div className="text-sm text-white/55">No team tickets yet.</div>
                     ) : (
