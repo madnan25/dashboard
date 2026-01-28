@@ -25,6 +25,9 @@ export type {
   Task,
   TaskApprovalState,
   TaskComment,
+  TaskAttachment,
+  TaskCommentMention,
+  TaskCommentAttachment,
   TaskContribution,
   TaskContributionRole,
   TaskDependency,
@@ -65,6 +68,9 @@ import type {
   TaskTeam,
   Task,
   TaskComment,
+  TaskAttachment,
+  TaskCommentMention,
+  TaskCommentAttachment,
   TaskContribution,
   TaskContributionRole,
   TaskDependency,
@@ -309,6 +315,44 @@ export async function updateTaskComment(id: string, patch: { body?: string }): P
 
 export async function deleteTaskComment(id: string): Promise<void> {
   return await repo().deleteTaskComment(id);
+}
+
+export async function listTaskAttachments(taskId: string): Promise<TaskAttachment[]> {
+  return await repo().listTaskAttachments(taskId);
+}
+
+export async function createTaskAttachment(input: {
+  task_id: string;
+  uploader_id: string | null;
+  storage_path: string;
+  file_name: string;
+  mime_type?: string | null;
+  size_bytes: number;
+}): Promise<TaskAttachment> {
+  return await repo().createTaskAttachment({
+    ...input,
+    mime_type: input.mime_type ?? null
+  });
+}
+
+export async function deleteTaskAttachment(id: string): Promise<void> {
+  return await repo().deleteTaskAttachment(id);
+}
+
+export async function listTaskCommentMentions(taskId: string): Promise<TaskCommentMention[]> {
+  return await repo().listTaskCommentMentions(taskId);
+}
+
+export async function createTaskCommentMentions(input: Array<{ comment_id: string; user_id: string }>): Promise<void> {
+  return await repo().createTaskCommentMentions(input);
+}
+
+export async function listTaskCommentAttachments(taskId: string): Promise<TaskCommentAttachment[]> {
+  return await repo().listTaskCommentAttachments(taskId);
+}
+
+export async function createTaskCommentAttachments(input: Array<{ comment_id: string; attachment_id: string }>): Promise<void> {
+  return await repo().createTaskCommentAttachments(input);
 }
 
 export async function listTaskDependencies(taskId: string): Promise<TaskDependency[]> {

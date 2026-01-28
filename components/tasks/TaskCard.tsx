@@ -26,6 +26,18 @@ function approvalPill(approval: Task["approval_state"]) {
   }
 }
 
+type ApprovalBadgeKind = "draft" | "pending" | "approved";
+function approvalBadgeClass(kind: ApprovalBadgeKind) {
+  switch (kind) {
+    case "approved":
+      return "bg-emerald-500/15 border-emerald-400/20 text-emerald-100";
+    case "pending":
+      return "bg-fuchsia-500/12 border-fuchsia-400/20 text-fuchsia-100";
+    case "draft":
+      return "bg-white/[0.06] border-white/10 text-white/70";
+  }
+}
+
 function subtaskIndicatorTone(
   statuses: Array<TaskSubtask["status"]>
 ): "purple" | "green" | "red" | "yellow" {
@@ -93,6 +105,14 @@ export function TaskCard({
   }
 
   const effectiveApproval: Task["approval_state"] = task.status === "approved" ? "approved" : task.approval_state;
+  const approvalBadge: { kind: ApprovalBadgeKind; label: string } | null =
+    task.approval_state === "not_required"
+      ? null
+      : effectiveApproval === "approved"
+        ? { kind: "approved", label: "Approved" }
+        : task.status === "submitted"
+          ? { kind: "pending", label: "Pending approval" }
+          : { kind: "draft", label: "Not submitted" };
   const assignedViaSubtask = subtaskAssignments && subtaskAssignments.length > 0 ? subtaskAssignments : null;
   const subtaskTone = assignedViaSubtask ? subtaskIndicatorTone(assignedViaSubtask.map((s) => s.status)) : null;
   const subtaskClasses = subtaskTone ? subtaskPillClass(subtaskTone) : null;
@@ -148,15 +168,13 @@ export function TaskCard({
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${pillClass(task.priority)}`}>
             {task.priority.toUpperCase()}
           </span>
-          <span
-            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${approvalPill(effectiveApproval)}`}
-          >
-            {effectiveApproval === "approved"
-              ? "Approved"
-              : effectiveApproval === "pending"
-                ? "Pending"
-                : "No approval"}
-          </span>
+          {approvalBadge ? (
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${approvalBadgeClass(approvalBadge.kind)}`}
+            >
+              {approvalBadge.label}
+            </span>
+          ) : null}
         </div>
       </div>
 

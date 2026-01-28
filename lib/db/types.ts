@@ -188,6 +188,29 @@ export type TaskComment = {
   updated_at: string;
 };
 
+export type TaskAttachment = {
+  id: string;
+  task_id: string;
+  uploader_id: string | null;
+  storage_path: string;
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number;
+  created_at: string;
+};
+
+export type TaskCommentMention = {
+  comment_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type TaskCommentAttachment = {
+  comment_id: string;
+  attachment_id: string;
+  created_at: string;
+};
+
 export type TaskDependency = {
   id: string;
   blocker_task_id: string;
@@ -328,7 +351,12 @@ export type TaskEvent = {
   created_at: string;
 };
 
-export type NotificationType = "task_assigned" | "task_approval_requested" | "task_approved" | "subtask_assigned";
+export type NotificationType =
+  | "task_assigned"
+  | "task_approval_requested"
+  | "task_approved"
+  | "subtask_assigned"
+  | "comment_mention";
 
 export type Notification = {
   id: string;

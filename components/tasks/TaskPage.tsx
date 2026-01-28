@@ -9,12 +9,16 @@ import { AppButton } from "@/components/ds/AppButton";
 import { AppInput } from "@/components/ds/AppInput";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { DayDatePicker } from "@/components/ds/DayDatePicker";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type {
   Profile,
   Project,
   Task,
   TaskApprovalState,
+  TaskAttachment,
   TaskComment,
+  TaskCommentMention,
+  TaskCommentAttachment,
   TaskEvent,
   TaskPriority,
   TaskStatus,
@@ -39,6 +43,13 @@ import {
   nextTeamTicketNumber,
   getCurrentProfile,
   getTask,
+  listTaskAttachments,
+  createTaskAttachment,
+  deleteTaskAttachment,
+  listTaskCommentMentions,
+  createTaskCommentMentions,
+  listTaskCommentAttachments,
+  createTaskCommentAttachments,
   listTaskDependencies,
   listProfiles,
   listProfilesByIds,
@@ -79,6 +90,18 @@ function formatDesignTicketTitle(number: number, label: string) {
   return `DES-${number}: ${label}`;
 }
 
+function formatBytes(size: number) {
+  if (!Number.isFinite(size)) return "—";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
 function formatProductionTicketTitle(number: number, label: string) {
   return `PROD-${number}: ${label}`;
 }
@@ -95,6 +118,7 @@ function formatTicketTitle(prefix: string, number: number, label: string) {
 }
 
 const DEPENDENCY_TICKET_STATUSES: TaskStatus[] = ["queued", "in_progress", "submitted"];
+const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 
 export function TaskPage({ taskId }: { taskId: string }) {
   const router = useRouter();
@@ -103,6 +127,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<TaskTeam[]>([]);
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [task, setTaskState] = useState<Task | null>(null);
   const [events, setEvents] = useState<TaskEvent[]>([]);
@@ -118,6 +143,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [commentsStatus, setCommentsStatus] = useState<string>("");
   const [loadingTask, setLoadingTask] = useState(true);
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [attachmentsStatus, setAttachmentsStatus] = useState<string>("");
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const [commentMentionsByCommentId, setCommentMentionsByCommentId] = useState<Record<string, string[]>>({});
+  const [commentAttachmentsByCommentId, setCommentAttachmentsByCommentId] = useState<Record<string, string[]>>({});
 
   const isCmo = profile?.role === "cmo";
   const isCreator = profile?.id != null && task?.created_by != null && task.created_by === profile.id;
@@ -157,6 +187,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [masterCalendarTag, setMasterCalendarTag] = useState<TaskMasterCalendarTag | "">("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState<string>("");
   const [commentBody, setCommentBody] = useState("");
+  const [commentMentionIds, setCommentMentionIds] = useState<string[]>([]);
+  const [commentAttachmentIds, setCommentAttachmentIds] = useState<string[]>([]);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionOpen, setMentionOpen] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string>("");
   const [editingBody, setEditingBody] = useState("");
@@ -188,12 +223,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const subtaskAutosaveSeqRef = useRef<Record<string, number>>({});
   const subtaskDraftsRef = useRef<Record<string, { description?: string; title?: string }>>({});
   const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
   const project = useMemo(() => projects.find((p) => p.id === (projectId || null)) ?? null, [projectId, projects]);
   const assignableProfiles = useMemo(() => profiles.filter(isMarketingTeamProfile), [profiles]);
+  const mentionableProfiles = useMemo(() => profiles.filter(isMarketingTeamProfile), [profiles]);
   const team = useMemo(() => teams.find((t) => t.id === teamId) ?? null, [teamId, teams]);
   const approverProfile = useMemo(() => profiles.find((p) => p.id === approverUserId) ?? null, [approverUserId, profiles]);
+  const attachmentById = useMemo(() => new Map(attachments.map((a) => [a.id, a])), [attachments]);
   const approverLabel = useMemo(() => {
     if (!approverUserId) return "—";
     return approverProfile ? toOptionLabel(approverProfile) : `${approverUserId.slice(0, 8)}…`;
@@ -418,20 +457,22 @@ export function TaskPage({ taskId }: { taskId: string }) {
     try {
       setStatus("");
       setCommentsStatus("");
-      const [t, ev, subs, teamRows, parentLink, depRows, taskDepRows] = await Promise.all([
+      const [t, ev, subs, teamRows, parentLink, depRows, taskDepRows, attachmentRows] = await Promise.all([
         getTask(taskId),
         listTaskEvents(taskId),
         listTaskSubtasks(taskId),
         listTaskTeams(),
         getLinkedParentSubtask(taskId).catch(() => null),
         listTasks({ statuses: DEPENDENCY_TICKET_STATUSES }).catch(() => [] as Task[]),
-        listTaskDependencies(taskId).catch(() => [] as Array<{ id: string; blocker_task_id: string; reason: string | null }>)
+        listTaskDependencies(taskId).catch(() => [] as Array<{ id: string; blocker_task_id: string; reason: string | null }>),
+        listTaskAttachments(taskId).catch(() => [] as TaskAttachment[])
       ]);
       setTaskState(t);
       setEvents(ev);
       setSubtasks(subs);
       setTeams(teamRows);
       setLinkedParentSubtask(parentLink);
+      setAttachments(attachmentRows ?? []);
       // NOTE: listTasks is best-effort (RLS may block in some contexts).
       // Keep the picker small by excluding the current ticket.
       setDependencyTickets(((depRows as Task[]) ?? []).filter((x) => x.id !== taskId));
@@ -474,8 +515,26 @@ export function TaskPage({ taskId }: { taskId: string }) {
         const commentRows = await listTaskComments(taskId);
         setComments(commentRows);
         await ensureProfilesLoaded(commentRows.map((c) => c.author_id));
+        const [mentionRows, commentAttachmentRows] = await Promise.all([
+          listTaskCommentMentions(taskId).catch(() => [] as TaskCommentMention[]),
+          listTaskCommentAttachments(taskId).catch(() => [] as TaskCommentAttachment[])
+        ]);
+        const mentionMap: Record<string, string[]> = {};
+        for (const row of mentionRows ?? []) {
+          if (!mentionMap[row.comment_id]) mentionMap[row.comment_id] = [];
+          mentionMap[row.comment_id].push(row.user_id);
+        }
+        const attachmentMap: Record<string, string[]> = {};
+        for (const row of commentAttachmentRows ?? []) {
+          if (!attachmentMap[row.comment_id]) attachmentMap[row.comment_id] = [];
+          attachmentMap[row.comment_id].push(row.attachment_id);
+        }
+        setCommentMentionsByCommentId(mentionMap);
+        setCommentAttachmentsByCommentId(attachmentMap);
       } catch (e) {
         setComments([]);
+        setCommentMentionsByCommentId({});
+        setCommentAttachmentsByCommentId({});
         setCommentsStatus(getErrorMessage(e, "Comments unavailable."));
       }
       if (t) {
@@ -523,10 +582,142 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setCommentsStatus("");
       const rows = await listTaskComments(taskId);
       setComments(rows);
+      const [mentionRows, commentAttachmentRows] = await Promise.all([
+        listTaskCommentMentions(taskId).catch(() => [] as TaskCommentMention[]),
+        listTaskCommentAttachments(taskId).catch(() => [] as TaskCommentAttachment[])
+      ]);
+      const mentionMap: Record<string, string[]> = {};
+      for (const row of mentionRows ?? []) {
+        if (!mentionMap[row.comment_id]) mentionMap[row.comment_id] = [];
+        mentionMap[row.comment_id].push(row.user_id);
+      }
+      const attachmentMap: Record<string, string[]> = {};
+      for (const row of commentAttachmentRows ?? []) {
+        if (!attachmentMap[row.comment_id]) attachmentMap[row.comment_id] = [];
+        attachmentMap[row.comment_id].push(row.attachment_id);
+      }
+      setCommentMentionsByCommentId(mentionMap);
+      setCommentAttachmentsByCommentId(attachmentMap);
     } catch (e) {
       setComments([]);
+      setCommentMentionsByCommentId({});
+      setCommentAttachmentsByCommentId({});
       setCommentsStatus(getErrorMessage(e, "Failed to load comments"));
     }
+  }
+
+  async function onUploadAttachments(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    if (!profile) {
+      setAttachmentsStatus("Sign in to upload attachments.");
+      return;
+    }
+    setAttachmentsStatus("");
+    setUploadingAttachments(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          setAttachmentsStatus(`"${file.name}" exceeds 50 MB.`);
+          continue;
+        }
+        const fileName = sanitizeFileName(file.name);
+        const key = `tasks/${taskId}/${crypto.randomUUID()}-${fileName}`;
+        const { error: uploadErr } = await supabase.storage.from("task-attachments").upload(key, file, {
+          cacheControl: "3600",
+          contentType: file.type || "application/octet-stream",
+          upsert: false
+        });
+        if (uploadErr) {
+          setAttachmentsStatus(uploadErr.message || "Failed to upload attachment.");
+          continue;
+        }
+        const created = await createTaskAttachment({
+          task_id: taskId,
+          uploader_id: profile.id,
+          storage_path: key,
+          file_name: file.name,
+          mime_type: file.type || null,
+          size_bytes: file.size
+        });
+        setAttachments((prev) => [created, ...prev]);
+      }
+    } catch (e) {
+      setAttachmentsStatus(getErrorMessage(e, "Failed to upload attachment."));
+    } finally {
+      setUploadingAttachments(false);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+    }
+  }
+
+  async function onDownloadAttachment(att: TaskAttachment) {
+    try {
+      const { data, error } = await supabase.storage.from("task-attachments").createSignedUrl(att.storage_path, 60 * 10);
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch (e) {
+      setAttachmentsStatus(getErrorMessage(e, "Failed to open attachment."));
+    }
+  }
+
+  function syncMentionIds(nextBody: string, ids: string[]) {
+    if (ids.length === 0) return ids;
+    return ids.filter((id) => {
+      const profile = mentionableProfiles.find((p) => p.id === id);
+      if (!profile) return false;
+      const label = toOptionLabel(profile);
+      return nextBody.includes(`@${label}`);
+    });
+  }
+
+  function updateMentionSearch(nextBody: string, caret: number) {
+    const upto = nextBody.slice(0, caret);
+    const at = upto.lastIndexOf("@");
+    if (at < 0) {
+      setMentionOpen(false);
+      setMentionQuery("");
+      setMentionStart(null);
+      return;
+    }
+    const before = upto[at - 1];
+    if (at > 0 && before && !/\s/.test(before)) {
+      setMentionOpen(false);
+      setMentionQuery("");
+      setMentionStart(null);
+      return;
+    }
+    const query = upto.slice(at + 1);
+    if (query.includes(" ") || query.includes("\n")) {
+      setMentionOpen(false);
+      setMentionQuery("");
+      setMentionStart(null);
+      return;
+    }
+    setMentionOpen(true);
+    setMentionQuery(query);
+    setMentionStart(at);
+  }
+
+  function onInsertMention(profileToInsert: Profile) {
+    const textarea = commentTextareaRef.current;
+    if (!textarea) return;
+    const caret = textarea.selectionStart ?? commentBody.length;
+    const start = mentionStart ?? commentBody.lastIndexOf("@");
+    const label = toOptionLabel(profileToInsert);
+    const before = commentBody.slice(0, Math.max(0, start));
+    const after = commentBody.slice(caret);
+    const next = `${before}@${label} ${after}`;
+    setCommentBody(next);
+    setCommentMentionIds((prev) => Array.from(new Set([...prev, profileToInsert.id])));
+    setMentionOpen(false);
+    setMentionQuery("");
+    setMentionStart(null);
+    requestAnimationFrame(() => {
+      const nextPos = Math.max(0, start) + label.length + 2;
+      textarea.focus();
+      textarea.setSelectionRange(nextPos, nextPos);
+    });
   }
 
   async function onCreateComment() {
@@ -538,8 +729,29 @@ export function TaskPage({ taskId }: { taskId: string }) {
     try {
       setCommentsStatus("");
       const created = await createTaskComment({ task_id: taskId, body });
+      const mentionIds = syncMentionIds(body, commentMentionIds);
+      const attachmentIds = commentAttachmentIds;
+      if (mentionIds.length > 0) {
+        await createTaskCommentMentions(
+          mentionIds.map((userId) => ({ comment_id: created.id, user_id: userId }))
+        );
+      }
+      if (attachmentIds.length > 0) {
+        await createTaskCommentAttachments(
+          attachmentIds.map((attachmentId) => ({ comment_id: created.id, attachment_id: attachmentId }))
+        );
+      }
       setCommentBody("");
+      setCommentMentionIds([]);
+      setCommentAttachmentIds([]);
+      setMentionOpen(false);
       setComments((prev) => [...prev, created]);
+      if (commentMentionIds.length > 0) {
+        setCommentMentionsByCommentId((prev) => ({ ...prev, [created.id]: mentionIds }));
+      }
+      if (commentAttachmentIds.length > 0) {
+        setCommentAttachmentsByCommentId((prev) => ({ ...prev, [created.id]: attachmentIds }));
+      }
       setStatus("Comment added.");
     } catch (e) {
       setStatus(getErrorMessage(e, "Failed to add comment"));
@@ -595,6 +807,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
       setCommentsStatus("");
       await deleteTaskComment(id);
       setComments((prev) => prev.filter((c) => c.id !== id));
+      setCommentMentionsByCommentId((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setCommentAttachmentsByCommentId((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       setStatus("Comment deleted.");
     } catch (e) {
       setStatus(getErrorMessage(e, "Failed to delete comment"));
@@ -1111,6 +1333,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   async function onApproveTask() {
     if (!canComment || !task) return;
     if (approvalState !== "pending") return;
+    if (taskStatus !== "submitted") return;
     if (!canApprove) {
       setStatus("Only the assigned approver can approve this ticket.");
       return;
@@ -1860,6 +2083,58 @@ export function TaskPage({ taskId }: { taskId: string }) {
                 <div className="my-2 h-px bg-white/10" />
 
                 <div>
+                  <div className="text-xs uppercase tracking-widest text-white/45">Attachments</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <input
+                      ref={attachmentInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => onUploadAttachments(e.target.files)}
+                    />
+                    <AppButton
+                      intent="secondary"
+                      className="h-10 px-4"
+                      onPress={() => attachmentInputRef.current?.click()}
+                      isDisabled={uploadingAttachments}
+                    >
+                      {uploadingAttachments ? "Uploading…" : "Add files"}
+                    </AppButton>
+                    <div className="text-xs text-white/45">Max 50 MB per file.</div>
+                  </div>
+                  {attachmentsStatus ? <div className="mt-2 text-xs text-amber-200/90">{attachmentsStatus}</div> : null}
+                  <div className="mt-3 space-y-2">
+                    {attachments.length === 0 ? (
+                      <div className="text-sm text-white/50">No attachments yet.</div>
+                    ) : (
+                      attachments.map((att) => {
+                        const uploader = profiles.find((p) => p.id === att.uploader_id) ?? null;
+                        const uploaderLabel = uploader ? toOptionLabel(uploader) : "Unknown";
+                        const created = new Date(att.created_at);
+                        const when = Number.isFinite(created.getTime()) ? created.toLocaleDateString() : "—";
+                        return (
+                          <div key={att.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-white/90 truncate">{att.file_name}</div>
+                                <div className="mt-1 text-xs text-white/55">
+                                  {formatBytes(att.size_bytes)} · {uploaderLabel} · {when}
+                                </div>
+                              </div>
+                              <AppButton intent="secondary" size="sm" className="h-9 px-4" onPress={() => onDownloadAttachment(att)}>
+                                Download
+                              </AppButton>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="my-2 h-px bg-white/10" />
+
+                <div>
                   <div className="text-xs uppercase tracking-widest text-white/45">Comments</div>
                   <div className="mt-2 text-sm text-white/55">Leave context for the team.</div>
                   {commentsStatus ? <div className="mt-2 text-xs text-amber-200/90">{commentsStatus}</div> : null}
@@ -1867,12 +2142,100 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   <div className="mt-3">
                     <textarea
                       value={commentBody}
-                      onChange={(e) => setCommentBody(e.target.value)}
+                      ref={commentTextareaRef}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setCommentBody(next);
+                        setCommentMentionIds((prev) => syncMentionIds(next, prev));
+                        updateMentionSearch(next, e.target.selectionStart ?? next.length);
+                      }}
+                      onKeyUp={(e) => {
+                        const target = e.currentTarget;
+                        updateMentionSearch(target.value, target.selectionStart ?? target.value.length);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setMentionOpen(false), 150);
+                      }}
                       disabled={!canComment || savingComment}
                       rows={3}
                       className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
                       placeholder="Add a comment…"
                     />
+                    {mentionOpen ? (
+                      <div className="relative">
+                        <div className="absolute left-0 right-0 mt-2 rounded-2xl border border-white/10 bg-[#0b1220] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
+                          <div className="px-2 py-1 text-[11px] uppercase tracking-widest text-white/45">Mention</div>
+                          {(() => {
+                            const matches = mentionableProfiles
+                              .filter((p) => {
+                                const label = toOptionLabel(p).toLowerCase();
+                                const q = mentionQuery.trim().toLowerCase();
+                                if (!q) return true;
+                                return label.includes(q);
+                              })
+                              .slice(0, 6);
+                            if (matches.length === 0) {
+                              return <div className="px-3 py-2 text-sm text-white/50">No matches.</div>;
+                            }
+                            return matches.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-white/85 hover:bg-white/[0.04]"
+                                onClick={() => onInsertMention(p)}
+                              >
+                                <span className="truncate">@{toOptionLabel(p)}</span>
+                                <span className="text-[11px] text-white/45">{p.role === "cmo" ? "CMO" : ""}</span>
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <div className="min-w-[180px]">
+                        <PillSelect
+                          value=""
+                          onChange={(v) => {
+                            const id = (v as string) || "";
+                            if (!id) return;
+                            setCommentAttachmentIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+                          }}
+                          ariaLabel="Attach from ticket"
+                        >
+                          <option value="" className="bg-zinc-900">
+                            Attach from ticket…
+                          </option>
+                          {attachments
+                            .filter((a) => !commentAttachmentIds.includes(a.id))
+                            .map((a) => (
+                              <option key={a.id} value={a.id} className="bg-zinc-900">
+                                {a.file_name}
+                              </option>
+                            ))}
+                        </PillSelect>
+                      </div>
+                      {commentAttachmentIds.map((id) => {
+                        const att = attachmentById.get(id);
+                        if (!att) return null;
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/70"
+                          >
+                            <span className="truncate max-w-[180px]">{att.file_name}</span>
+                            <button
+                              type="button"
+                              className="text-white/40 hover:text-white/70"
+                              onClick={() => setCommentAttachmentIds((prev) => prev.filter((x) => x !== id))}
+                              aria-label="Remove attachment"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
                     <div className="mt-2 flex justify-end">
                       <AppButton
                         intent="primary"
@@ -1900,6 +2263,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         const when = createdAt.toLocaleString();
                         const isEditing = editingCommentId === c.id;
                         const canEditThisComment = profile?.id != null && c.author_id === profile.id;
+                        const mentionIdsForComment = commentMentionsByCommentId[c.id] ?? [];
+                        const attachmentIdsForComment = commentAttachmentsByCommentId[c.id] ?? [];
                         return (
                           <div key={c.id} className="glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
                             <div className="flex items-start justify-between gap-3">
@@ -1955,6 +2320,41 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             ) : (
                               <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">{c.body}</div>
                             )}
+                            {mentionIdsForComment.length > 0 ? (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {mentionIdsForComment.map((id) => {
+                                  const p = profiles.find((x) => x.id === id);
+                                  const label = p ? toOptionLabel(p) : id.slice(0, 8);
+                                  return (
+                                    <span
+                                      key={id}
+                                      className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-white/70"
+                                    >
+                                      @{label}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                            {attachmentIdsForComment.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {attachmentIdsForComment.map((id) => {
+                                  const att = attachmentById.get(id);
+                                  if (!att) return null;
+                                  return (
+                                    <button
+                                      key={id}
+                                      type="button"
+                                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-white/70 hover:bg-white/[0.06]"
+                                      onClick={() => onDownloadAttachment(att)}
+                                    >
+                                      <span className="truncate max-w-[160px]">{att.file_name}</span>
+                                      <span className="text-white/45">{formatBytes(att.size_bytes)}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })
@@ -2131,14 +2531,22 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   <div className="pt-1 text-xs uppercase tracking-widest text-white/45">Approval</div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-sm text-white/80">{approvalLabel(approvalState)}</div>
-                      {canApprove && approvalState === "pending" ? (
+                      <div className="text-sm text-white/80">
+                        {approvalState === "not_required"
+                          ? approvalLabel(approvalState)
+                          : approvalState === "approved"
+                            ? "Approved"
+                            : taskStatus === "submitted"
+                              ? "Pending approval"
+                              : "Not submitted"}
+                      </div>
+                      {canApprove && approvalState === "pending" && taskStatus === "submitted" ? (
                         <AppButton
                           intent="primary"
                           size="sm"
                           className="h-9 px-4"
                           onPress={onApproveTask}
-                          isDisabled={!canComment || !canApprove || (!approverUserId && !isCmo) || taskStatus === "closed"}
+                          isDisabled={!canComment || !canApprove || (!approverUserId && !isCmo)}
                         >
                           Approve
                         </AppButton>

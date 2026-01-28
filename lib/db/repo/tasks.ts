@@ -15,6 +15,9 @@ import type {
   TaskSubtaskDependency,
   TaskTeam,
   TaskComment,
+  TaskAttachment,
+  TaskCommentMention,
+  TaskCommentAttachment,
   MasterCalendarTask
 } from "@/lib/db/types";
 import type { TaskFlowInstance, TaskFlowStepInstance, TaskFlowTemplate, TaskFlowTemplateStep } from "@/lib/db/types";
@@ -266,6 +269,93 @@ export async function updateTaskComment(
 
 export async function deleteTaskComment(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from("task_comments").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function listTaskAttachments(supabase: SupabaseClient, taskId: string): Promise<TaskAttachment[]> {
+  const { data, error } = await supabase
+    .from("task_attachments")
+    .select("id, task_id, uploader_id, storage_path, file_name, mime_type, size_bytes, created_at")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as TaskAttachment[]) ?? [];
+}
+
+export async function createTaskAttachment(
+  supabase: SupabaseClient,
+  input: Pick<TaskAttachment, "task_id" | "uploader_id" | "storage_path" | "file_name" | "mime_type" | "size_bytes">
+): Promise<TaskAttachment> {
+  const { data, error } = await supabase
+    .from("task_attachments")
+    .insert({
+      task_id: input.task_id,
+      uploader_id: input.uploader_id ?? null,
+      storage_path: input.storage_path,
+      file_name: input.file_name,
+      mime_type: input.mime_type ?? null,
+      size_bytes: input.size_bytes
+    })
+    .select("id, task_id, uploader_id, storage_path, file_name, mime_type, size_bytes, created_at")
+    .single();
+  if (error) throw error;
+  return data as TaskAttachment;
+}
+
+export async function deleteTaskAttachment(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("task_attachments").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function listTaskCommentMentions(supabase: SupabaseClient, taskId: string): Promise<TaskCommentMention[]> {
+  const { data: commentRows, error: commentErr } = await supabase
+    .from("task_comments")
+    .select("id")
+    .eq("task_id", taskId);
+  if (commentErr) throw commentErr;
+  const commentIds = ((commentRows as Array<{ id: string }> | null) ?? []).map((c) => c.id);
+  if (commentIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("task_comment_mentions")
+    .select("comment_id, user_id, created_at")
+    .in("comment_id", commentIds);
+  if (error) throw error;
+  return (data as TaskCommentMention[]) ?? [];
+}
+
+export async function createTaskCommentMentions(
+  supabase: SupabaseClient,
+  input: Array<Pick<TaskCommentMention, "comment_id" | "user_id">>
+): Promise<void> {
+  if (input.length === 0) return;
+  const payload = input.map((row) => ({ comment_id: row.comment_id, user_id: row.user_id }));
+  const { error } = await supabase.from("task_comment_mentions").insert(payload);
+  if (error) throw error;
+}
+
+export async function listTaskCommentAttachments(supabase: SupabaseClient, taskId: string): Promise<TaskCommentAttachment[]> {
+  const { data: commentRows, error: commentErr } = await supabase
+    .from("task_comments")
+    .select("id")
+    .eq("task_id", taskId);
+  if (commentErr) throw commentErr;
+  const commentIds = ((commentRows as Array<{ id: string }> | null) ?? []).map((c) => c.id);
+  if (commentIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("task_comment_attachments")
+    .select("comment_id, attachment_id, created_at")
+    .in("comment_id", commentIds);
+  if (error) throw error;
+  return (data as TaskCommentAttachment[]) ?? [];
+}
+
+export async function createTaskCommentAttachments(
+  supabase: SupabaseClient,
+  input: Array<Pick<TaskCommentAttachment, "comment_id" | "attachment_id">>
+): Promise<void> {
+  if (input.length === 0) return;
+  const payload = input.map((row) => ({ comment_id: row.comment_id, attachment_id: row.attachment_id }));
+  const { error } = await supabase.from("task_comment_attachments").insert(payload);
   if (error) throw error;
 }
 
