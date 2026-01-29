@@ -8,6 +8,22 @@ import { isoDate, statusLabel } from "@/components/tasks/taskModel";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type InboxTask = MarketingHomeInbox["items"][number];
+type InboxGroup = {
+  id: string;
+  task_id: string;
+  title: string;
+  status: InboxTask["status"];
+  priority: InboxTask["priority"];
+  approval_state: InboxTask["approval_state"];
+  approver_user_id: string | null;
+  assignee_id: string | null;
+  created_by: string | null;
+  due_at: string | null;
+  updated_at: string;
+  subtask_titles: string[];
+  subtask_total: number;
+  subtask_overdue: number;
+};
 
 function SummaryCard({
   label,
@@ -90,6 +106,14 @@ function badgeClass(tone: "accent" | "approval" | "created" | "muted" | "alert")
   }
 }
 
+function summarizeSubtasks(titles: string[]) {
+  if (!titles || titles.length === 0) return "";
+  const shown = titles.slice(0, 2);
+  const remaining = titles.length - shown.length;
+  const label = titles.length === 1 ? "Subtask" : "Subtasks";
+  return `${label}: ${shown.join(", ")}${remaining > 0 ? ` +${remaining} more` : ""}`;
+}
+
 function TaskRow({
   task,
   badge,
@@ -98,17 +122,18 @@ function TaskRow({
   extraBadgeTone,
   todayIso
 }: {
-  task: InboxTask;
+  task: InboxGroup;
   badge?: string;
   badgeTone?: "accent" | "approval" | "created" | "muted" | "alert";
   extraBadge?: string;
   extraBadgeTone?: "accent" | "approval" | "created" | "muted" | "alert";
   todayIso: string;
 }) {
-  const isOverdue = task.due_at ? task.due_at < todayIso : false;
+  const isOverdue = (task.due_at ? task.due_at < todayIso : false) || task.subtask_overdue > 0;
   const dueTone = isOverdue ? "text-rose-200" : "text-white/70";
-  const isSubtask = task.item_type === "subtask";
-  const hrefId = task.task_id || task.id;
+  const hasSubtasks = task.subtask_total > 0;
+  const subtaskSummary = summarizeSubtasks(task.subtask_titles);
+  const hrefId = task.task_id;
 
   return (
     <Link
@@ -120,17 +145,26 @@ function TaskRow({
           <div className="text-sm font-semibold text-white/90 truncate">{task.title}</div>
           <div className="mt-0.5 text-xs text-white/55">
             {statusLabel(task.status)} - {task.priority.toUpperCase()}
-            {isSubtask && task.subtask_title ? (
+            {subtaskSummary ? (
               <>
                 {" "}
-                <span className="text-white/45">·</span> <span className="text-sky-200">{task.subtask_title}</span>
+                <span className="text-white/45">·</span> <span className="text-sky-200">{subtaskSummary}</span>
+                {task.subtask_overdue > 0 ? (
+                  <>
+                    {" "}
+                    <span className="text-white/45">·</span>{" "}
+                    <span className="text-rose-200">{task.subtask_overdue} overdue</span>
+                  </>
+                ) : null}
               </>
             ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isSubtask ? (
-            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass("accent")}`}>Subtask</span>
+          {hasSubtasks ? (
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass("accent")}`}>
+              {task.subtask_total === 1 ? "Subtask" : `${task.subtask_total} Subtasks`}
+            </span>
           ) : null}
           {badge ? (
             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass(badgeTone ?? "muted")}`}>
@@ -155,6 +189,69 @@ function toTime(value: string | null | undefined) {
   if (!value) return 0;
   const t = Date.parse(value);
   return Number.isFinite(t) ? t : 0;
+}
+
+function groupInboxItems(items: InboxTask[], todayIso: string) {
+  const grouped = new Map<
+    string,
+    {
+      base?: InboxTask;
+      items: InboxTask[];
+      subtaskTitles: Set<string>;
+      updatedAt: number;
+      dueAt: string | null;
+      subtaskTotal: number;
+      subtaskOverdue: number;
+    }
+  >();
+
+  for (const item of items) {
+    const taskId = item.task_id || item.id;
+    const entry =
+      grouped.get(taskId) ?? {
+        items: [],
+        subtaskTitles: new Set<string>(),
+        updatedAt: 0,
+        dueAt: null,
+        subtaskTotal: 0,
+        subtaskOverdue: 0
+      };
+    entry.items.push(item);
+    const updatedAt = toTime(item.updated_at);
+    if (updatedAt > entry.updatedAt) entry.updatedAt = updatedAt;
+    if (!entry.base || (entry.base.item_type === "subtask" && item.item_type !== "subtask")) {
+      entry.base = item;
+    }
+    if (item.due_at && (!entry.dueAt || item.due_at < entry.dueAt)) {
+      entry.dueAt = item.due_at;
+    }
+    if (item.item_type === "subtask") {
+      entry.subtaskTotal += 1;
+      if (item.subtask_title) entry.subtaskTitles.add(item.subtask_title);
+      if (item.due_at && item.due_at < todayIso) entry.subtaskOverdue += 1;
+    }
+    grouped.set(taskId, entry);
+  }
+
+  return Array.from(grouped.entries()).map(([taskId, entry]) => {
+    const base = entry.base ?? entry.items[0];
+    return {
+      id: taskId,
+      task_id: taskId,
+      title: base.title,
+      status: base.status,
+      priority: base.priority,
+      approval_state: base.approval_state,
+      approver_user_id: base.approver_user_id,
+      assignee_id: base.assignee_id,
+      created_by: base.created_by,
+      due_at: entry.dueAt ?? base.due_at,
+      updated_at: base.updated_at,
+      subtask_titles: Array.from(entry.subtaskTitles),
+      subtask_total: entry.subtaskTotal,
+      subtask_overdue: entry.subtaskOverdue
+    } as InboxGroup;
+  });
 }
 
 export function MarketingHomeDashboard({
@@ -238,7 +335,9 @@ export function MarketingHomeDashboard({
   const todayIso = isoDate(new Date());
   const maxItems = 6;
 
-  const isOverdue = (task: InboxTask) => task.due_at != null && task.due_at < todayIso;
+  const isItemOverdue = (task: InboxTask) => task.due_at != null && task.due_at < todayIso;
+  const isGroupOverdue = (task: InboxGroup) =>
+    (task.due_at != null && task.due_at < todayIso) || task.subtask_overdue > 0;
   const assignedAll = liveInbox.items.filter((task) => task.assignee_id === userId);
   const assignedIds = new Set(assignedAll.map((t) => t.id));
   const teamTicketsAll = liveInbox.items.filter(
@@ -248,16 +347,16 @@ export function MarketingHomeDashboard({
   const awaitingApprovalAll = liveInbox.items.filter(
     (task) => task.approver_user_id === userId && task.approval_state === "pending" && task.status === "submitted"
   );
-  const teamOverdueApprovals = teamTicketsAll.filter((task) => isOverdue(task));
+  const teamOverdueApprovals = teamTicketsAll.filter((task) => isItemOverdue(task));
 
   const collaboratingAll = liveInbox.items.filter(
     (task) => !assignedIds.has(task.id) && !teamTicketIds.has(task.id) && task.created_by !== userId
   );
 
-  const byUpdatedDesc = (a: InboxTask, b: InboxTask) => toTime(b.updated_at) - toTime(a.updated_at);
-  const byAssignedPriority = (a: InboxTask, b: InboxTask) => {
-    const aOverdue = a.due_at ? a.due_at < todayIso : false;
-    const bOverdue = b.due_at ? b.due_at < todayIso : false;
+  const byUpdatedDesc = (a: InboxGroup, b: InboxGroup) => toTime(b.updated_at) - toTime(a.updated_at);
+  const byAssignedPriority = (a: InboxGroup, b: InboxGroup) => {
+    const aOverdue = isGroupOverdue(a);
+    const bOverdue = isGroupOverdue(b);
     if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
     const aDue = a.due_at ?? "";
     const bDue = b.due_at ?? "";
@@ -267,13 +366,18 @@ export function MarketingHomeDashboard({
     return byUpdatedDesc(a, b);
   };
 
-  const assigned = assignedAll.sort(byAssignedPriority).slice(0, maxItems);
-  const teamTickets = teamTicketsAll.sort(byUpdatedDesc).slice(0, maxItems);
-  const collaborating = collaboratingAll.sort(byUpdatedDesc).slice(0, maxItems);
+  const assignedGroupsAll = groupInboxItems(assignedAll, todayIso);
+  const teamTicketGroupsAll = groupInboxItems(teamTicketsAll, todayIso);
+  const collaboratingGroupsAll = groupInboxItems(collaboratingAll, todayIso);
+
+  const assigned = assignedGroupsAll.sort(byAssignedPriority).slice(0, maxItems);
+  const teamTickets = teamTicketGroupsAll.sort(byUpdatedDesc).slice(0, maxItems);
+  const collaborating = collaboratingGroupsAll.sort(byUpdatedDesc).slice(0, maxItems);
   const collaboratingHelper =
     collaborating.length > 0 ? "Tickets where you are a contributor or subtask owner." : "No shared tickets yet.";
-  const teamOverdue = teamOverdueApprovals.sort(byUpdatedDesc).slice(0, maxItems);
-  const personalOverdueCount = assignedAll.filter(isOverdue).length;
+  const teamOverdueGroupsAll = teamTicketGroupsAll.filter(isGroupOverdue);
+  const teamOverdue = teamOverdueGroupsAll.sort(byUpdatedDesc).slice(0, maxItems);
+  const personalOverdueCount = assignedAll.filter(isItemOverdue).length;
   const teamOverdueCount = teamOverdueApprovals.length;
   const canSeeTeam = showTeamSections || teamTicketsAll.length > 0 || awaitingApprovalAll.length > 0 || teamOverdueCount > 0;
 
@@ -319,7 +423,7 @@ export function MarketingHomeDashboard({
                       extraBadge={
                         task.approver_user_id === userId && task.approval_state === "pending" && task.status === "submitted"
                           ? "Approval needed"
-                          : isOverdue(task)
+                          : isGroupOverdue(task)
                             ? "Overdue"
                             : undefined
                       }
@@ -347,7 +451,7 @@ export function MarketingHomeDashboard({
                           extraBadge={
                             task.approval_state === "pending" && task.status === "submitted"
                               ? "Needs approval"
-                              : isOverdue(task)
+                              : isGroupOverdue(task)
                                 ? "Overdue"
                                 : undefined
                           }

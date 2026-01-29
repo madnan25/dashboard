@@ -159,11 +159,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const isCreator = profile?.id != null && task?.created_by != null && task.created_by === profile.id;
   const isManager = isMarketingManagerProfile(profile) || isCmo;
   const canEditDetails = isCreator || isManager;
+  const canEditDescription = isCreator || Boolean(profile && isMarketingTeamProfile(profile));
   // Properties (priority/assignee/team/project/due) are creator or marketing manager/CMO.
   const canEditProperties = isCreator || isManager;
   // Status is collaborative for marketing team, but approval/close still requires assigned approver/CMO.
   const canEditStatus = Boolean(profile && isMarketingTeamProfile(profile)) || canEditProperties;
-  const canEditTask = canEditDetails || canEditProperties;
+  const canEditTask = canEditDetails || canEditProperties || canEditDescription;
   const canComment = profile != null;
   const canDelete = isCmo;
   const canCreateSubtasks = profile != null; // anyone who can view the ticket can add subtasks
@@ -962,47 +963,76 @@ export function TaskPage({ taskId }: { taskId: string }) {
     if (!task) return;
     if (!lastSavedRef.current) return;
 
+    const prev = lastSavedRef.current;
+    const canEditDetailsOrProperties = canEditDetails || canEditProperties;
     const trimmedTitle = title.trim();
-    if (!trimmedTitle) {
-      // Don't persist invalid state; allow user to keep typing.
+    const nextDescription = description.trim() ? description.trim() : null;
+    let patch: Parameters<typeof updateTask>[1] | null = null;
+    let nextSnapshot: typeof prev | null = null;
+
+    if (canEditDetailsOrProperties) {
+      if (canEditDetails && !trimmedTitle) {
+        // Don't persist invalid state; allow user to keep typing.
+        return;
+      }
+
+      const next = {
+        title: canEditDetails ? trimmedTitle : prev.title,
+        description: nextDescription,
+        priority,
+        status: taskStatus,
+        approval_state: approvalState,
+        team_id: teamId || null,
+        assignee_id: assigneeId || null,
+        project_id: projectId || null,
+        due_at: dueAt || null,
+        master_calendar_tag: masterCalendarTag || null
+      };
+
+      const changed =
+        next.title !== prev.title ||
+        next.description !== prev.description ||
+        next.priority !== prev.priority ||
+        next.status !== prev.status ||
+        next.approval_state !== prev.approval_state ||
+        next.team_id !== prev.team_id ||
+        next.assignee_id !== prev.assignee_id ||
+        next.project_id !== prev.project_id ||
+        next.due_at !== prev.due_at ||
+        next.master_calendar_tag !== prev.master_calendar_tag;
+      if (!changed) return;
+
+      patch = next;
+      nextSnapshot = next;
+    } else if (canEditDescription) {
+      if (nextDescription === prev.description) return;
+      patch = { description: nextDescription };
+      nextSnapshot = { ...prev, description: nextDescription };
+    } else {
       return;
     }
-
-    const next = {
-      title: trimmedTitle,
-      description: description.trim() ? description.trim() : null,
-      priority,
-      status: taskStatus,
-      approval_state: approvalState,
-      team_id: teamId || null,
-      assignee_id: assigneeId || null,
-      project_id: projectId || null,
-      due_at: dueAt || null,
-      master_calendar_tag: masterCalendarTag || null
-    };
-
-    const prev = lastSavedRef.current;
-    const changed =
-      next.title !== prev.title ||
-      next.description !== prev.description ||
-      next.priority !== prev.priority ||
-      next.status !== prev.status ||
-      next.approval_state !== prev.approval_state ||
-      next.team_id !== prev.team_id ||
-      next.assignee_id !== prev.assignee_id ||
-      next.project_id !== prev.project_id ||
-      next.due_at !== prev.due_at ||
-      next.master_calendar_tag !== prev.master_calendar_tag;
-    if (!changed) return;
+    if (!patch || !nextSnapshot) return;
+    const patchToSave = patch;
+    const snapshotToSave = nextSnapshot;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     const seq = ++autosaveSeqRef.current;
     autosaveTimerRef.current = setTimeout(async () => {
       try {
         setStatus("Saving…");
-        await updateTask(taskId, next);
+        await updateTask(taskId, patchToSave);
         if (autosaveSeqRef.current !== seq) return; // superseded
-        lastSavedRef.current = next;
-        setTaskState((t) => (t ? { ...t, ...next, assignee_id: next.assignee_id, project_id: next.project_id, due_at: next.due_at } : t));
+        lastSavedRef.current = snapshotToSave;
+        setTaskState((t) =>
+          t
+            ? {
+                ...t,
+                ...snapshotToSave,
+                assignee_id: snapshotToSave.assignee_id,
+                project_id: snapshotToSave.project_id,
+                due_at: snapshotToSave.due_at
+              }
+            : t
+        );
         setStatus("Saved.");
       } catch (e) {
         if (autosaveSeqRef.current !== seq) return;
@@ -1016,6 +1046,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }, [
     approvalState,
     assigneeId,
+    canEditDescription,
+    canEditDetails,
+    canEditProperties,
     canEditTask,
     description,
     dueAt,
@@ -1685,7 +1718,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
                 <div>
                   <div className="text-xs uppercase tracking-widest text-white/45">Description (optional)</div>
-                  {canEditDetails && editingDescription ? (
+                  {canEditDescription && editingDescription ? (
                     <textarea
                       ref={descriptionTextareaRef}
                       value={description}
@@ -1693,7 +1726,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         setDescription(e.target.value);
                         resizeTextareaToContent(e.currentTarget);
                       }}
-                      disabled={!canEditDetails}
+                      disabled={!canEditDescription}
                       rows={4}
                       className="mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20 transition-[height] duration-150 ease-out"
                       placeholder="No long explanations. Just enough context."
@@ -1704,23 +1737,28 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     <div
                       className={[
                         "mt-2 w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85",
-                        canEditDetails ? "cursor-text" : ""
+                        canEditDescription ? "cursor-text" : ""
                       ].join(" ")}
                       onClick={() => {
-                        if (!canEditDetails) return;
+                        if (!canEditDescription) return;
                         setEditingDescription(true);
                       }}
                     >
                       {description?.trim() ? (
                         <div className="whitespace-pre-wrap">{stripDashboardLinkedSubtaskMarkers(description)}</div>
                       ) : (
-                        <div className="text-white/35">{canEditDetails ? "Click to add a description…" : "No description."}</div>
+                        <div className="text-white/35">{canEditDescription ? "Click to add a description…" : "No description."}</div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {!canEditDetails ? <div className="text-xs text-white/45">Only the creator, marketing managers, or the CMO can edit title and description.</div> : null}
+                {!canEditDetails ? (
+                  <div className="text-xs text-white/45">Only the creator, marketing managers, or the CMO can edit the title.</div>
+                ) : null}
+                {!canEditDescription ? (
+                  <div className="text-xs text-white/45">Only marketing team members can edit the description.</div>
+                ) : null}
                 {!canEditProperties ? (
                   <div className="text-xs text-white/45">
                     Only the creator, marketing managers, or the CMO can edit priority, status, assignments, or due dates.
@@ -2760,6 +2798,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       (e.actor_id ? e.actor_id.slice(0, 8) + "…" : "Someone");
                     const when = new Date(e.created_at).toLocaleString();
                     const isCommentEvent = e.type === "comment_edited" || e.type === "comment_deleted";
+                    const isDescriptionEvent = e.type === "description_edited";
                     const resolveProfileLabel = (value: string | null | undefined, fallback = "Someone") => {
                       if (!value) return fallback;
                       const p = profiles.find((x) => x.id === value) ?? null;
@@ -2787,6 +2826,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 ? "Priority"
                                 : e.type === "due_at"
                                   ? "Due"
+                        : e.type === "description_edited"
+                          ? "Description edited"
                                   : e.type === "comment_edited"
                                     ? "Comment edited"
                                     : e.type === "comment_deleted"
@@ -2823,6 +2864,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             <span className="text-white/85">
                               {commentVerb} {commentTarget}
                             </span>
+                          ) : isDescriptionEvent ? (
+                            <span className="text-white/85">Edited the description of this ticket</span>
                           ) : (
                             <>
                               {typeLabel}
