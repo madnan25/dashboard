@@ -1753,12 +1753,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
                   )}
                 </div>
 
-                {!canEditDetails ? (
-                  <div className="text-xs text-white/45">Only the creator, marketing managers, or the CMO can edit the title.</div>
-                ) : null}
-                {!canEditDescription ? (
-                  <div className="text-xs text-white/45">Only marketing team members can edit the description.</div>
-                ) : null}
                 {!canEditProperties ? (
                   <div className="text-xs text-white/45">
                     Only the creator, marketing managers, or the CMO can edit priority, status, assignments, or due dates.
