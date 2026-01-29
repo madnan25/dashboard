@@ -123,15 +123,14 @@ function TaskRow({
             {isSubtask && task.subtask_title ? (
               <>
                 {" "}
-                <span className="text-white/45">·</span> <span className="text-white/70">Subtask:</span>{" "}
-                <span className="text-white/80">{task.subtask_title}</span>
+                <span className="text-white/45">·</span> <span className="text-sky-200">{task.subtask_title}</span>
               </>
             ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isSubtask ? (
-            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass("muted")}`}>Subtask</span>
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass("accent")}`}>Subtask</span>
           ) : null}
           {badge ? (
             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${badgeClass(badgeTone ?? "muted")}`}>
