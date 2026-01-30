@@ -38,7 +38,13 @@ export function ProjectActualsPanel(props: {
             { stage: "Meetings scheduled", target: targets.meetings_scheduled, actual: actuals?.meetings_scheduled ?? 0 },
             { stage: "Meetings done", target: targets.meetings_done, actual: actuals?.meetings_done ?? 0 },
             { stage: "Deals concluded", target: targets.deals, actual: dealsAll },
-            { stage: "Sqft won", target: sqftTarget, actual: sqftAll }
+            {
+              stage: "Sqft won",
+              target: sqftTarget,
+              actual: sqftAll,
+              actualSecondary: sqftTransferOut,
+              actualSecondaryLabel: "transfer out"
+            }
           ]}
           formatNumber={formatNumber}
         />

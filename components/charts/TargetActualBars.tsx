@@ -6,6 +6,8 @@ type Item = {
   stage: string;
   target: number;
   actual: number;
+  actualSecondary?: number;
+  actualSecondaryLabel?: string;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -31,6 +33,10 @@ export function TargetActualBars({
         const varianceAbs = Math.abs(variance);
         const isGood = variance >= 0;
         const overByPct = Math.max(0, pctRaw - 100);
+        const secondaryActual = Math.max(0, it.actualSecondary ?? 0);
+        const secondaryPctRaw = (secondaryActual / target) * 100;
+        const secondaryPctFill = clamp(secondaryPctRaw, 0, 100);
+        const secondaryOverByPct = Math.max(0, secondaryPctRaw - 100);
 
         return (
           <div key={it.stage} className="space-y-2">
@@ -43,6 +49,11 @@ export function TargetActualBars({
                 <span>
                   Actual <span className="text-white/85 font-medium">{formatNumber(it.actual)}</span>
                 </span>
+                {secondaryActual > 0 ? (
+                  <span className="text-violet-300/90">
+                    + {formatNumber(secondaryActual)} {it.actualSecondaryLabel ?? "secondary"}
+                  </span>
+                ) : null}
                 <span className={isGood ? "text-emerald-300" : "text-rose-300"}>
                   {varianceSign} {formatNumber(varianceAbs)}
                 </span>
@@ -56,6 +67,14 @@ export function TargetActualBars({
                 style={{ width: `${pctFill}%` }}
                 aria-label={`${it.stage}: ${clamp(pctRaw, 0, 999).toFixed(0)}% of target`}
               />
+              {/* Secondary overlay (thin) */}
+              {secondaryActual > 0 ? (
+                <div
+                  className="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-violet-400/90 shadow-[0_0_16px_rgba(167,139,250,0.35)]"
+                  style={{ width: `${secondaryPctFill}%` }}
+                  aria-hidden="true"
+                />
+              ) : null}
               {/* Over-target marker */}
               {pctRaw > 100 ? (
                 <div
@@ -67,11 +86,12 @@ export function TargetActualBars({
 
             <div className="flex items-center justify-between text-xs">
               <span className="text-white/40">{clamp(pctRaw, 0, 999).toFixed(0)}% of target</span>
-              {pctRaw > 100 ? (
-                <span className="text-emerald-300/90">
-                  +{overByPct.toFixed(0)}% over
-                </span>
-              ) : null}
+              <div className="flex items-center gap-3">
+                {secondaryActual > 0 && secondaryPctRaw > 100 ? (
+                  <span className="text-violet-300/90">+{secondaryOverByPct.toFixed(0)}% secondary over</span>
+                ) : null}
+                {pctRaw > 100 ? <span className="text-emerald-300/90">+{overByPct.toFixed(0)}% over</span> : null}
+              </div>
             </div>
           </div>
         );
