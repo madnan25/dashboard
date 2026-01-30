@@ -59,7 +59,7 @@ function formatValue(value: unknown, projectsById: Record<string, string>) {
 function getDiffs(entry: SalesOpsActualsAuditEntry) {
   const fields =
     entry.table_name === "sales_attribution_events"
-      ? ["bucket", "source_kind", "source_campaign", "source_project_id", "deals_won", "sqft_won"]
+      ? ["deals_won", "sqft_won"]
       : ["leads", "not_contacted", "qualified_leads", "meetings_scheduled", "meetings_done", "deals_won", "sqft_won"];
 
   const oldRow = entry.old_row ?? {};
@@ -96,14 +96,12 @@ type ChangeSet = {
   actor: string;
   projectName: string;
   yyyymm: string;
-  changed: ChangeRow[];
-  unchanged: ChangeRow[];
+  rows: ChangeRow[];
   total: number;
 };
 
 export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: string; year: number; month: number }) {
   const { projects, projectId, year, month } = props;
-  const [monthScope, setMonthScope] = useState<MonthScope>("selected");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => projectId || "all");
   const [rows, setRows] = useState<SalesOpsActualsAuditEntry[]>([]);
   const [sets, setSets] = useState<ChangeSet[]>([]);
@@ -127,8 +125,6 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
     try {
       const rows = await listSalesOpsActualsAudit({
         projectId: selectedProjectId === "all" ? null : effectiveProjectId,
-        year: monthScope === "selected" ? year : null,
-        month: monthScope === "selected" ? month : null,
         limit: 200,
         sinceDays: 7
       });
@@ -154,11 +150,13 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, selectedProjectId, monthScope, year, month]);
+  }, [projectId, selectedProjectId, year, month]);
 
   useEffect(() => {
     const grouped = new Map<string, ChangeSet>();
     for (const entry of rows) {
+      if (!entry.actor_id) continue; // only human changes
+      if (entry.table_name === "project_actuals_channels" && entry.channel === "digital") continue; // skip computed totals
       const timeIso = truncToSecondIso(entry.event_time);
       const actor = entry.actor_name || entry.actor_email || entry.actor_role || (entry.actor_id ? entry.actor_id.slice(0, 8) + "…" : "Unknown");
       const pid = entry.project_id ?? "";
@@ -174,6 +172,7 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
         return subKey ? `${tableLabel} • ${subKey}` : tableLabel;
       })();
       const diffs = getDiffs(entry);
+      if (diffs.length === 0) continue;
       const row: ChangeRow = { entry, label, diffs };
 
       const existing = grouped.get(key);
@@ -185,14 +184,12 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
           actor,
           projectName,
           yyyymm,
-          changed: diffs.length ? [row] : [],
-          unchanged: diffs.length ? [] : [row],
+          rows: [row],
           total: 1
         });
       } else {
         existing.total += 1;
-        if (diffs.length) existing.changed.push(row);
-        else existing.unchanged.push(row);
+        existing.rows.push(row);
       }
     }
     const nextSets = Array.from(grouped.values()).sort((a, b) => (a.timeIso < b.timeIso ? 1 : a.timeIso > b.timeIso ? -1 : 0));
@@ -236,10 +233,6 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
                 </option>
               ))}
           </PillSelect>
-          <PillSelect value={monthScope} onChange={(v) => setMonthScope(v as MonthScope)} ariaLabel="Month scope" className="min-w-[150px]">
-            <option value="selected">Selected month</option>
-            <option value="all">All months</option>
-          </PillSelect>
           <AppButton intent="secondary" onPress={() => void load()} isDisabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
           </AppButton>
@@ -277,7 +270,7 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
                 <span className="text-white/40"> • </span>
                 <span className="text-white/70">{selectedSet.yyyymm}</span>
                 <span className="text-white/40"> • </span>
-                <span className="text-white/70">{selectedSet.total} row(s)</span>
+                <span className="text-white/70">{selectedSet.rows.length} change(s)</span>
               </div>
             ) : null}
           </div>
@@ -288,14 +281,14 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
               <div className="text-sm font-semibold text-white/85">{selectedSet.timeLabel}</div>
               <div className="text-xs text-white/55">
-                {selectedSet.changed.length} change(s) • {selectedSet.unchanged.length} unchanged row(s)
+                {selectedSet.rows.length} change(s)
               </div>
             </div>
 
             <div className="max-h-[520px] overflow-auto p-4">
-              {selectedSet.changed.length > 0 ? (
+              {selectedSet.rows.length > 0 ? (
                 <div className="space-y-3">
-                  {selectedSet.changed.map((cr) => {
+                  {selectedSet.rows.map((cr) => {
                     const action = cr.entry.action.toUpperCase();
                     return (
                       <div key={cr.entry.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
@@ -305,7 +298,6 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
                             <span className="text-white/40"> • </span>
                             <span>{cr.label}</span>
                           </div>
-                          <div className="text-[11px] text-white/45">{fmtTimeLabel(cr.entry.event_time)}</div>
                         </div>
                         <div className="mt-2 grid gap-2 md:grid-cols-2">
                           {cr.diffs.map((diff) => (
@@ -325,29 +317,8 @@ export function CmoSalesOpsAuditPanel(props: { projects: Project[]; projectId: s
                   })}
                 </div>
               ) : (
-                <div className="text-sm text-white/55">No tracked field changes in this save.</div>
+                <div className="text-sm text-white/55">No human numeric changes recorded for this timestamp.</div>
               )}
-
-              {selectedSet.unchanged.length > 0 ? (
-                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
-                  <div className="text-xs font-semibold text-white/75">Unchanged rows (tracked fields)</div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/60">
-                    {selectedSet.unchanged.slice(0, 24).map((cr) => (
-                      <span key={cr.entry.id} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">
-                        {cr.label}
-                      </span>
-                    ))}
-                    {selectedSet.unchanged.length > 24 ? (
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">
-                        +{selectedSet.unchanged.length - 24} more
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="mt-2 text-[11px] text-white/45">
-                    Note: “unchanged” means the tracked fields didn’t change; metadata fields may still have updated.
-                  </div>
-                </div>
-              ) : null}
             </div>
           </div>
         ) : null}
