@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Notification } from "@/lib/dashboardDb";
 import {
@@ -31,8 +31,6 @@ export function useNotifications({
   const [items, setItems] = useState<Notification[]>(initialItems ?? []);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount ?? 0);
   const [loading, setLoading] = useState(false);
-  const hasLoadedRef = useRef(false);
-  const lastTopIdRef = useRef<string | null>(initialItems?.[0]?.id ?? null);
 
   const refresh = useCallback(async () => {
     if (!userId) {
@@ -46,25 +44,14 @@ export function useNotifications({
         listNotifications(supabase, { userId, limit, unreadOnly }),
         countUnreadNotifications(supabase, userId)
       ]);
-      const nextTopId = list[0]?.id ?? null;
-      const shouldAnnounce =
-        hasLoadedRef.current &&
-        nextTopId != null &&
-        nextTopId !== lastTopIdRef.current &&
-        (!unreadOnly || list[0]?.read_at == null);
       setItems(list);
       setUnreadCount(count);
-      if (shouldAnnounce && list[0]) {
-        onNewNotification?.(list[0]);
-      }
-      lastTopIdRef.current = nextTopId;
-      hasLoadedRef.current = true;
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, [limit, onNewNotification, supabase, unreadOnly, userId]);
+  }, [limit, supabase, unreadOnly, userId]);
 
   useEffect(() => {
     refresh();
@@ -81,7 +68,6 @@ export function useNotifications({
           const next = payload.new as Notification;
           setItems((prev) => [next, ...prev].slice(0, limit));
           setUnreadCount((prev) => prev + 1);
-          lastTopIdRef.current = next.id;
           onNewNotification?.(next);
         }
       )
@@ -129,38 +115,12 @@ export function useNotifications({
           });
         }
       )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          refresh();
-        }
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          refresh();
-        }
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [limit, onNewNotification, refresh, supabase, unreadOnly, userId]);
-
-  useEffect(() => {
-    if (!userId) return;
-    const onFocus = () => refresh();
-    const onOnline = () => refresh();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("online", onOnline);
-    document.addEventListener("visibilitychange", onVisibility);
-    const interval = window.setInterval(() => refresh(), 30000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("online", onOnline);
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.clearInterval(interval);
-    };
-  }, [refresh, userId]);
+  }, [limit, onNewNotification, supabase, unreadOnly, userId]);
 
   const markRead = useCallback(
     async (id: string) => {
