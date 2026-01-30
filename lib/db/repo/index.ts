@@ -56,6 +56,8 @@ export function createDashboardRepo(supabase: SupabaseClient) {
       actuals.listProjectActualsDigitalSources(supabase, projectId, year, month),
     upsertProjectActualsDigitalSources: (inputs: Parameters<typeof actuals.upsertProjectActualsDigitalSources>[1]) =>
       actuals.upsertProjectActualsDigitalSources(supabase, inputs),
+    listSalesOpsActualsAudit: (filters?: Parameters<typeof actuals.listSalesOpsActualsAudit>[1]) =>
+      actuals.listSalesOpsActualsAudit(supabase, filters),
 
     // attribution + misc (Sales Ops)
     listSalesAttributionEvents: (projectId: string, year: number, month: number) =>

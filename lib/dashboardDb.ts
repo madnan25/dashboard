@@ -4,7 +4,8 @@ import type {
   ProjectActualsChannelInput,
   ProjectActualsDigitalSourceInput,
   ProjectActualsMetricsInput,
-  ProjectActualsSpendInput
+  ProjectActualsSpendInput,
+  ListSalesOpsActualsAuditFilters
 } from "@/lib/db/repo/actuals";
 import type { CreateSalesAttributionEventInput } from "@/lib/db/repo/attribution";
 import type { CreateTaskInput, ListTasksFilters, UpdateTaskPatch } from "@/lib/db/repo/tasks";
@@ -19,6 +20,7 @@ export type {
   ProjectActuals,
   ProjectActualsChannel,
   ProjectActualsDigitalSource,
+  SalesOpsActualsAuditEntry,
   ProjectTargets,
   MasterCalendarTask,
   TaskTeam,
@@ -64,6 +66,7 @@ import type {
   ProjectActuals,
   ProjectActualsChannel,
   ProjectActualsDigitalSource,
+  SalesOpsActualsAuditEntry,
   ProjectTargets,
   TaskTeam,
   Task,
@@ -235,6 +238,10 @@ export async function listProjectActualsDigitalSources(projectId: string, year: 
 
 export async function upsertProjectActualsDigitalSources(inputs: ProjectActualsDigitalSourceInput[]): Promise<void> {
   return await repo().upsertProjectActualsDigitalSources(inputs);
+}
+
+export async function listSalesOpsActualsAudit(filters?: ListSalesOpsActualsAuditFilters) {
+  return await repo().listSalesOpsActualsAudit(filters);
 }
 
 export async function listSalesAttributionEvents(projectId: string, year: number, month: number) {

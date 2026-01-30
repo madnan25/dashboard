@@ -139,6 +139,29 @@ export type ProjectActualsDigitalSource = {
   updated_at?: string;
 };
 
+export type SalesOpsActualsAuditAction = "insert" | "update" | "delete";
+
+export type SalesOpsActualsAuditEntry = {
+  id: number;
+  event_time: string;
+  action: SalesOpsActualsAuditAction;
+  table_name: string;
+  project_id: string | null;
+  year: number | null;
+  month: number | null;
+  channel: string | null;
+  source: string | null;
+  bucket: string | null;
+  closed_project_id: string | null;
+  source_project_id: string | null;
+  actor_id: string | null;
+  actor_role: string | null;
+  actor_email: string | null;
+  actor_name: string | null;
+  old_row: Record<string, unknown> | null;
+  new_row: Record<string, unknown> | null;
+};
+
 export type TaskStatus = "queued" | "in_progress" | "submitted" | "approved" | "closed" | "on_hold" | "blocked" | "dropped";
 export type TaskPriority = "p0" | "p1" | "p2" | "p3";
 export type TaskApprovalState = "not_required" | "pending" | "approved";

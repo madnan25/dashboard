@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DigitalSource, PlanChannel, ProjectActuals, ProjectActualsChannel, ProjectActualsDigitalSource } from "@/lib/db/types";
+import type {
+  DigitalSource,
+  PlanChannel,
+  ProjectActuals,
+  ProjectActualsChannel,
+  ProjectActualsDigitalSource,
+  SalesOpsActualsAuditEntry
+} from "@/lib/db/types";
 
 export type ProjectActualsMetricsInput = Pick<
   ProjectActuals,
@@ -120,5 +127,36 @@ export async function upsertProjectActualsDigitalSources(supabase: SupabaseClien
     .from("project_actuals_digital_sources")
     .upsert(inputs, { onConflict: "project_id,year,month,source" });
   if (error) throw error;
+}
+
+export type ListSalesOpsActualsAuditFilters = {
+  projectId?: string | null;
+  year?: number | null;
+  month?: number | null;
+  limit?: number;
+  sinceDays?: number;
+};
+
+const salesOpsAuditSelect =
+  "id, event_time, action, table_name, project_id, year, month, channel, source, bucket, closed_project_id, source_project_id, actor_id, actor_role, actor_email, actor_name, old_row, new_row";
+
+export async function listSalesOpsActualsAudit(
+  supabase: SupabaseClient,
+  filters?: ListSalesOpsActualsAuditFilters
+): Promise<SalesOpsActualsAuditEntry[]> {
+  const sinceDays = filters?.sinceDays ?? 7;
+  const sinceIso = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
+
+  let q = supabase.from("sales_ops_actuals_audit").select(salesOpsAuditSelect).gte("event_time", sinceIso).order("event_time", {
+    ascending: false
+  });
+  if (filters?.projectId) q = q.eq("project_id", filters.projectId);
+  if (typeof filters?.year === "number") q = q.eq("year", filters.year);
+  if (typeof filters?.month === "number") q = q.eq("month", filters.month);
+  if (filters?.limit) q = q.limit(filters.limit);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as SalesOpsActualsAuditEntry[]) ?? [];
 }
 

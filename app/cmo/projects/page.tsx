@@ -9,6 +9,7 @@ import { Surface } from "@/components/ds/Surface";
 import { PillSelect } from "@/components/ds/PillSelect";
 import { CmoApprovalsPanel } from "@/components/features/cmo/CmoApprovalsPanel";
 import { CmoProjectsPanel } from "@/components/features/cmo/CmoProjectsPanel";
+import { CmoSalesOpsAuditPanel } from "@/components/features/cmo/CmoSalesOpsAuditPanel";
 import { CmoTargetsPanel } from "@/components/features/cmo/CmoTargetsPanel";
 import { CmoUsersPanel } from "@/components/features/cmo/CmoUsersPanel";
 import { MONTHS } from "@/lib/digitalSnapshot";
@@ -501,6 +502,8 @@ export default function CmoProjectsPage() {
             />
           </div>
         </div>
+
+        <CmoSalesOpsAuditPanel projects={projects} projectId={projectId} year={year} month={month} />
 
         <CmoUsersPanel onStatus={setStatus} />
       </div>
