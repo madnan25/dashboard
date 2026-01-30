@@ -10,10 +10,24 @@ const inter = Inter({
   display: "swap"
 });
 
+function getSafeMetadataBase(): URL {
+  const fallback = "https://reporting-tan.vercel.app";
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!raw) return new URL(fallback);
+
+  // Allow values like "app.thevertical.pk" by assuming https.
+  const normalized = raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
+  try {
+    return new URL(normalized);
+  } catch {
+    return new URL(fallback);
+  }
+}
+
 export const metadata: Metadata = {
   title: "Dashboard",
   description: "No nonsense marketing and sales reporting",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://reporting-tan.vercel.app"),
+  metadataBase: getSafeMetadataBase(),
   openGraph: {
     title: "Dashboard",
     description: "No nonsense marketing and sales reporting",
