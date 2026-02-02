@@ -338,7 +338,9 @@ export function MarketingHomeDashboard({
   const isItemOverdue = (task: InboxTask) => task.due_at != null && task.due_at < todayIso;
   const isGroupOverdue = (task: InboxGroup) =>
     (task.due_at != null && task.due_at < todayIso) || task.subtask_overdue > 0;
-  const assignedAll = liveInbox.items.filter((task) => task.assignee_id === userId);
+  const assignedAll = liveInbox.items.filter(
+    (task) => task.assignee_id === userId && task.status !== "approved" && task.status !== "closed" && task.status !== "dropped"
+  );
   const assignedIds = new Set(assignedAll.map((t) => t.id));
   const teamTicketsAll = liveInbox.items.filter(
     (task) => task.approver_user_id === userId && task.assignee_id !== userId && task.status !== "closed" && task.status !== "dropped"
@@ -384,7 +386,7 @@ export function MarketingHomeDashboard({
   return (
     <div className="space-y-4">
       <div className={`grid gap-4 ${canSeeTeam ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-2"}`}>
-        <SummaryCard label="Assigned" value={liveInbox.assigned_count} helper="Tickets with you" tone="accent" />
+        <SummaryCard label="Assigned" value={assignedAll.length} helper="Open tickets with you" tone="accent" />
         {canSeeTeam ? (
           <SummaryCard label="Awaiting approval" value={awaitingApprovalAll.length} helper="Needs your sign-off" />
         ) : null}

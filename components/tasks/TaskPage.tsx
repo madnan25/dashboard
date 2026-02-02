@@ -1826,7 +1826,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             </div>
 
                             <div className="shrink-0 flex items-center gap-2">
-                              {s.status === "blocked" && (subtaskDependencies[s.id]?.length ?? 0) > 0 ? (
+                              {s.status === "blocked" ? (
                                 <span className="inline-flex items-center rounded-full border border-rose-400/25 bg-rose-500/[0.12] px-2 py-0.5 text-[11px] text-rose-100">
                                   Blocked
                                 </span>
@@ -1885,12 +1885,14 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             )}
                           </div>
 
-                          {s.status === "blocked" && (subtaskDependencies[s.id]?.length ?? 0) > 0 ? (
+                          {s.status === "blocked" ? (
                             <div className="mb-4">
                               <div className={BLOCKED_BANNER_CLASS}>
                                 <div className="text-xs uppercase tracking-widest text-rose-200/90">Blocked</div>
                                 <div className="mt-1 text-sm text-white/80">
-                                  This subtask is blocked by dependencies.
+                                  {(subtaskDependencies[s.id]?.length ?? 0) > 0
+                                    ? "This subtask is blocked by dependencies."
+                                    : "This subtask is marked as blocked."}
                                 </div>
                               </div>
                             </div>
