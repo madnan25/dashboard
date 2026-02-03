@@ -54,6 +54,16 @@ export async function deleteNotificationsBefore(supabase: SupabaseClient, userId
 }
 
 export async function nudgeSubtaskAssignee(supabase: SupabaseClient, subtaskId: string): Promise<void> {
+  // RPC signatures are matched via Supabase/PostgREST schema cache.
+  // If the DB migration hasn’t been applied yet, PostgREST returns a "schema cache" error.
   const { error } = await supabase.rpc("nudge_subtask_assignee", { p_subtask_id: subtaskId });
-  if (error) throw error;
+  if (error) {
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === "string" && msg.includes("nudge_subtask_assignee") && msg.toLowerCase().includes("schema cache")) {
+      throw new Error(
+        "Subtask notifications aren’t deployed in the database yet. Apply Supabase migration `20260203123000_subtask_nudge_notifications.sql`, then retry."
+      );
+    }
+    throw error;
+  }
 }
