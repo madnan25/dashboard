@@ -141,7 +141,6 @@ function formatTicketTitle(prefix: string, number: number, label: string) {
 const DEPENDENCY_TICKET_STATUSES: TaskStatus[] = ["queued", "in_progress", "submitted"];
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 const SUBTASK_NUDGE_COOLDOWN_MS = 30 * 60 * 1000;
-const SUBTASK_NUDGE_STORAGE_KEY = "taskSubtaskNudgeCooldown:v1";
 
 export function TaskPage({ taskId }: { taskId: string }) {
   const router = useRouter();
@@ -158,7 +157,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
   const [subtaskNudge, setSubtaskNudge] = useState<Record<string, "idle" | "sending" | "sent" | "error">>({});
   const [subtaskNudgeMsg, setSubtaskNudgeMsg] = useState<Record<string, string>>({});
-  const [subtaskNudgeCooldownUntil, setSubtaskNudgeCooldownUntil] = useState<Record<string, number>>({});
   const [subtaskDependencies, setSubtaskDependencies] = useState<Record<string, TaskSubtaskDependency[]>>({});
   const [subtaskDependencyAction, setSubtaskDependencyAction] = useState<Record<string, "" | "task" | "subtask">>({});
   const [subtaskDependencyPickerValue, setSubtaskDependencyPickerValue] = useState<Record<string, string>>({});
@@ -261,10 +259,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const approverProfile = useMemo(() => profiles.find((p) => p.id === approverUserId) ?? null, [approverUserId, profiles]);
   const attachmentById = useMemo(() => new Map(attachments.map((a) => [a.id, a])), [attachments]);
 
-  function nudgeKey(subtaskId: string, assigneeId: string | null | undefined) {
-    return `${subtaskId}:${assigneeId || "none"}`;
-  }
-
   function fmtCooldown(msRemaining: number) {
     const sec = Math.max(0, Math.ceil(msRemaining / 1000));
     const min = Math.floor(sec / 60);
@@ -274,23 +268,6 @@ export function TaskPage({ taskId }: { taskId: string }) {
     const m = min % 60;
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(SUBTASK_NUDGE_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as unknown;
-      if (!parsed || typeof parsed !== "object") return;
-      const record = parsed as Record<string, unknown>;
-      const next: Record<string, number> = {};
-      for (const [k, v] of Object.entries(record)) {
-        if (typeof v === "number" && Number.isFinite(v)) next[k] = v;
-      }
-      setSubtaskNudgeCooldownUntil(next);
-    } catch {
-      // ignore
-    }
-  }, []);
   const referencedAttachmentIds = useMemo(() => {
     const ids = new Set<string>();
     Object.values(commentAttachmentsByCommentId).forEach((list) => {
@@ -643,37 +620,43 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }, [ensureProfilesLoaded, ensureTaskTitlesLoaded, refreshSubtaskDependencies, taskId]);
 
-  async function refreshSubtasksOnly() {
+  const refreshSubtasksOnly = useCallback(async () => {
     const subs = await listTaskSubtasks(taskId);
     setSubtasks(subs);
     await ensureTaskTitlesLoaded([...(subs.map((s) => s.linked_task_id ?? null) ?? [])]);
     await refreshSubtaskDependencies(subs);
-  }
+  }, [ensureTaskTitlesLoaded, refreshSubtaskDependencies, taskId]);
+
+  useEffect(() => {
+    const ch = supabase
+      .channel(`task:${taskId}:subtasks`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "task_subtasks", filter: `task_id=eq.${taskId}` },
+        () => {
+          // Keep subtask rows (including nudge cooldown) fresh across viewers.
+          void refreshSubtasksOnly().catch(() => null);
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, [refreshSubtasksOnly, supabase, taskId]);
 
   async function onNudgeSubtaskAssignee(subtaskId: string, assigneeIdForKey: string | null | undefined) {
-    const key = nudgeKey(subtaskId, assigneeIdForKey);
-    const until = subtaskNudgeCooldownUntil[key] ?? 0;
-    const now = Date.now();
-    if (until > now) {
-      const left = fmtCooldown(until - now);
-      setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: `Already pinged. Try again in ${left}.` }));
-      window.setTimeout(() => setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: "" })), 2500);
-      return;
-    }
     setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "sending" }));
     setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: "" }));
     try {
       await nudgeSubtaskAssignee(subtaskId);
-      const nextUntil = Date.now() + SUBTASK_NUDGE_COOLDOWN_MS;
-      setSubtaskNudgeCooldownUntil((prev) => {
-        const merged = { ...prev, [key]: nextUntil };
-        try {
-          window.localStorage.setItem(SUBTASK_NUDGE_STORAGE_KEY, JSON.stringify(merged));
-        } catch {
-          // ignore
-        }
-        return merged;
-      });
+      const nowIso = new Date().toISOString();
+      setSubtasks((prev) =>
+        prev.map((s) =>
+          s.id === subtaskId
+            ? { ...s, last_nudged_at: nowIso, last_nudged_by: profile?.id ?? null, last_nudged_assignee_id: assigneeIdForKey ?? null }
+            : s
+        )
+      );
       setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "sent" }));
       window.setTimeout(() => {
         setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "idle" }));
@@ -1924,9 +1907,17 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         s.due_at ??
                         (s.linked_task_id ? (linkedTaskDueAt[s.linked_task_id.toLowerCase()] ?? null) : null);
                       const canNudgeAssignee = Boolean(profile?.id && s.assignee_id && s.assignee_id !== profile.id);
-                      const nudgeCooldownKey = nudgeKey(s.id, s.assignee_id);
-                      const nudgeCooldownUntil = subtaskNudgeCooldownUntil[nudgeCooldownKey] ?? 0;
-                      const nudgeCooldownActive = nudgeCooldownUntil > Date.now();
+                      const lastNudgedAtMs = s.last_nudged_at ? new Date(s.last_nudged_at).getTime() : 0;
+                      const nudgeCooldownActive = Boolean(
+                        lastNudgedAtMs &&
+                          s.assignee_id &&
+                          s.last_nudged_assignee_id &&
+                          s.last_nudged_assignee_id === s.assignee_id &&
+                          lastNudgedAtMs + SUBTASK_NUDGE_COOLDOWN_MS > Date.now()
+                      );
+                      const nudgeCooldownRemainingMs = nudgeCooldownActive
+                        ? lastNudgedAtMs + SUBTASK_NUDGE_COOLDOWN_MS - Date.now()
+                        : 0;
                       const nudgeState = subtaskNudge[s.id] ?? "idle";
                       const nudgeHint = subtaskNudgeMsg[s.id] ?? "";
                       return (
@@ -1975,7 +1966,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                   ].join(" ")}
                                   title={
                                     nudgeCooldownActive
-                                      ? `Notify available in ${fmtCooldown(nudgeCooldownUntil - Date.now())}`
+                                      ? `Notify available in ${fmtCooldown(nudgeCooldownRemainingMs)}`
                                       : nudgeState === "sent"
                                         ? "Notified"
                                         : "Notify assignee"

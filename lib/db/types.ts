@@ -301,6 +301,9 @@ export type TaskSubtask = {
   linked_task_id?: string | null;
   due_at: string | null; // date
   effort_points: number;
+  last_nudged_at?: string | null;
+  last_nudged_by?: string | null;
+  last_nudged_assignee_id?: string | null;
   created_at: string;
   updated_at: string;
 };

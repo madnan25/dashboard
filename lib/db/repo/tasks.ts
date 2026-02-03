@@ -560,7 +560,9 @@ export async function deleteTaskContributionByRole(
 export async function listTaskSubtasks(supabase: SupabaseClient, taskId: string): Promise<TaskSubtask[]> {
   const { data, error } = await supabase
     .from("task_subtasks")
-    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .select(
+      "id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, last_nudged_at, last_nudged_by, last_nudged_assignee_id, created_at, updated_at"
+    )
     .eq("task_id", taskId)
     .order("created_at", { ascending: true });
   if (error) throw error;
@@ -572,7 +574,9 @@ export async function listTaskSubtasksByIds(supabase: SupabaseClient, ids: strin
   if (unique.length === 0) return [];
   const { data, error } = await supabase
     .from("task_subtasks")
-    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .select(
+      "id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, last_nudged_at, last_nudged_by, last_nudged_assignee_id, created_at, updated_at"
+    )
     .in("id", unique);
   if (error) throw error;
   return (data as TaskSubtask[]) ?? [];
@@ -581,7 +585,9 @@ export async function listTaskSubtasksByIds(supabase: SupabaseClient, ids: strin
 export async function listTaskSubtasksByAssignee(supabase: SupabaseClient, assigneeId: string): Promise<TaskSubtask[]> {
   const { data, error } = await supabase
     .from("task_subtasks")
-    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .select(
+      "id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, last_nudged_at, last_nudged_by, last_nudged_assignee_id, created_at, updated_at"
+    )
     .eq("assignee_id", assigneeId)
     .order("updated_at", { ascending: false });
   if (error) throw error;
@@ -591,7 +597,9 @@ export async function listTaskSubtasksByAssignee(supabase: SupabaseClient, assig
 export async function getLinkedParentSubtask(supabase: SupabaseClient, linkedTaskId: string): Promise<TaskSubtask | null> {
   const { data, error } = await supabase
     .from("task_subtasks")
-    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .select(
+      "id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, last_nudged_at, last_nudged_by, last_nudged_assignee_id, created_at, updated_at"
+    )
     .eq("linked_task_id", linkedTaskId)
     .order("created_at", { ascending: true })
     .limit(1);
@@ -621,7 +629,9 @@ export async function createTaskSubtask(supabase: SupabaseClient, input: CreateT
       due_at: input.due_at ?? null,
       effort_points: Math.max(0, Math.trunc(input.effort_points ?? 0))
     })
-    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .select(
+      "id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, last_nudged_at, last_nudged_by, last_nudged_assignee_id, created_at, updated_at"
+    )
     .single();
   if (error) throw error;
   return data as TaskSubtask;
@@ -638,7 +648,9 @@ export async function updateTaskSubtask(
   // Fetch after UPDATE to reflect any trigger-driven follow-up updates.
   const { data, error: readError } = await supabase
     .from("task_subtasks")
-    .select("id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, created_at, updated_at")
+    .select(
+      "id, task_id, created_by, title, description, status, assignee_id, linked_task_id, due_at, effort_points, last_nudged_at, last_nudged_by, last_nudged_assignee_id, created_at, updated_at"
+    )
     .eq("id", id)
     .single();
   if (readError) throw readError;
