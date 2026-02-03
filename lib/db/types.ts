@@ -379,6 +379,7 @@ export type NotificationType =
   | "task_approval_requested"
   | "task_approved"
   | "subtask_assigned"
+  | "subtask_nudge"
   | "comment_mention";
 
 export type Notification = {

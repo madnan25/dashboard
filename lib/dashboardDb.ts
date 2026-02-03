@@ -561,6 +561,10 @@ export async function deleteNotificationsBefore(userId: string, beforeIso: strin
   return await repo().deleteNotificationsBefore(userId, beforeIso);
 }
 
+export async function nudgeSubtaskAssignee(subtaskId: string): Promise<void> {
+  return await repo().nudgeSubtaskAssignee(subtaskId);
+}
+
 export async function getMarketingHomeInbox(limit?: number): Promise<MarketingHomeInbox> {
   return await repo().getMarketingHomeInbox(limit);
 }

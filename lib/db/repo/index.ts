@@ -150,6 +150,7 @@ export function createDashboardRepo(supabase: SupabaseClient) {
     markNotificationRead: (id: string, userId?: string) => notifications.markNotificationRead(supabase, id, userId),
     markAllNotificationsRead: (userId?: string) => notifications.markAllNotificationsRead(supabase, userId),
     deleteNotificationsBefore: (userId: string, beforeIso: string) => notifications.deleteNotificationsBefore(supabase, userId, beforeIso),
+    nudgeSubtaskAssignee: (subtaskId: string) => notifications.nudgeSubtaskAssignee(supabase, subtaskId),
 
     // home dashboard
     getMarketingHomeInbox: (limit?: number) => home.getMarketingHomeInbox(supabase, limit)

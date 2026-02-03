@@ -63,6 +63,7 @@ import {
   listTaskTeams,
   listTaskSubtasks,
   listSubtaskDependencies,
+  nudgeSubtaskAssignee,
   updateTask,
   updateTaskComment,
   updateTaskSubtask
@@ -119,6 +120,20 @@ function normalizeTicketPrefix(raw: string): string | null {
   return cleaned;
 }
 
+function SmallBellIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M15 17H9m6 0a3 3 0 0 1-6 0m6 0h3.2a1 1 0 0 0 .8-1.6l-1.4-1.9a3 3 0 0 1-.6-1.7V9a4.8 4.8 0 1 0-9.6 0v2.8a3 3 0 0 1-.6 1.7l-1.4 1.9a1 1 0 0 0 .8 1.6H9"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function formatTicketTitle(prefix: string, number: number, label: string) {
   return `${prefix}-${number}: ${label}`;
 }
@@ -139,6 +154,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [, setLedger] = useState<unknown[]>([]);
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
+  const [subtaskNudge, setSubtaskNudge] = useState<Record<string, "idle" | "sending" | "sent" | "error">>({});
+  const [subtaskNudgeMsg, setSubtaskNudgeMsg] = useState<Record<string, string>>({});
   const [subtaskDependencies, setSubtaskDependencies] = useState<Record<string, TaskSubtaskDependency[]>>({});
   const [subtaskDependencyAction, setSubtaskDependencyAction] = useState<Record<string, "" | "task" | "subtask">>({});
   const [subtaskDependencyPickerValue, setSubtaskDependencyPickerValue] = useState<Record<string, string>>({});
@@ -597,6 +614,25 @@ export function TaskPage({ taskId }: { taskId: string }) {
     setSubtasks(subs);
     await ensureTaskTitlesLoaded([...(subs.map((s) => s.linked_task_id ?? null) ?? [])]);
     await refreshSubtaskDependencies(subs);
+  }
+
+  async function onNudgeSubtaskAssignee(subtaskId: string) {
+    setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "sending" }));
+    setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: "" }));
+    try {
+      await nudgeSubtaskAssignee(subtaskId);
+      setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "sent" }));
+      window.setTimeout(() => {
+        setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "idle" }));
+      }, 2200);
+    } catch (e) {
+      setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "error" }));
+      setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: getErrorMessage(e, "Failed to notify assignee.") }));
+      window.setTimeout(() => {
+        setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "idle" }));
+        setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: "" }));
+      }, 3200);
+    }
   }
 
   async function refreshCommentsOnly() {
@@ -1834,6 +1870,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       const effectiveSubtaskDueAt =
                         s.due_at ??
                         (s.linked_task_id ? (linkedTaskDueAt[s.linked_task_id.toLowerCase()] ?? null) : null);
+                      const canNudgeAssignee = Boolean(profile?.id && s.assignee_id && s.assignee_id !== profile.id);
+                      const nudgeState = subtaskNudge[s.id] ?? "idle";
+                      const nudgeHint = subtaskNudgeMsg[s.id] ?? "";
                       return (
                         <details
                           key={s.id}
@@ -1864,6 +1903,26 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             </div>
 
                             <div className="shrink-0 flex items-center gap-2">
+                              {canNudgeAssignee ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    void onNudgeSubtaskAssignee(s.id);
+                                  }}
+                                  disabled={nudgeState === "sending"}
+                                  className={[
+                                    "inline-flex h-8 w-8 items-center justify-center rounded-full border text-white/70 transition-colors",
+                                    "border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/15 hover:text-white/90",
+                                    nudgeState === "sending" ? "opacity-60 cursor-not-allowed" : ""
+                                  ].join(" ")}
+                                  title={nudgeState === "sent" ? "Notified" : "Notify assignee"}
+                                  aria-label="Notify assignee"
+                                >
+                                  <SmallBellIcon className={nudgeState === "sent" ? "text-sky-200" : ""} />
+                                </button>
+                              ) : null}
                               {s.status === "blocked" ? (
                                 <span className="inline-flex items-center rounded-full border border-rose-400/25 bg-rose-500/[0.12] px-2 py-0.5 text-[11px] text-rose-100">
                                   Blocked
@@ -1873,6 +1932,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
                           </summary>
 
                           <div className="mt-4">
+                            {nudgeHint ? (
+                              <div className="mb-3 text-xs text-amber-200/90">{nudgeHint}</div>
+                            ) : nudgeState === "sent" ? (
+                              <div className="mb-3 text-xs text-sky-200/80">Notification sent to the assignee.</div>
+                            ) : null}
                             {/* Title Section - Full Width */}
                             <div className="mb-4">
                             {isEditingTitle && canEditTitle ? (

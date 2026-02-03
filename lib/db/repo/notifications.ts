@@ -52,3 +52,8 @@ export async function deleteNotificationsBefore(supabase: SupabaseClient, userId
     .lt("created_at", beforeIso);
   if (error) throw error;
 }
+
+export async function nudgeSubtaskAssignee(supabase: SupabaseClient, subtaskId: string): Promise<void> {
+  const { error } = await supabase.rpc("nudge_subtask_assignee", { p_subtask_id: subtaskId });
+  if (error) throw error;
+}
