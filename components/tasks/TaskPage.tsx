@@ -683,6 +683,44 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   }
 
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewStatus, setPreviewStatus] = useState<string>("");
+  const [previewAttachment, setPreviewAttachment] = useState<TaskAttachment | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+
+  function canInlinePreview(att: TaskAttachment) {
+    const mime = (att.mime_type || "").toLowerCase();
+    if (mime.startsWith("image/")) return true;
+    if (mime === "application/pdf") return true;
+    const name = (att.file_name || "").toLowerCase();
+    return name.endsWith(".pdf") || name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".webp") || name.endsWith(".gif");
+  }
+
+  function previewKind(att: TaskAttachment): "image" | "pdf" | "other" {
+    const mime = (att.mime_type || "").toLowerCase();
+    if (mime.startsWith("image/")) return "image";
+    if (mime === "application/pdf") return "pdf";
+    const name = (att.file_name || "").toLowerCase();
+    if (name.endsWith(".pdf")) return "pdf";
+    if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".webp") || name.endsWith(".gif")) return "image";
+    return "other";
+  }
+
+  async function onPreviewAttachment(att: TaskAttachment) {
+    setPreviewStatus("");
+    setPreviewAttachment(att);
+    setPreviewUrl("");
+    setPreviewOpen(true);
+    try {
+      const { data, error } = await supabase.storage.from("task-attachments").createSignedUrl(att.storage_path, 60 * 10);
+      if (error) throw error;
+      if (!data?.signedUrl) throw new Error("Failed to create preview URL.");
+      setPreviewUrl(data.signedUrl);
+    } catch (e) {
+      setPreviewStatus(getErrorMessage(e, "Failed to preview attachment."));
+    }
+  }
+
   async function onDeleteAttachment(att: TaskAttachment) {
     if (!profile) return;
     setAttachmentsStatus("");
@@ -2259,6 +2297,11 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
+                                {canInlinePreview(att) ? (
+                                  <AppButton intent="secondary" size="sm" className="h-9 px-4" onPress={() => onPreviewAttachment(att)}>
+                                    Preview
+                                  </AppButton>
+                                ) : null}
                                 <AppButton intent="secondary" size="sm" className="h-9 px-4" onPress={() => onDownloadAttachment(att)}>
                                   Download
                                 </AppButton>
@@ -2279,6 +2322,77 @@ export function TaskPage({ taskId }: { taskId: string }) {
                     )}
                   </div>
                 </div>
+
+                {previewOpen ? (
+                  <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+                    <div
+                      className="absolute inset-0 bg-black/60 backdrop-blur"
+                      onClick={() => {
+                        setPreviewOpen(false);
+                        setPreviewAttachment(null);
+                        setPreviewUrl("");
+                        setPreviewStatus("");
+                      }}
+                    />
+                    <div className="relative w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-black/75 shadow-2xl">
+                      <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-white/90">
+                            {previewAttachment?.file_name ?? "Attachment preview"}
+                          </div>
+                          {previewStatus ? <div className="mt-1 text-xs text-amber-200/90">{previewStatus}</div> : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {previewAttachment ? (
+                            <AppButton intent="secondary" size="sm" className="h-9 px-4" onPress={() => onDownloadAttachment(previewAttachment)}>
+                              Download
+                            </AppButton>
+                          ) : null}
+                          <AppButton
+                            intent="ghost"
+                            size="sm"
+                            className="h-9 px-4"
+                            onPress={() => {
+                              setPreviewOpen(false);
+                              setPreviewAttachment(null);
+                              setPreviewUrl("");
+                              setPreviewStatus("");
+                            }}
+                          >
+                            Close
+                          </AppButton>
+                        </div>
+                      </div>
+
+                      <div className="max-h-[75vh] overflow-auto p-4">
+                        {!previewAttachment ? (
+                          <div className="text-sm text-white/55">No attachment selected.</div>
+                        ) : !previewUrl ? (
+                          <div className="text-sm text-white/55">Loading preview…</div>
+                        ) : previewKind(previewAttachment) === "image" ? (
+                          <div className="flex items-center justify-center">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={previewUrl}
+                              alt={previewAttachment.file_name}
+                              className="max-h-[70vh] w-auto max-w-full rounded-2xl border border-white/10 bg-black/30 object-contain"
+                            />
+                          </div>
+                        ) : previewKind(previewAttachment) === "pdf" ? (
+                          <iframe
+                            title={previewAttachment.file_name}
+                            src={previewUrl}
+                            className="h-[70vh] w-full rounded-2xl border border-white/10 bg-black/30"
+                          />
+                        ) : (
+                          <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
+                            Preview isn’t available for this file type.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="my-2 h-px bg-white/10" />
 
