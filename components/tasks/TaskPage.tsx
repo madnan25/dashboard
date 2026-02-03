@@ -140,6 +140,8 @@ function formatTicketTitle(prefix: string, number: number, label: string) {
 
 const DEPENDENCY_TICKET_STATUSES: TaskStatus[] = ["queued", "in_progress", "submitted"];
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+const SUBTASK_NUDGE_COOLDOWN_MS = 30 * 60 * 1000;
+const SUBTASK_NUDGE_STORAGE_KEY = "taskSubtaskNudgeCooldown:v1";
 
 export function TaskPage({ taskId }: { taskId: string }) {
   const router = useRouter();
@@ -156,6 +158,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
   const [subtaskNudge, setSubtaskNudge] = useState<Record<string, "idle" | "sending" | "sent" | "error">>({});
   const [subtaskNudgeMsg, setSubtaskNudgeMsg] = useState<Record<string, string>>({});
+  const [subtaskNudgeCooldownUntil, setSubtaskNudgeCooldownUntil] = useState<Record<string, number>>({});
   const [subtaskDependencies, setSubtaskDependencies] = useState<Record<string, TaskSubtaskDependency[]>>({});
   const [subtaskDependencyAction, setSubtaskDependencyAction] = useState<Record<string, "" | "task" | "subtask">>({});
   const [subtaskDependencyPickerValue, setSubtaskDependencyPickerValue] = useState<Record<string, string>>({});
@@ -257,6 +260,37 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const team = useMemo(() => teams.find((t) => t.id === teamId) ?? null, [teamId, teams]);
   const approverProfile = useMemo(() => profiles.find((p) => p.id === approverUserId) ?? null, [approverUserId, profiles]);
   const attachmentById = useMemo(() => new Map(attachments.map((a) => [a.id, a])), [attachments]);
+
+  function nudgeKey(subtaskId: string, assigneeId: string | null | undefined) {
+    return `${subtaskId}:${assigneeId || "none"}`;
+  }
+
+  function fmtCooldown(msRemaining: number) {
+    const sec = Math.max(0, Math.ceil(msRemaining / 1000));
+    const min = Math.floor(sec / 60);
+    if (min <= 0) return "< 1m";
+    if (min < 60) return `${min}m`;
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SUBTASK_NUDGE_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object") return;
+      const record = parsed as Record<string, unknown>;
+      const next: Record<string, number> = {};
+      for (const [k, v] of Object.entries(record)) {
+        if (typeof v === "number" && Number.isFinite(v)) next[k] = v;
+      }
+      setSubtaskNudgeCooldownUntil(next);
+    } catch {
+      // ignore
+    }
+  }, []);
   const referencedAttachmentIds = useMemo(() => {
     const ids = new Set<string>();
     Object.values(commentAttachmentsByCommentId).forEach((list) => {
@@ -616,11 +650,30 @@ export function TaskPage({ taskId }: { taskId: string }) {
     await refreshSubtaskDependencies(subs);
   }
 
-  async function onNudgeSubtaskAssignee(subtaskId: string) {
+  async function onNudgeSubtaskAssignee(subtaskId: string, assigneeIdForKey: string | null | undefined) {
+    const key = nudgeKey(subtaskId, assigneeIdForKey);
+    const until = subtaskNudgeCooldownUntil[key] ?? 0;
+    const now = Date.now();
+    if (until > now) {
+      const left = fmtCooldown(until - now);
+      setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: `Already pinged. Try again in ${left}.` }));
+      window.setTimeout(() => setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: "" })), 2500);
+      return;
+    }
     setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "sending" }));
     setSubtaskNudgeMsg((prev) => ({ ...prev, [subtaskId]: "" }));
     try {
       await nudgeSubtaskAssignee(subtaskId);
+      const nextUntil = Date.now() + SUBTASK_NUDGE_COOLDOWN_MS;
+      setSubtaskNudgeCooldownUntil((prev) => {
+        const merged = { ...prev, [key]: nextUntil };
+        try {
+          window.localStorage.setItem(SUBTASK_NUDGE_STORAGE_KEY, JSON.stringify(merged));
+        } catch {
+          // ignore
+        }
+        return merged;
+      });
       setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "sent" }));
       window.setTimeout(() => {
         setSubtaskNudge((prev) => ({ ...prev, [subtaskId]: "idle" }));
@@ -1871,6 +1924,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         s.due_at ??
                         (s.linked_task_id ? (linkedTaskDueAt[s.linked_task_id.toLowerCase()] ?? null) : null);
                       const canNudgeAssignee = Boolean(profile?.id && s.assignee_id && s.assignee_id !== profile.id);
+                      const nudgeCooldownKey = nudgeKey(s.id, s.assignee_id);
+                      const nudgeCooldownUntil = subtaskNudgeCooldownUntil[nudgeCooldownKey] ?? 0;
+                      const nudgeCooldownActive = nudgeCooldownUntil > Date.now();
                       const nudgeState = subtaskNudge[s.id] ?? "idle";
                       const nudgeHint = subtaskNudgeMsg[s.id] ?? "";
                       return (
@@ -1909,15 +1965,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    void onNudgeSubtaskAssignee(s.id);
+                                    void onNudgeSubtaskAssignee(s.id, s.assignee_id);
                                   }}
-                                  disabled={nudgeState === "sending"}
+                                  disabled={nudgeState === "sending" || nudgeCooldownActive}
                                   className={[
                                     "inline-flex h-8 w-8 items-center justify-center rounded-full border text-white/70 transition-colors",
                                     "border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/15 hover:text-white/90",
-                                    nudgeState === "sending" ? "opacity-60 cursor-not-allowed" : ""
+                                    nudgeState === "sending" || nudgeCooldownActive ? "opacity-60 cursor-not-allowed" : ""
                                   ].join(" ")}
-                                  title={nudgeState === "sent" ? "Notified" : "Notify assignee"}
+                                  title={
+                                    nudgeCooldownActive
+                                      ? `Notify available in ${fmtCooldown(nudgeCooldownUntil - Date.now())}`
+                                      : nudgeState === "sent"
+                                        ? "Notified"
+                                        : "Notify assignee"
+                                  }
                                   aria-label="Notify assignee"
                                 >
                                   <SmallBellIcon className={nudgeState === "sent" ? "text-sky-200" : ""} />
