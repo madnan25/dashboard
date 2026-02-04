@@ -183,9 +183,9 @@ export function TaskPage({ taskId }: { taskId: string }) {
   // Status is collaborative for marketing team, but approval/close still requires assigned approver/CMO.
   const canEditStatus = Boolean(profile && isMarketingTeamProfile(profile)) || canEditProperties;
   const canEditTask = canEditDetails || canEditProperties || canEditDescription;
-  const canComment = profile != null;
+  const canComment = Boolean(profile && isMarketingTeamProfile(profile));
   const canDelete = isCmo;
-  const canCreateSubtasks = profile != null; // anyone who can view the ticket can add subtasks
+  const canCreateSubtasks = Boolean(profile && isMarketingTeamProfile(profile)); // marketing team can add subtasks
   const canEditSubtasks = Boolean(profile && isMarketingTeamProfile(profile)); // marketing team can manage subtasks
   function canManageSubtaskLinks(s: TaskSubtask) {
     if (!profile) return false;
@@ -702,6 +702,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   async function onUploadAttachments(files: FileList | null) {
     if (!files || files.length === 0) return;
+    if (!canComment) {
+      setAttachmentsStatus("You don’t have permission to upload attachments.");
+      return;
+    }
     if (!profile) {
       setAttachmentsStatus("Sign in to upload attachments.");
       return;
@@ -2374,7 +2378,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       intent="secondary"
                       className="h-10 px-4"
                       onPress={() => attachmentInputRef.current?.click()}
-                      isDisabled={uploadingAttachments}
+                      isDisabled={!canComment || uploadingAttachments}
                     >
                       {uploadingAttachments ? "Uploading…" : "Add files"}
                     </AppButton>

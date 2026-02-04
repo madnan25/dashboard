@@ -7,7 +7,7 @@ import type { UserRole } from "@/lib/db/types";
 export const dynamic = "force-dynamic";
 
 function isRole(v: unknown): v is UserRole {
-  return v === "cmo" || v === "brand_manager" || v === "member" || v === "sales_ops" || v === "viewer";
+  return v === "cmo" || v === "brand_manager" || v === "member" || v === "sales_ops" || v === "viewer" || v === "admin_viewer";
 }
 
 function json(status: number, body: unknown) {

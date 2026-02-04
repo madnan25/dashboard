@@ -103,6 +103,7 @@ export async function middleware(request: NextRequest) {
         const role = p?.role ?? null;
         const ok =
           role === "cmo" ||
+          role === "admin_viewer" ||
           (role !== "sales_ops" && (role === "brand_manager" || role === "member" || p?.is_marketing_team === true));
 
         if (!ok) {

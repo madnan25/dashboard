@@ -1,4 +1,4 @@
-export type UserRole = "cmo" | "brand_manager" | "sales_ops" | "viewer" | "member";
+export type UserRole = "cmo" | "brand_manager" | "sales_ops" | "viewer" | "member" | "admin_viewer";
 export type PlanStatus = "draft" | "submitted" | "approved" | "rejected";
 export type PlanChannel = "digital" | "activations" | "inbound";
 

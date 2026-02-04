@@ -21,6 +21,8 @@ function roleLabel(role: Profile["role"] | null) {
       return "Sales";
     case "viewer":
       return "View";
+    case "admin_viewer":
+      return "Admin";
     default:
       return "—";
   }
@@ -81,10 +83,12 @@ export function MobileTabBar() {
 
   const isCmo = profile?.role === "cmo";
   const isMarketingTeam = isMarketingTeamProfile(profile);
-  const canSeePlanning = profile?.role != null && profile.role !== "viewer" && profile.role !== "member";
+  const canSeePlanning =
+    profile?.role != null && profile.role !== "viewer" && profile.role !== "member" && profile.role !== "admin_viewer";
   const canAccessTasks =
     profile?.role != null &&
     (profile.role === "cmo" ||
+      profile.role === "admin_viewer" ||
       (profile.role !== "sales_ops" && (profile.role === "member" || profile.role === "brand_manager" || profile.is_marketing_team === true)));
 
   const tabs = useMemo(() => {

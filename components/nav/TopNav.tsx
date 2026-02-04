@@ -22,6 +22,8 @@ function roleLabel(role: Profile["role"] | null) {
       return "Sales Ops";
     case "viewer":
       return "Viewer";
+    case "admin_viewer":
+      return "Admin Viewer";
     default:
       return "—";
   }
@@ -81,10 +83,12 @@ export function TopNav() {
   const isCmo = profile?.role === "cmo";
   const isMarketingTeam = isMarketingTeamProfile(profile);
   // Avoid a "clickable for 1 second" flicker: until we know the role, don't render the link.
-  const canSeePlanning = profile?.role != null && profile.role !== "viewer" && profile.role !== "member";
+  const canSeePlanning =
+    profile?.role != null && profile.role !== "viewer" && profile.role !== "member" && profile.role !== "admin_viewer";
   const canAccessTasks =
     profile?.role != null &&
     (profile.role === "cmo" ||
+      profile.role === "admin_viewer" ||
       (profile.role !== "sales_ops" && (profile.role === "member" || profile.role === "brand_manager" || profile.is_marketing_team === true)));
 
   // Hide on auth-only routes

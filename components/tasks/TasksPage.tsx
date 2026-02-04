@@ -152,7 +152,7 @@ export function TasksPage() {
   const [creating, setCreating] = useState(false);
 
   const isCmo = profile?.role === "cmo";
-  const canEdit = profile != null;
+  const canEdit = isMarketingTeamProfile(profile);
   const isManager = isMarketingManagerProfile(profile) || isCmo;
   const assignableProfiles = useMemo(() => {
     const rows = profiles.filter(isMarketingTeamProfile);

@@ -21,6 +21,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "member", label: "Member" },
   { value: "sales_ops", label: "Sales Ops" },
   { value: "viewer", label: "Viewer" },
+  { value: "admin_viewer", label: "Admin Viewer" },
   { value: "cmo", label: "CMO" }
 ];
 
@@ -234,8 +235,8 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                       const isCmo = r.role === "cmo";
                       const isSelf = currentUserId != null && r.id === currentUserId;
                       const tasksBlocked = r.role === "sales_ops";
-                      const planningBlocked = r.role === "viewer";
-                      const readOnlyTasks = r.role === "viewer";
+                      const planningBlocked = r.role === "viewer" || r.role === "admin_viewer";
+                      const readOnlyTasks = r.role === "viewer" || r.role === "admin_viewer";
                       const canToggleManager = !isCmo && !readOnlyTasks && r.role !== "sales_ops";
                       return (
                         <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
@@ -250,11 +251,11 @@ export function CmoUsersPanel(props: { onStatus: (msg: string) => void }) {
                                 </div>
                               ) : null}
                               {planningBlocked ? (
-                                <div className="mt-1 text-[11px] text-white/45">Planning & Actuals is disabled for Viewer (this is expected).</div>
+                                <div className="mt-1 text-[11px] text-white/45">Planning & Actuals is disabled for view-only roles (Viewer/Admin Viewer).</div>
                               ) : null}
                               {readOnlyTasks ? (
                                 <div className="mt-1 text-[11px] text-white/45">
-                                  Viewer + Marketing can view Tasks only. Set role to Member to work on Tasks.
+                                  View-only roles can see Tasks but cannot edit. Set role to Member to work on Tasks.
                                 </div>
                               ) : null}
                             </div>

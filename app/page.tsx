@@ -59,10 +59,11 @@ export default async function HomePage() {
   const supabase = await createServerDbClient();
   const repo = createDashboardRepo(supabase);
   const profile = await repo.getCurrentProfile();
-  const planningDisabled = profile?.role === "viewer" || profile?.role === "member";
+  const planningDisabled = profile?.role === "viewer" || profile?.role === "member" || profile?.role === "admin_viewer";
   const isMarketingTeam = isMarketingTeamProfile(profile);
   const canSeeTasks =
     profile?.role === "cmo" ||
+    profile?.role === "admin_viewer" ||
     (profile?.role != null &&
       profile.role !== "sales_ops" &&
       (profile.role === "brand_manager" || profile.role === "member" || profile.is_marketing_team === true));

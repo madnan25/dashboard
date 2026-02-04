@@ -10,8 +10,8 @@ export default async function BrandDataEntryPage() {
   const repo = createDashboardRepo(supabase);
   const profile = await repo.getCurrentProfile();
 
-  // Viewers are read-only: they can see project dashboards but not Planning/Actuals entry.
-  if (profile?.role === "viewer") redirect("/projects");
+  // View-only roles: can see project dashboards but not Planning/Actuals entry.
+  if (profile?.role === "viewer" || profile?.role === "admin_viewer") redirect("/projects");
 
   return <BrandDataEntryClient />;
 }

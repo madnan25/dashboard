@@ -61,6 +61,7 @@ export function isMarketingTeamProfile(p: Profile | null | undefined): p is Prof
     p &&
       p.role !== "sales_ops" &&
       p.role !== "viewer" &&
+      p.role !== "admin_viewer" &&
       (p.role === "cmo" || p.role === "brand_manager" || p.role === "member" || p.is_marketing_team === true)
   );
 }
