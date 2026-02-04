@@ -81,6 +81,7 @@ export function TopNav() {
   }, [email, profile?.full_name]);
 
   const isCmo = profile?.role === "cmo";
+  const canSeeIntelligenceDesk = isCmo || profile?.role === "admin_viewer";
   const isMarketingTeam = isMarketingTeamProfile(profile);
   // Avoid a "clickable for 1 second" flicker: until we know the role, don't render the link.
   const canSeePlanning =
@@ -196,7 +197,7 @@ export function TopNav() {
                   CMO Console
                 </Link>
               ) : null}
-              {isCmo ? (
+              {canSeeIntelligenceDesk ? (
                 <Link
                   href="/intelligence-desk"
                   prefetch

@@ -433,7 +433,7 @@ export function IntelligenceDeskPage() {
   }
 
   useEffect(() => {
-    if (profileRole === "cmo") void loadSummary();
+    if (profileRole === "cmo" || profileRole === "admin_viewer") void loadSummary();
   }, [profileRole]);
 
   useEffect(() => {
@@ -508,7 +508,7 @@ export function IntelligenceDeskPage() {
     return [];
   }, [chatScopeType, summaryMeta]);
 
-  if (authChecked && profileRole && profileRole !== "cmo") {
+  if (authChecked && profileRole && profileRole !== "cmo" && profileRole !== "admin_viewer") {
     return (
       <main className="min-h-screen px-4 md:px-6 pb-10">
         <div className="mx-auto w-full max-w-5xl space-y-6">

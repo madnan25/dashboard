@@ -82,6 +82,7 @@ export function MobileTabBar() {
   }, []);
 
   const isCmo = profile?.role === "cmo";
+  const canSeeIntelligenceDesk = isCmo || profile?.role === "admin_viewer";
   const isMarketingTeam = isMarketingTeamProfile(profile);
   const canSeePlanning =
     profile?.role != null && profile.role !== "viewer" && profile.role !== "member" && profile.role !== "admin_viewer";
@@ -151,12 +152,14 @@ export function MobileTabBar() {
       { key: "account", href: "/account", label: "Account", icon: "M12 12a4 4 0 1 0-0.001-8.001A4 4 0 0 0 12 12Zm-7.5 9a7.5 7.5 0 0 1 15 0" }
     ];
 
-    if (isCmo) {
+    if (canSeeIntelligenceDesk) {
       const insertAt = 4;
       base.splice(
         insertAt,
         0,
-        { key: "cmo", href: "/cmo/projects", label: "CMO", icon: "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" },
+        ...(isCmo
+          ? [{ key: "cmo", href: "/cmo/projects", label: "CMO", icon: "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" } as const]
+          : []),
         {
           key: "intelligence",
           href: "/intelligence-desk",
@@ -167,7 +170,7 @@ export function MobileTabBar() {
     }
 
     return base;
-  }, [canAccessTasks, canSeePlanning, isCmo, isMarketingTeam, profile?.role]);
+  }, [canAccessTasks, canSeeIntelligenceDesk, canSeePlanning, isCmo, isMarketingTeam, profile?.role]);
 
   // Hide on auth-only routes
   if (hide) return null;

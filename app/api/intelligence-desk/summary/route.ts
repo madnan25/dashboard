@@ -31,7 +31,7 @@ async function loadIntelligenceTimeZone(supabase: SupabaseClient) {
   }
 }
 
-async function requireCmo() {
+async function requireCmoOrAdminViewer() {
   const supabase = await createSupabaseServerClient();
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userRes.user) return { error: json(401, { error: "Not authenticated" }) };
@@ -42,13 +42,15 @@ async function requireCmo() {
     .eq("id", userRes.user.id)
     .maybeSingle();
   if (profileErr) return { error: json(500, { error: "Failed to verify role" }) };
-  if (!profile || profile.role !== "cmo") return { error: json(403, { error: "CMO only" }) };
+  if (!profile || (profile.role !== "cmo" && profile.role !== "admin_viewer")) {
+    return { error: json(403, { error: "CMO or Admin Viewer only" }) };
+  }
 
   return { supabase };
 }
 
 export async function GET(req: Request) {
-  const auth = await requireCmo();
+  const auth = await requireCmoOrAdminViewer();
   if ("error" in auth) return auth.error;
   const supabase = auth.supabase;
 
