@@ -349,6 +349,8 @@ export function MarketingHomeDashboard({
   const awaitingApprovalAll = liveInbox.items.filter(
     (task) => task.approver_user_id === userId && task.approval_state === "pending" && task.status === "submitted"
   );
+  const awaitingApprovalIds = new Set(awaitingApprovalAll.map((t) => t.id));
+  const teamTicketsNonApprovalAll = teamTicketsAll.filter((t) => !awaitingApprovalIds.has(t.id));
   const teamOverdueApprovals = teamTicketsAll.filter((task) => isItemOverdue(task));
 
   const collaboratingAll = liveInbox.items.filter(
@@ -369,11 +371,13 @@ export function MarketingHomeDashboard({
   };
 
   const assignedGroupsAll = groupInboxItems(assignedAll, todayIso);
-  const teamTicketGroupsAll = groupInboxItems(teamTicketsAll, todayIso);
+  const teamTicketGroupsAll = groupInboxItems(teamTicketsNonApprovalAll, todayIso);
+  const awaitingApprovalGroupsAll = groupInboxItems(awaitingApprovalAll, todayIso);
   const collaboratingGroupsAll = groupInboxItems(collaboratingAll, todayIso);
 
   const assigned = assignedGroupsAll.sort(byAssignedPriority).slice(0, maxItems);
   const teamTickets = teamTicketGroupsAll.sort(byUpdatedDesc).slice(0, maxItems);
+  const awaitingApprovals = awaitingApprovalGroupsAll.sort(byUpdatedDesc).slice(0, maxItems);
   const collaborating = collaboratingGroupsAll.sort(byUpdatedDesc).slice(0, maxItems);
   const collaboratingHelper =
     collaborating.length > 0 ? "Tickets where you are a contributor or subtask owner." : "No shared tickets yet.";
@@ -442,7 +446,11 @@ export function MarketingHomeDashboard({
 
               {canSeeTeam ? (
                 <>
-                  <Section title="Team tickets" count={teamTicketsAll.length} helper="All tickets where you are the approver.">
+                  <Section
+                    title="Team tickets"
+                    count={teamTicketsNonApprovalAll.length}
+                    helper="Tickets where you are the approver (excluding those awaiting your approval below)."
+                  >
                     {teamTickets.length === 0 ? (
                       <div className="text-sm text-white/55">No team tickets yet.</div>
                     ) : (
@@ -462,6 +470,22 @@ export function MarketingHomeDashboard({
                           }
                           todayIso={todayIso}
                         />
+                      ))
+                    )}
+                  </Section>
+
+                  <Section
+                    title="Awaiting your approval"
+                    count={awaitingApprovalAll.length}
+                    helper="Submitted tickets waiting on you."
+                    statusLabel={awaitingApprovalAll.length > 0 ? "Needs approval" : undefined}
+                    statusTone="approval"
+                  >
+                    {awaitingApprovals.length === 0 ? (
+                      <div className="text-sm text-white/55">Nothing awaiting approval.</div>
+                    ) : (
+                      awaitingApprovals.map((task) => (
+                        <TaskRow key={task.id} task={task} badge="Needs approval" badgeTone="approval" todayIso={todayIso} />
                       ))
                     )}
                   </Section>
@@ -492,13 +516,15 @@ export function MarketingHomeDashboard({
                 </>
               ) : null}
 
-              <Section title="Shared with you" count={collaboratingAll.length} helper={collaboratingHelper}>
-                {collaborating.length === 0 ? (
-                  <div className="text-sm text-white/55">Nothing shared yet.</div>
-                ) : (
-                  collaborating.map((task) => <TaskRow key={task.id} task={task} badge="Shared" badgeTone="muted" todayIso={todayIso} />)
-                )}
-              </Section>
+              {collaboratingAll.length > 0 ? (
+                <Section title="Shared with you" count={collaboratingAll.length} helper={collaboratingHelper}>
+                  {collaborating.length === 0 ? (
+                    <div className="text-sm text-white/55">Nothing shared yet.</div>
+                  ) : (
+                    collaborating.map((task) => <TaskRow key={task.id} task={task} badge="Shared" badgeTone="muted" todayIso={todayIso} />)
+                  )}
+                </Section>
+              ) : null}
             </>
           )}
         </div>
