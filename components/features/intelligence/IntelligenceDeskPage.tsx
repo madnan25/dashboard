@@ -368,6 +368,7 @@ export function IntelligenceDeskPage() {
   const [summaryMeta, setSummaryMeta] = useState<SummaryResponse | null>(null);
   const [summaryStatus, setSummaryStatus] = useState<string>("");
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [recentCommentsExpanded, setRecentCommentsExpanded] = useState(false);
 
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -490,7 +491,11 @@ export function IntelligenceDeskPage() {
     return [...rows].sort((a, b) => b.blocked - a.blocked).slice(0, 5);
   }, [summaryMeta]);
   const blockedTasks = summaryMeta?.insights?.blocked_tasks?.slice(0, 6) ?? [];
-  const recentComments = summaryMeta?.insights?.recent_comments?.slice(0, 6) ?? [];
+  const recentCommentsAll = summaryMeta?.insights?.recent_comments ?? [];
+  const recentCommentsCollapsedCount = 4;
+  const recentComments = recentCommentsExpanded
+    ? recentCommentsAll
+    : recentCommentsAll.slice(0, recentCommentsCollapsedCount);
 
   const scopeOptions = useMemo(() => {
     if (chatScopeType === "team") {
@@ -769,25 +774,42 @@ export function IntelligenceDeskPage() {
             </Surface>
 
             <Surface>
-              <div className="text-xs uppercase tracking-widest text-white/45">Recent comment highlights</div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-xs uppercase tracking-widest text-white/45">Recent comment highlights</div>
+                {recentCommentsAll.length > recentCommentsCollapsedCount ? (
+                  <button
+                    type="button"
+                    onClick={() => setRecentCommentsExpanded((v) => !v)}
+                    className="text-[11px] font-medium text-white/55 hover:text-white/80"
+                  >
+                    {recentCommentsExpanded ? "Show less" : `See more (${recentCommentsAll.length - recentCommentsCollapsedCount})`}
+                  </button>
+                ) : null}
+              </div>
               <div className="mt-3 space-y-2">
                 {recentComments.length === 0 ? (
                   <div className="text-sm text-white/55">No recent comments yet.</div>
                 ) : (
-                  recentComments.map((c) => (
-                    <div key={`${c.task_id}-${c.created_at}`} className="rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2">
-                      <div className="text-xs text-white/60">{c.project} · {c.team}</div>
-                    <div className="mt-1 text-sm text-white/85">
-                      <Link
-                        href={`/tasks/${c.task_id}`}
-                        className="underline underline-offset-2 decoration-white/20 hover:decoration-white/60"
-                      >
-                        {stripIdsFromText(c.title)}
-                      </Link>
+                  <div className={recentCommentsExpanded ? "max-h-[320px] overflow-auto pr-1" : ""}>
+                    <div className="space-y-2">
+                      {recentComments.map((c) => (
+                        <div key={`${c.task_id}-${c.created_at}`} className="rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-2">
+                          <div className="text-xs text-white/60">
+                            {c.project} · {c.team}
+                          </div>
+                          <div className="mt-1 text-sm text-white/85">
+                            <Link
+                              href={`/tasks/${c.task_id}`}
+                              className="underline underline-offset-2 decoration-white/20 hover:decoration-white/60"
+                            >
+                              {stripIdsFromText(c.title)}
+                            </Link>
+                          </div>
+                          <div className="mt-1 text-xs text-white/55">{renderSnippetWithMentions(c.snippet)}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="mt-1 text-xs text-white/55">{renderSnippetWithMentions(c.snippet)}</div>
-                    </div>
-                  ))
+                  </div>
                 )}
               </div>
             </Surface>
