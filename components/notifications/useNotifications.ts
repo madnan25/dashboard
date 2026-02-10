@@ -48,6 +48,8 @@ export function useNotifications({
   const realtimeHealthyRef = useRef(false);
   const instanceIdRef = useRef<string>("");
   const itemsRef = useRef<Notification[]>(items);
+  const lastMarkAllAtRef = useRef<string | null>(null);
+  const lastMarkAllAtMsRef = useRef<number>(0);
 
   if (!instanceIdRef.current) {
     try {
@@ -77,17 +79,41 @@ export function useNotifications({
         countUnreadNotifications(supabase, userId)
       ]);
 
+      const lastMarkAllAt = lastMarkAllAtRef.current;
+      const lastMarkAllMs = lastMarkAllAtMsRef.current;
+      const shouldOverrideCount = lastMarkAllAt && Date.now() - lastMarkAllMs < 5000;
+      let nextList = list;
+      let nextCount = count;
+      if (lastMarkAllAt) {
+        const cutoffMs = new Date(lastMarkAllAt).getTime();
+        if (Number.isFinite(cutoffMs)) {
+          nextList = list.map((n) => {
+            const createdMs = new Date(n.created_at).getTime();
+            if (createdMs <= cutoffMs && !n.read_at) {
+              return { ...n, read_at: lastMarkAllAt };
+            }
+            return n;
+          });
+          if (unreadOnly) {
+            nextList = nextList.filter((n) => !n.read_at);
+          }
+          if (shouldOverrideCount) {
+            nextCount = nextList.filter((n) => !n.read_at).length;
+          }
+        }
+      }
+
       // If realtime is unavailable/missed events, detect newly arrived notifications on refresh
       // and trigger the same UX (bell auto-open).
-      if (didInitialRefreshRef.current && list.length > 0) {
-        const newest = list[0];
+      if (didInitialRefreshRef.current && nextList.length > 0) {
+        const newest = nextList[0];
         const prevTopId = latestIdRef.current;
         if (prevTopId && newest.id !== prevTopId && !newest.read_at) onNewNotification?.(newest);
       }
 
-      setItems(list);
-      setUnreadCount(count);
-      latestIdRef.current = list[0]?.id ?? null;
+      setItems(nextList);
+      setUnreadCount(nextCount);
+      latestIdRef.current = nextList[0]?.id ?? null;
     } catch {
       // ignore
     } finally {
@@ -215,6 +241,8 @@ export function useNotifications({
       if (detail.kind === "mark_all_read") {
         setItems((prev) => (unreadOnly ? [] : prev.map((n) => (n.read_at ? n : { ...n, read_at: detail.at }))));
         setUnreadCount(0);
+      lastMarkAllAtRef.current = detail.at;
+      lastMarkAllAtMsRef.current = Date.now();
         return;
       }
 
@@ -270,6 +298,8 @@ export function useNotifications({
     const now = new Date().toISOString();
     setItems((prev) => (unreadOnly ? [] : prev.map((n) => (n.read_at ? n : { ...n, read_at: now }))));
     setUnreadCount(0);
+    lastMarkAllAtRef.current = now;
+    lastMarkAllAtMsRef.current = Date.now();
 
     // Broadcast so other mounted notification widgets update instantly (no waiting for realtime/refresh).
     window.dispatchEvent(

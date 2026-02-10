@@ -827,19 +827,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   function syncMentionIds(nextBody: string, ids: string[]) {
     if (ids.length === 0) return ids;
+    const bodyLower = nextBody.toLowerCase();
     return ids.filter((id) => {
       const profile = mentionableProfiles.find((p) => p.id === id);
       if (!profile) return false;
       const label = toOptionLabel(profile);
-      return nextBody.includes(`@${label}`);
+      return bodyLower.includes(`@${label.toLowerCase()}`);
     });
   }
 
   function extractMentionIdsFromBody(body: string) {
+    const bodyLower = body.toLowerCase();
     const ids: string[] = [];
     for (const p of mentionableProfiles) {
       const label = toOptionLabel(p);
-      if (label && body.includes(`@${label}`)) ids.push(p.id);
+      if (label && bodyLower.includes(`@${label.toLowerCase()}`)) ids.push(p.id);
     }
     return ids;
   }
