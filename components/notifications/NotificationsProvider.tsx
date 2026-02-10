@@ -5,6 +5,7 @@ import type { Notification } from "@/lib/dashboardDb";
 import { getCurrentProfile } from "@/lib/dashboardDb";
 import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
 import { useNotifications } from "@/components/notifications/useNotifications";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type NotificationsContextValue = {
   userId: string | null;
@@ -20,6 +21,7 @@ type NotificationsContextValue = {
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [userId, setUserId] = useState<string | null>(null);
   const [lastNewNotificationId, setLastNewNotificationId] = useState<string | null>(null);
 
@@ -27,6 +29,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     let cancelled = false;
     async function load() {
       try {
+        // Ensure session/user is hydrated before fetching profile-dependent data.
+        await supabase.auth.getUser().catch(() => null);
         const profile = await getCurrentProfile();
         if (cancelled) return;
         if (profile && isMarketingTeamProfile(profile)) {
@@ -39,10 +43,26 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       }
     }
     load();
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      load();
+    });
+
+    function onFocus() {
+      if (userId == null) load();
+    }
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible" && userId == null) load();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       cancelled = true;
+      data.subscription.unsubscribe();
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, []);
+  }, [supabase, userId]);
 
   const { items, unreadCount, loading, markRead, markAllRead, refresh } = useNotifications({
     userId,
