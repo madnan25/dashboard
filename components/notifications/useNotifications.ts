@@ -38,7 +38,7 @@ export function useNotifications({
   initialUnreadCount,
   unreadOnly = false,
   onNewNotification,
-  pollIntervalMs = 120000
+  pollIntervalMs = 20000
 }: UseNotificationsOptions) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [items, setItems] = useState<Notification[]>(initialItems ?? []);
@@ -173,6 +173,20 @@ export function useNotifications({
     [limit, onNewNotification, supabase, unreadOnly, userId]
   );
 
+  const refreshUnreadCountOnly = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const count = await countUnreadNotifications(supabase, userId);
+      const prev = unreadCountRef.current;
+      // If count changed, do a full refresh to keep list + count coherent.
+      if (count !== prev) {
+        await refresh({ silent: true });
+      }
+    } catch {
+      // ignore
+    }
+  }, [refresh, supabase, userId]);
+
   useEffect(() => {
     // Initial load should be silent to avoid "Refreshing..." flicker in the bell dropdown.
     refresh({ silent: true });
@@ -183,10 +197,10 @@ export function useNotifications({
 
     // Refresh when the user returns to the tab/window.
     function onFocus() {
-      refresh({ silent: true });
+      refreshUnreadCountOnly();
     }
     function onVisibilityChange() {
-      if (document.visibilityState === "visible") refresh({ silent: true });
+      if (document.visibilityState === "visible") refreshUnreadCountOnly();
     }
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -194,7 +208,7 @@ export function useNotifications({
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [refresh, userId]);
+  }, [refreshUnreadCountOnly, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -205,10 +219,10 @@ export function useNotifications({
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       if (realtimeHealthyRef.current) return;
-      refresh({ silent: true });
+      refreshUnreadCountOnly();
     }, pollIntervalMs);
     return () => window.clearInterval(id);
-  }, [pollIntervalMs, refresh, userId]);
+  }, [pollIntervalMs, refreshUnreadCountOnly, userId]);
 
   useEffect(() => {
     if (!userId) return;
