@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Notification } from "@/lib/dashboardDb";
 
 function formatRelativeTime(iso: string) {
@@ -28,6 +29,8 @@ export function NotificationList({
   emptyMessage?: string;
   className?: string;
 }) {
+  const router = useRouter();
+
   if (items.length === 0) {
     return <div className={`rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white/55 ${className}`}>{emptyMessage}</div>;
   }
@@ -41,11 +44,17 @@ export function NotificationList({
           <Link
             key={n.id}
             href={href}
-            onClick={() => {
-              // Let navigation win, then mark read on the microtask.
-              // Otherwise unread-only lists can unmount the link before navigation runs.
+            onClick={(e) => {
+              const isModified =
+                e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (typeof e.button === "number" && e.button !== 0);
+              if (!isModified && isUnread) {
+                e.preventDefault();
+                onMarkRead?.(n.id);
+                onItemClick?.();
+                router.push(href);
+                return;
+              }
               onItemClick?.();
-              if (isUnread) queueMicrotask(() => onMarkRead?.(n.id));
             }}
             className={[
               "block rounded-2xl border px-3 py-2 transition-colors",

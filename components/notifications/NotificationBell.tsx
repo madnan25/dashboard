@@ -45,7 +45,6 @@ export function NotificationBell({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const openModeRef = useRef<"auto" | "manual" | null>(null);
   const autoCloseRef = useRef<number | null>(null);
-  const lastSeenNewIdRef = useRef<string | null>(null);
 
   const notifications = useNotificationsContext();
   const baseItems = notifications?.items ?? EMPTY_ITEMS;
@@ -53,7 +52,6 @@ export function NotificationBell({
   const loading = notifications?.loading ?? false;
   const markAllRead = notifications?.markAllRead;
   const markRead = notifications?.markRead;
-  const lastNewNotificationId = notifications?.lastNewNotificationId ?? null;
 
   const visibleItems = useMemo(() => {
     if (variant === "nav") {
@@ -62,21 +60,7 @@ export function NotificationBell({
     return baseItems.slice(0, 30);
   }, [baseItems, variant]);
 
-  useEffect(() => {
-    if (variant !== "nav") return;
-    if (!lastNewNotificationId) return;
-    if (lastSeenNewIdRef.current === lastNewNotificationId) return;
-    lastSeenNewIdRef.current = lastNewNotificationId;
-    setIsOpen(true);
-    openModeRef.current = "auto";
-    if (autoCloseRef.current) window.clearTimeout(autoCloseRef.current);
-    autoCloseRef.current = window.setTimeout(() => {
-      if (openModeRef.current === "auto") {
-        setIsOpen(false);
-        openModeRef.current = null;
-      }
-    }, 3200);
-  }, [lastNewNotificationId, variant]);
+  // Intentional: do not auto-open on new notifications.
 
   useEffect(() => {
     if (!isOpen) return;
