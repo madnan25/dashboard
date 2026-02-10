@@ -58,6 +58,8 @@ function isView(x: unknown): x is View {
 
 function readStoredTaskFilters(): Partial<{
   view: View;
+  calYear: number;
+  calMonthIndex: number;
   assigneeFilter: string;
   priorityFilter: string;
   projectFilter: string;
@@ -72,8 +74,15 @@ function readStoredTaskFilters(): Partial<{
     const pf = parsed.priorityFilter;
     const projf = parsed.projectFilter;
     const tf = parsed.teamFilter;
+    const cy = parsed.calYear;
+    const cm = parsed.calMonthIndex;
+    const calYear = typeof cy === "number" && Number.isFinite(cy) ? cy : undefined;
+    const calMonthIndex =
+      typeof cm === "number" && Number.isFinite(cm) && cm >= 0 && cm <= 11 ? cm : undefined;
     return {
       view: isView(parsed.view) ? parsed.view : undefined,
+      calYear,
+      calMonthIndex,
       assigneeFilter: typeof af === "string" ? af : undefined,
       priorityFilter: typeof pf === "string" ? pf : undefined,
       projectFilter: typeof projf === "string" ? projf : undefined,
@@ -127,10 +136,12 @@ export function TasksPage() {
   const [calendarOutOfSyncIds, setCalendarOutOfSyncIds] = useState<Set<string>>(new Set());
   const [assigneeSubtasks, setAssigneeSubtasks] = useState<TaskSubtask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bootstrapped, setBootstrapped] = useState(false);
 
+  const stored = typeof window === "undefined" ? {} : readStoredTaskFilters();
   const [view, setView] = useState<View>(() => readStoredTaskFilters().view ?? "board");
-  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
-  const [calMonthIndex, setCalMonthIndex] = useState(() => new Date().getMonth());
+  const [calYear, setCalYear] = useState(() => stored.calYear ?? new Date().getFullYear());
+  const [calMonthIndex, setCalMonthIndex] = useState(() => stored.calMonthIndex ?? new Date().getMonth());
   const [assigneeFilter, setAssigneeFilter] = useState<string>(() => readStoredTaskFilters().assigneeFilter ?? ""); // ""=all, else user id, "__me__" handled
   const [priorityFilter, setPriorityFilter] = useState<string>(() => readStoredTaskFilters().priorityFilter ?? ""); // ""=all
   const [projectFilter, setProjectFilter] = useState<string>(() => readStoredTaskFilters().projectFilter ?? ""); // ""=all
@@ -140,12 +151,12 @@ export function TasksPage() {
     try {
       window.localStorage.setItem(
         TASKS_FILTERS_STORAGE_KEY,
-        JSON.stringify({ view, assigneeFilter, priorityFilter, projectFilter, teamFilter })
+        JSON.stringify({ view, calYear, calMonthIndex, assigneeFilter, priorityFilter, projectFilter, teamFilter })
       );
     } catch {
       // ignore
     }
-  }, [assigneeFilter, priorityFilter, projectFilter, teamFilter, view]);
+  }, [assigneeFilter, calMonthIndex, calYear, priorityFilter, projectFilter, teamFilter, view]);
 
   const [newTitle, setNewTitle] = useState("");
   const [newTeamId, setNewTeamId] = useState("");
@@ -240,7 +251,10 @@ export function TasksPage() {
         if (cancelled) return;
         setStatus(e instanceof Error ? e.message : "Failed to load tasks");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setBootstrapped(true);
+        }
       }
     }
     boot();
@@ -250,6 +264,10 @@ export function TasksPage() {
   }, []);
 
   useEffect(() => {
+    // Don’t clear stored filters until we’ve loaded the reference lists at least once.
+    // Otherwise, the initial empty arrays (before boot completes) can wipe valid sticky filters.
+    if (!bootstrapped) return;
+
     if (assigneeFilter && assigneeFilter !== "__me__" && assigneeFilter !== "__none__") {
       const exists = profiles.some((p) => p.id === assigneeFilter);
       if (!exists) setAssigneeFilter("");
@@ -262,7 +280,7 @@ export function TasksPage() {
       const exists = teams.some((t) => t.id === teamFilter);
       if (!exists) setTeamFilter("");
     }
-  }, [assigneeFilter, profiles, projectFilter, projects, teamFilter, teams]);
+  }, [assigneeFilter, profiles, projectFilter, projects, teamFilter, teams, bootstrapped]);
 
   const meId = profile?.id ?? null;
   const assigneeMode = useMemo<"all" | "me" | "unassigned" | "user">(() => {

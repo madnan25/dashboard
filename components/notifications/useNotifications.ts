@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Notification } from "@/lib/dashboardDb";
 import {
@@ -17,6 +17,7 @@ type UseNotificationsOptions = {
   initialUnreadCount?: number;
   unreadOnly?: boolean;
   onNewNotification?: (notification: Notification) => void;
+  pollIntervalMs?: number; // fallback if realtime misses events
 };
 
 export function useNotifications({
@@ -25,12 +26,14 @@ export function useNotifications({
   initialItems,
   initialUnreadCount,
   unreadOnly = false,
-  onNewNotification
+  onNewNotification,
+  pollIntervalMs = 30000
 }: UseNotificationsOptions) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [items, setItems] = useState<Notification[]>(initialItems ?? []);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount ?? 0);
   const [loading, setLoading] = useState(false);
+  const didInitialRefreshRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!userId) {
@@ -44,18 +47,58 @@ export function useNotifications({
         listNotifications(supabase, { userId, limit, unreadOnly }),
         countUnreadNotifications(supabase, userId)
       ]);
+
+       // If realtime is unavailable/missed events, detect newly arrived notifications on refresh
+       // and trigger the same UX (bell auto-open).
+       if (didInitialRefreshRef.current && list.length > 0) {
+        const newest = list[0];
+        const had = items.some((n) => n.id === newest.id);
+        if (!had && !newest.read_at) onNewNotification?.(newest);
+       }
+
       setItems(list);
       setUnreadCount(count);
     } catch {
       // ignore
     } finally {
       setLoading(false);
+      didInitialRefreshRef.current = true;
     }
-  }, [limit, supabase, unreadOnly, userId]);
+  }, [items, limit, onNewNotification, supabase, unreadOnly, userId]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    // Refresh when the user returns to the tab/window.
+    function onFocus() {
+      refresh();
+    }
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") refresh();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [refresh, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (!pollIntervalMs || pollIntervalMs < 5000) return;
+
+    // Low-frequency polling fallback (avoid polling while tab is hidden).
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      refresh();
+    }, pollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [pollIntervalMs, refresh, userId]);
 
   useEffect(() => {
     if (!userId) return;
