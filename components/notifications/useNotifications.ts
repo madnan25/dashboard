@@ -12,6 +12,7 @@ import {
 
 const NOTIFICATIONS_SYNC_EVENT = "dashboard:notifications-sync";
 const PENDING_READ_WINDOW_MS = 30000;
+const REALTIME_STALE_AFTER_MS = 45000;
 
 type NotificationsSyncDetail = {
   userId: string;
@@ -47,6 +48,7 @@ export function useNotifications({
   const didInitialRefreshRef = useRef(false);
   const latestIdRef = useRef<string | null>(null);
   const realtimeHealthyRef = useRef(false);
+  const lastRealtimeMessageAtMsRef = useRef<number>(0);
   const instanceIdRef = useRef<string>("");
   const itemsRef = useRef<Notification[]>(items);
   const lastMarkAllAtRef = useRef<string | null>(null);
@@ -215,10 +217,15 @@ export function useNotifications({
     if (!pollIntervalMs || pollIntervalMs < 5000) return;
 
     // Low-frequency polling fallback (avoid polling while tab is hidden).
-    // Only poll when realtime is unhealthy to save resources.
+    // Only poll when realtime is unhealthy or stale to save resources.
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
-      if (realtimeHealthyRef.current) return;
+      const now = Date.now();
+      const stale =
+        realtimeHealthyRef.current &&
+        lastRealtimeMessageAtMsRef.current > 0 &&
+        now - lastRealtimeMessageAtMsRef.current > REALTIME_STALE_AFTER_MS;
+      if (realtimeHealthyRef.current && !stale) return;
       refreshUnreadCountOnly();
     }, pollIntervalMs);
     return () => window.clearInterval(id);
@@ -236,6 +243,7 @@ export function useNotifications({
           setItems((prev) => [next, ...prev].slice(0, limit));
           setUnreadCount((prev) => prev + 1);
           latestIdRef.current = next.id;
+          lastRealtimeMessageAtMsRef.current = Date.now();
           onNewNotification?.(next);
         }
       )
@@ -245,6 +253,7 @@ export function useNotifications({
         (payload) => {
           const next = payload.new as Notification;
           const prevRow = (payload.old ?? null) as Notification | null;
+          lastRealtimeMessageAtMsRef.current = Date.now();
           setItems((prev) => {
             const existing = prev.find((n) => n.id === next.id);
             const wasUnread = existing ? !existing.read_at : prevRow ? !prevRow.read_at : false;
@@ -275,6 +284,7 @@ export function useNotifications({
         (payload) => {
           const prevRow = (payload.old ?? null) as Notification | null;
           if (!prevRow) return;
+          lastRealtimeMessageAtMsRef.current = Date.now();
           setItems((prev) => {
             const existing = prev.find((n) => n.id === prevRow.id);
             if (!existing) return prev;
@@ -285,6 +295,7 @@ export function useNotifications({
       )
       .subscribe((status) => {
         realtimeHealthyRef.current = status === "SUBSCRIBED";
+        if (status === "SUBSCRIBED") lastRealtimeMessageAtMsRef.current = Date.now();
         // If we just (re)subscribed, do a silent refresh to reconcile any missed events.
         if (status === "SUBSCRIBED") refresh({ silent: true });
       });
