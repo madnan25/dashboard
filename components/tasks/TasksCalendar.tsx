@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Task } from "@/lib/dashboardDb";
 import { taskIsOpen } from "@/components/tasks/taskModel";
 
@@ -11,6 +11,15 @@ function pad2(n: number) {
 function isoDate(y: number, mIndex: number, d: number) {
   // mIndex is 0-11
   return `${y}-${pad2(mIndex + 1)}-${pad2(d)}`;
+}
+
+function fmtDayLabel(iso: string) {
+  const [y, m, d] = iso.split("-").map((x) => Number(x));
+  if (!y || !m || !d) return iso;
+  const date = new Date(y, m - 1, d);
+  const weekday = date.toLocaleDateString(undefined, { weekday: "short" });
+  const month = date.toLocaleDateString(undefined, { month: "short" });
+  return `${weekday}, ${month} ${d}, ${y}`;
 }
 
 function mondayFirstIndex(jsDay: number) {
@@ -48,6 +57,7 @@ export function TasksCalendar(props: {
   const [dragOverIso, setDragOverIso] = useState<string>("");
   const [dragOverNoDue, setDragOverNoDue] = useState(false);
   const [draggingId, setDraggingId] = useState<string>("");
+  const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
 
   const daysInMonth = useMemo(() => new Date(year, monthIndex + 1, 0).getDate(), [monthIndex, year]);
   const firstDay = useMemo(() => new Date(year, monthIndex, 1), [monthIndex, year]);
@@ -81,6 +91,20 @@ export function TasksCalendar(props: {
   }, [tasks]);
 
   const noDue = useMemo(() => tasks.filter((t) => taskIsOpen(t) && !t.due_at), [tasks]);
+
+  const selectedDayTasks = useMemo(() => {
+    if (!selectedDayIso) return [];
+    return tasksByDue.get(selectedDayIso) ?? [];
+  }, [selectedDayIso, tasksByDue]);
+
+  useEffect(() => {
+    if (!selectedDayIso) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setSelectedDayIso(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedDayIso]);
 
   const outOfSyncCount = useMemo(() => {
     if (!outOfSyncTaskIds || outOfSyncTaskIds.size === 0) return 0;
@@ -138,7 +162,7 @@ export function TasksCalendar(props: {
               <div
                 key={cell.iso}
                 className={[
-                  "h-40 rounded-2xl border bg-white/[0.02] p-3 overflow-hidden",
+                  "relative h-40 rounded-2xl border bg-white/[0.02] p-3 overflow-hidden",
                   isDrop ? "border-emerald-400/40 bg-emerald-500/[0.06]" : isToday ? "border-sky-400/30 bg-sky-500/[0.06]" : "border-white/10"
                 ].join(" ")}
                 onDragOver={(e) => {
@@ -160,7 +184,18 @@ export function TasksCalendar(props: {
                 }}
               >
                 <div className="flex items-center justify-between">
-                  <div className={["text-xs font-semibold", isToday ? "text-sky-200" : "text-white/70"].join(" ")}>{cell.day}</div>
+                  <button
+                    type="button"
+                    onClick={() => (items.length > 0 ? setSelectedDayIso(cell.iso) : null)}
+                    className={[
+                      "text-xs font-semibold rounded-md px-1 py-0.5 -ml-1 transition-colors",
+                      items.length > 0 ? "hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/30" : "",
+                      isToday ? "text-sky-200" : "text-white/70"
+                    ].join(" ")}
+                    title={items.length > 0 ? `Open ${fmtDayLabel(cell.iso)}` : undefined}
+                  >
+                    {cell.day}
+                  </button>
                   {items.length > 0 ? (
                     <div className="flex items-center gap-2 text-[11px] text-white/45">
                       {hasOutOfSync ? (
@@ -217,8 +252,29 @@ export function TasksCalendar(props: {
                       </span>
                     </button>
                   ))}
-                  {more > 0 ? <div className="text-[11px] text-white/45">+{more} more</div> : null}
                 </div>
+
+                {more > 0 ? (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14">
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(to bottom, rgba(10,12,20,0), rgba(10,12,20,0.70), rgba(10,12,20,0.92))"
+                      }}
+                    />
+                    <div className="pointer-events-auto absolute bottom-2 left-3 right-3 flex items-center justify-between">
+                      <div className="text-[11px] text-white/45">+{more} more</div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDayIso(cell.iso)}
+                        className="text-[11px] font-medium text-white/70 hover:text-white/90 underline underline-offset-2 decoration-white/20 hover:decoration-white/60"
+                      >
+                        View
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -275,6 +331,89 @@ export function TasksCalendar(props: {
           {noDue.length > 12 ? <div className="text-xs text-white/45">+{noDue.length - 12} more</div> : null}
         </div>
       </div>
+
+      {selectedDayIso ? (
+        <div
+          className="fixed inset-0 z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Tasks due ${selectedDayIso}`}
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/55"
+            onClick={() => setSelectedDayIso(null)}
+            aria-label="Close"
+          />
+          <div className="absolute inset-x-0 bottom-0 md:inset-0 md:flex md:items-center md:justify-center p-3 md:p-6">
+            <div
+              className="w-full md:max-w-2xl rounded-3xl border border-white/10 bg-[rgba(18,23,40,0.96)] shadow-[0_18px_70px_rgba(0,0,0,0.55)]"
+              style={{ backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" }}
+            >
+              <div className="flex items-start justify-between gap-3 px-5 pt-5">
+                <div>
+                  <div className="text-sm font-semibold text-white/90">{fmtDayLabel(selectedDayIso)}</div>
+                  <div className="mt-1 text-xs text-white/55">{selectedDayTasks.length} ticket(s) due</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDayIso(null)}
+                  className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-xs font-medium text-white/70 hover:bg-white/[0.04] hover:text-white/85"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="px-5 pb-5 pt-4">
+                {selectedDayTasks.length === 0 ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white/55">
+                    No open tickets due that day.
+                  </div>
+                ) : (
+                  <div className="max-h-[60vh] overflow-auto pr-1 space-y-2">
+                    {selectedDayTasks.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        title={
+                          (isOutOfSync(t.id) ? "Due date course-correct needed (after parent ticket due date). " : "") + (t.title || "")
+                        }
+                        onClick={() => {
+                          onOpenTask(t);
+                          setSelectedDayIso(null);
+                        }}
+                        className={[
+                          "w-full text-left rounded-2xl border px-3 py-2 text-sm transition",
+                          isOutOfSync(t.id) ? "ring-1 ring-rose-400/40 border-rose-500/20" : "border-white/10",
+                          priorityClass(t.priority)
+                        ].join(" ")}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              {isOutOfSync(t.id) ? (
+                                <span
+                                  aria-label="Due date correction needed"
+                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-500/20 text-[10px] font-bold text-rose-200"
+                                >
+                                  !
+                                </span>
+                              ) : null}
+                              <div className="truncate font-semibold text-white/90">{t.title}</div>
+                            </div>
+                            <div className="mt-1 text-[11px] text-white/55">Priority {t.priority.toUpperCase()}</div>
+                          </div>
+                          <div className="shrink-0 text-[11px] text-white/45">Open</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
