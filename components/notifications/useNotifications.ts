@@ -17,7 +17,7 @@ type UseNotificationsOptions = {
   initialUnreadCount?: number;
   unreadOnly?: boolean;
   onNewNotification?: (notification: Notification) => void;
-  pollIntervalMs?: number; // fallback if realtime misses events
+  pollIntervalMs?: number; // fallback if realtime misses events (only used when realtime unhealthy)
 };
 
 export function useNotifications({
@@ -27,47 +27,55 @@ export function useNotifications({
   initialUnreadCount,
   unreadOnly = false,
   onNewNotification,
-  pollIntervalMs = 30000
+  pollIntervalMs = 120000
 }: UseNotificationsOptions) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [items, setItems] = useState<Notification[]>(initialItems ?? []);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount ?? 0);
   const [loading, setLoading] = useState(false);
   const didInitialRefreshRef = useRef(false);
+  const latestIdRef = useRef<string | null>(null);
+  const realtimeHealthyRef = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = Boolean(opts?.silent);
     if (!userId) {
       setItems([]);
       setUnreadCount(0);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const [list, count] = await Promise.all([
         listNotifications(supabase, { userId, limit, unreadOnly }),
         countUnreadNotifications(supabase, userId)
       ]);
 
-       // If realtime is unavailable/missed events, detect newly arrived notifications on refresh
-       // and trigger the same UX (bell auto-open).
-       if (didInitialRefreshRef.current && list.length > 0) {
+      // If realtime is unavailable/missed events, detect newly arrived notifications on refresh
+      // and trigger the same UX (bell auto-open).
+      if (didInitialRefreshRef.current && list.length > 0) {
         const newest = list[0];
-        const had = items.some((n) => n.id === newest.id);
-        if (!had && !newest.read_at) onNewNotification?.(newest);
-       }
+        const prevTopId = latestIdRef.current;
+        if (prevTopId && newest.id !== prevTopId && !newest.read_at) onNewNotification?.(newest);
+      }
 
       setItems(list);
       setUnreadCount(count);
+      latestIdRef.current = list[0]?.id ?? null;
     } catch {
       // ignore
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       didInitialRefreshRef.current = true;
     }
-  }, [items, limit, onNewNotification, supabase, unreadOnly, userId]);
+    },
+    [limit, onNewNotification, supabase, unreadOnly, userId]
+  );
 
   useEffect(() => {
-    refresh();
+    // Initial load should be silent to avoid "Refreshing..." flicker in the bell dropdown.
+    refresh({ silent: true });
   }, [refresh]);
 
   useEffect(() => {
@@ -75,10 +83,10 @@ export function useNotifications({
 
     // Refresh when the user returns to the tab/window.
     function onFocus() {
-      refresh();
+      refresh({ silent: true });
     }
     function onVisibilityChange() {
-      if (document.visibilityState === "visible") refresh();
+      if (document.visibilityState === "visible") refresh({ silent: true });
     }
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -93,9 +101,11 @@ export function useNotifications({
     if (!pollIntervalMs || pollIntervalMs < 5000) return;
 
     // Low-frequency polling fallback (avoid polling while tab is hidden).
+    // Only poll when realtime is unhealthy to save resources.
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
-      refresh();
+      if (realtimeHealthyRef.current) return;
+      refresh({ silent: true });
     }, pollIntervalMs);
     return () => window.clearInterval(id);
   }, [pollIntervalMs, refresh, userId]);
@@ -111,6 +121,7 @@ export function useNotifications({
           const next = payload.new as Notification;
           setItems((prev) => [next, ...prev].slice(0, limit));
           setUnreadCount((prev) => prev + 1);
+          latestIdRef.current = next.id;
           onNewNotification?.(next);
         }
       )
@@ -158,12 +169,16 @@ export function useNotifications({
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        realtimeHealthyRef.current = status === "SUBSCRIBED";
+        // If we just (re)subscribed, do a silent refresh to reconcile any missed events.
+        if (status === "SUBSCRIBED") refresh({ silent: true });
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [limit, onNewNotification, supabase, unreadOnly, userId]);
+  }, [limit, onNewNotification, refresh, supabase, unreadOnly, userId]);
 
   const markRead = useCallback(
     async (id: string) => {
@@ -188,7 +203,7 @@ export function useNotifications({
       try {
         await markNotificationRead(supabase, id, userId);
       } catch {
-        refresh();
+        refresh({ silent: true });
       }
     },
     [refresh, supabase, unreadOnly, userId]
@@ -202,7 +217,7 @@ export function useNotifications({
     try {
       await markAllNotificationsRead(supabase, userId);
     } catch {
-      refresh();
+      refresh({ silent: true });
     }
   }, [refresh, supabase, unreadOnly, userId]);
 
