@@ -11,7 +11,7 @@ import {
 } from "@/lib/db/repo/notifications";
 
 const NOTIFICATIONS_SYNC_EVENT = "dashboard:notifications-sync";
-const PENDING_READ_WINDOW_MS = 5000;
+const PENDING_READ_WINDOW_MS = 30000;
 
 type NotificationsSyncDetail = {
   userId: string;
@@ -92,7 +92,12 @@ export function useNotifications({
       const pending = pendingReadRef.current;
       if (pending.size > 0) {
         for (const [id, info] of pending) {
-          if (nowMs - info.atMs > PENDING_READ_WINDOW_MS) pending.delete(id);
+          if (nowMs - info.atMs > PENDING_READ_WINDOW_MS) {
+            pending.delete(id);
+            continue;
+          }
+          const confirmed = list.find((n) => n.id === id);
+          if (confirmed && confirmed.read_at) pending.delete(id);
         }
       }
 
@@ -135,11 +140,16 @@ export function useNotifications({
 
       const lastOptimisticAt = lastOptimisticAtRef.current;
       const lastOptimisticCount = lastOptimisticCountRef.current;
-      if (lastOptimisticAt && lastOptimisticCount != null && nowMs - Date.parse(lastOptimisticAt) < PENDING_READ_WINDOW_MS) {
-        const hasNewUnread = nextList.some((n) => !n.read_at && n.created_at > lastOptimisticAt);
-        if (!hasNewUnread) {
-          nextCount = Math.min(nextCount, lastOptimisticCount);
-        }
+      const currentItems = itemsRef.current;
+      const hasNewUnreadIds = nextList.some(
+        (n) => !n.read_at && !currentItems.some((existing) => existing.id === n.id)
+      );
+      if (!hasNewUnreadIds) {
+        const floorCount = unreadCountRef.current;
+        if (floorCount != null) nextCount = Math.min(nextCount, floorCount);
+      } else if (lastOptimisticAt && lastOptimisticCount != null && nowMs - Date.parse(lastOptimisticAt) < PENDING_READ_WINDOW_MS) {
+        // If we got new unread rows, still avoid jumping above optimistic count within the pending window.
+        nextCount = Math.min(nextCount, lastOptimisticCount + 1);
       }
 
       // If realtime is unavailable/missed events, detect newly arrived notifications on refresh
