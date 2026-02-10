@@ -3,32 +3,26 @@
 import { useEffect, useMemo } from "react";
 import { Surface } from "@/components/ds/Surface";
 import { NotificationList } from "@/components/notifications/NotificationList";
-import { useNotifications } from "@/components/notifications/useNotifications";
+import { useNotificationsContext } from "@/components/notifications/NotificationsProvider";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { deleteNotificationsBefore } from "@/lib/db/repo/notifications";
-import type { Notification } from "@/lib/dashboardDb";
 
-export function NotificationsCenter({
-  userId,
-  initialItems,
-  initialUnreadCount
-}: {
-  userId: string;
-  initialItems: Notification[];
-  initialUnreadCount: number;
-}) {
-  const { items, unreadCount, loading, markAllRead, markRead, refresh } = useNotifications({
-    userId,
-    limit: 50,
-    initialItems,
-    initialUnreadCount
-  });
+export function NotificationsCenter() {
+  const notifications = useNotificationsContext();
+  const userId = notifications?.userId ?? null;
+  const items = notifications?.items ?? [];
+  const unreadCount = notifications?.unreadCount ?? 0;
+  const loading = notifications?.loading ?? false;
+  const markAllRead = notifications?.markAllRead;
+  const markRead = notifications?.markRead;
+  const refresh = notifications?.refresh;
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   useEffect(() => {
+    if (!userId || !refresh) return;
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     deleteNotificationsBefore(supabase, userId, cutoff)
-      .then(() => refresh())
+      .then(() => refresh({ silent: true }))
       .catch(() => {});
   }, [refresh, supabase, userId]);
 
@@ -39,7 +33,7 @@ export function NotificationsCenter({
           {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
         </div>
         {unreadCount > 0 ? (
-          <button type="button" onClick={() => markAllRead()} className="text-xs font-medium text-white/60 hover:text-white/80">
+          <button type="button" onClick={() => markAllRead?.()} className="text-xs font-medium text-white/60 hover:text-white/80">
             Mark all read
           </button>
         ) : null}

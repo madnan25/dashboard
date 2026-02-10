@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Surface } from "@/components/ds/Surface";
 import { NotificationList } from "@/components/notifications/NotificationList";
-import { useNotifications } from "@/components/notifications/useNotifications";
+import { useNotificationsContext } from "@/components/notifications/NotificationsProvider";
+import type { Notification } from "@/lib/dashboardDb";
+
+const EMPTY_ITEMS: Notification[] = [];
 
 function BellIcon({ className = "" }: { className?: string }) {
   return (
@@ -42,24 +45,38 @@ export function NotificationBell({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const openModeRef = useRef<"auto" | "manual" | null>(null);
   const autoCloseRef = useRef<number | null>(null);
+  const lastSeenNewIdRef = useRef<string | null>(null);
 
-  const { items, unreadCount, loading, markAllRead, markRead } = useNotifications({
-    userId,
-    limit: variant === "nav" ? 6 : 30,
-    unreadOnly: variant === "nav",
-    onNewNotification: () => {
-      if (variant !== "nav") return;
-      setIsOpen(true);
-      openModeRef.current = "auto";
-      if (autoCloseRef.current) window.clearTimeout(autoCloseRef.current);
-      autoCloseRef.current = window.setTimeout(() => {
-        if (openModeRef.current === "auto") {
-          setIsOpen(false);
-          openModeRef.current = null;
-        }
-      }, 3200);
+  const notifications = useNotificationsContext();
+  const baseItems = notifications?.items ?? EMPTY_ITEMS;
+  const unreadCount = notifications?.unreadCount ?? 0;
+  const loading = notifications?.loading ?? false;
+  const markAllRead = notifications?.markAllRead;
+  const markRead = notifications?.markRead;
+  const lastNewNotificationId = notifications?.lastNewNotificationId ?? null;
+
+  const visibleItems = useMemo(() => {
+    if (variant === "nav") {
+      return baseItems.filter((n) => !n.read_at).slice(0, 6);
     }
-  });
+    return baseItems.slice(0, 30);
+  }, [baseItems, variant]);
+
+  useEffect(() => {
+    if (variant !== "nav") return;
+    if (!lastNewNotificationId) return;
+    if (lastSeenNewIdRef.current === lastNewNotificationId) return;
+    lastSeenNewIdRef.current = lastNewNotificationId;
+    setIsOpen(true);
+    openModeRef.current = "auto";
+    if (autoCloseRef.current) window.clearTimeout(autoCloseRef.current);
+    autoCloseRef.current = window.setTimeout(() => {
+      if (openModeRef.current === "auto") {
+        setIsOpen(false);
+        openModeRef.current = null;
+      }
+    }, 3200);
+  }, [lastNewNotificationId, variant]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -76,7 +93,7 @@ export function NotificationBell({
   const badgeLabel = unreadCount > 9 ? "9+" : unreadCount.toString();
   const showBadge = unreadCount > 0;
 
-  if (!userId) return null;
+  if (!userId || !notifications) return null;
 
   if (variant === "tab") {
     const active = pathname === "/notifications" || pathname.startsWith("/notifications/");
@@ -150,7 +167,7 @@ export function NotificationBell({
                 <button
                   type="button"
                   onClick={() => {
-                    markAllRead();
+                    markAllRead?.();
                     if (variant === "nav") setIsOpen(false);
                   }}
                   className="text-[11px] font-medium text-white/60 hover:text-white/80"
@@ -160,7 +177,7 @@ export function NotificationBell({
               ) : null}
             </div>
             <div className="mt-3">
-              <NotificationList items={items} onMarkRead={markRead} onItemClick={() => setIsOpen(false)} />
+              <NotificationList items={visibleItems} onMarkRead={markRead} onItemClick={() => setIsOpen(false)} />
               <div className="mt-3 flex justify-end">
                 <Link href="/notifications" onClick={() => setIsOpen(false)} className="text-[11px] text-white/60 hover:text-white/85">
                   View all

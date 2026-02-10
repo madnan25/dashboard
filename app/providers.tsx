@@ -2,12 +2,13 @@
 
 import { HeroUIProvider } from "@heroui/react";
 import { ScrollToTop } from "@/components/nav/ScrollToTop";
+import { NotificationsProvider } from "@/components/notifications/NotificationsProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <HeroUIProvider>
       <ScrollToTop />
-      {children}
+      <NotificationsProvider>{children}</NotificationsProvider>
     </HeroUIProvider>
   );
 }
