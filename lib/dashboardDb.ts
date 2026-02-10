@@ -354,6 +354,10 @@ export async function createTaskCommentMentions(input: Array<{ comment_id: strin
   return await repo().createTaskCommentMentions(input);
 }
 
+export async function deleteTaskCommentMentions(commentId: string, userIds: string[]): Promise<void> {
+  return await repo().deleteTaskCommentMentions(commentId, userIds);
+}
+
 export async function listTaskCommentAttachments(taskId: string): Promise<TaskCommentAttachment[]> {
   return await repo().listTaskCommentAttachments(taskId);
 }

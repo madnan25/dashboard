@@ -333,6 +333,16 @@ export async function createTaskCommentMentions(
   if (error) throw error;
 }
 
+export async function deleteTaskCommentMentions(
+  supabase: SupabaseClient,
+  commentId: string,
+  userIds: string[]
+): Promise<void> {
+  if (userIds.length === 0) return;
+  const { error } = await supabase.from("task_comment_mentions").delete().eq("comment_id", commentId).in("user_id", userIds);
+  if (error) throw error;
+}
+
 export async function listTaskCommentAttachments(supabase: SupabaseClient, taskId: string): Promise<TaskCommentAttachment[]> {
   const { data: commentRows, error: commentErr } = await supabase
     .from("task_comments")

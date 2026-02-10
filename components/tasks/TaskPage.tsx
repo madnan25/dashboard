@@ -50,6 +50,7 @@ import {
   deleteTaskAttachment,
   listTaskCommentMentions,
   createTaskCommentMentions,
+  deleteTaskCommentMentions,
   listTaskCommentAttachments,
   createTaskCommentAttachments,
   listTaskDependencies,
@@ -217,6 +218,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionTarget, setMentionTarget] = useState<"new" | "edit">("new");
   const [editingDescription, setEditingDescription] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string>("");
   const [editingBody, setEditingBody] = useState("");
@@ -249,6 +251,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const subtaskDraftsRef = useRef<Record<string, { description?: string; title?: string }>>({});
   const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editingCommentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
 
   const assignee = useMemo(() => profiles.find((p) => p.id === (assigneeId || null)) ?? null, [assigneeId, profiles]);
@@ -832,6 +835,15 @@ export function TaskPage({ taskId }: { taskId: string }) {
     });
   }
 
+  function extractMentionIdsFromBody(body: string) {
+    const ids: string[] = [];
+    for (const p of mentionableProfiles) {
+      const label = toOptionLabel(p);
+      if (label && body.includes(`@${label}`)) ids.push(p.id);
+    }
+    return ids;
+  }
+
   const renderCommentBody = useCallback(
     (body: string, mentionIds: string[]) => {
       if (!mentionIds || mentionIds.length === 0) return body;
@@ -900,16 +912,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
   }
 
   function onInsertMention(profileToInsert: Profile) {
-    const textarea = commentTextareaRef.current;
+    const textarea = mentionTarget === "edit" ? editingCommentTextareaRef.current : commentTextareaRef.current;
     if (!textarea) return;
-    const caret = textarea.selectionStart ?? commentBody.length;
-    const start = mentionStart ?? commentBody.lastIndexOf("@");
+    const currentBody = mentionTarget === "edit" ? editingBody : commentBody;
+    const caret = textarea.selectionStart ?? currentBody.length;
+    const start = mentionStart ?? currentBody.lastIndexOf("@");
     const label = toOptionLabel(profileToInsert);
-    const before = commentBody.slice(0, Math.max(0, start));
-    const after = commentBody.slice(caret);
+    const before = currentBody.slice(0, Math.max(0, start));
+    const after = currentBody.slice(caret);
     const next = `${before}@${label} ${after}`;
-    setCommentBody(next);
-    setCommentMentionIds((prev) => Array.from(new Set([...prev, profileToInsert.id])));
+    if (mentionTarget === "edit") {
+      setEditingBody(next);
+    } else {
+      setCommentBody(next);
+      setCommentMentionIds((prev) => Array.from(new Set([...prev, profileToInsert.id])));
+    }
     setMentionOpen(false);
     setMentionQuery("");
     setMentionStart(null);
@@ -966,11 +983,19 @@ export function TaskPage({ taskId }: { taskId: string }) {
     if (comment.author_id !== profile.id) return;
     setEditingCommentId(comment.id);
     setEditingBody(comment.body);
+    setMentionTarget("edit");
+    setMentionOpen(false);
+    setMentionQuery("");
+    setMentionStart(null);
   }
 
   function onCancelEditComment() {
     setEditingCommentId("");
     setEditingBody("");
+    setMentionTarget("new");
+    setMentionOpen(false);
+    setMentionQuery("");
+    setMentionStart(null);
   }
 
   async function onSaveCommentEdit(id: string) {
@@ -984,9 +1009,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
     try {
       setCommentsStatus("");
       const updated = await updateTaskComment(id, { body });
+      const prevMentionIds = commentMentionsByCommentId[id] ?? [];
+      const nextMentionIds = extractMentionIdsFromBody(body);
+      const toAdd = nextMentionIds.filter((uid) => !prevMentionIds.includes(uid));
+      const toRemove = prevMentionIds.filter((uid) => !nextMentionIds.includes(uid));
+      if (toRemove.length > 0) {
+        await deleteTaskCommentMentions(id, toRemove);
+      }
+      if (toAdd.length > 0) {
+        await createTaskCommentMentions(toAdd.map((userId) => ({ comment_id: id, user_id: userId })));
+      }
       setComments((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      setCommentMentionsByCommentId((prev) => ({ ...prev, [id]: nextMentionIds }));
       setEditingCommentId("");
       setEditingBody("");
+      setMentionTarget("new");
       setStatus("Comment updated.");
     } catch (e) {
       setStatus(getErrorMessage(e, "Failed to update comment"));
@@ -2581,12 +2618,52 @@ export function TaskPage({ taskId }: { taskId: string }) {
                             {isEditing ? (
                               <div className="mt-2 space-y-2">
                                 <textarea
+                                  ref={editingCommentTextareaRef}
                                   value={editingBody}
-                                  onChange={(e) => setEditingBody(e.target.value)}
+                                  onChange={(e) => {
+                                    const next = e.target.value;
+                                    setEditingBody(next);
+                                    setMentionTarget("edit");
+                                    updateMentionSearch(next, e.target.selectionStart ?? next.length);
+                                  }}
+                                  onKeyUp={(e) => {
+                                    const target = e.currentTarget;
+                                    setMentionTarget("edit");
+                                    updateMentionSearch(target.value, target.selectionStart ?? target.value.length);
+                                  }}
+                                  onBlur={() => {
+                                    setTimeout(() => setMentionOpen(false), 150);
+                                  }}
                                   rows={3}
                                   disabled={savingComment}
                                   className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 outline-none focus:border-white/20"
                                 />
+                                {mentionOpen && mentionTarget === "edit" ? (
+                                  <div className="relative">
+                                    <div className="absolute left-0 right-0 mt-2 z-30">
+                                      <DropdownMenu title="Mention">
+                                        {(() => {
+                                          const matches = mentionableProfiles
+                                            .filter((p) => {
+                                              const label = toOptionLabel(p).toLowerCase();
+                                              const q = mentionQuery.trim().toLowerCase();
+                                              if (!q) return true;
+                                              return label.includes(q);
+                                            })
+                                            .slice(0, 6);
+                                          if (matches.length === 0) {
+                                            return <div className="px-3 py-2 text-sm text-white/50">No matches.</div>;
+                                          }
+                                          return matches.map((p) => (
+                                            <DropdownItem key={p.id} onClick={() => onInsertMention(p)} trailing={p.role === "cmo" ? "CMO" : ""}>
+                                              {toOptionLabel(p)}
+                                            </DropdownItem>
+                                          ));
+                                        })()}
+                                      </DropdownMenu>
+                                    </div>
+                                  </div>
+                                ) : null}
                                 <div className="flex justify-end gap-2">
                                   <AppButton intent="secondary" className="h-9 px-4" onPress={onCancelEditComment} isDisabled={savingComment}>
                                     Cancel
@@ -2639,10 +2716,12 @@ export function TaskPage({ taskId }: { taskId: string }) {
                         const next = e.target.value;
                         setCommentBody(next);
                         setCommentMentionIds((prev) => syncMentionIds(next, prev));
+                        setMentionTarget("new");
                         updateMentionSearch(next, e.target.selectionStart ?? next.length);
                       }}
                       onKeyUp={(e) => {
                         const target = e.currentTarget;
+                        setMentionTarget("new");
                         updateMentionSearch(target.value, target.selectionStart ?? target.value.length);
                       }}
                       onBlur={() => {
@@ -2653,7 +2732,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
                       className="w-full glass-inset rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/85 placeholder:text-white/25 outline-none focus:border-white/20"
                       placeholder="Add a comment…"
                     />
-                    {mentionOpen ? (
+                    {mentionOpen && mentionTarget === "new" ? (
                       <div className="relative">
                         <div className="absolute left-0 right-0 mt-2 z-30">
                           <DropdownMenu title="Mention">
