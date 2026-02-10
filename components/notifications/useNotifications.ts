@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/repo/notifications";
 
 const NOTIFICATIONS_SYNC_EVENT = "dashboard:notifications-sync";
+const PENDING_READ_WINDOW_MS = 5000;
 
 type NotificationsSyncDetail = {
   userId: string;
@@ -50,6 +51,10 @@ export function useNotifications({
   const itemsRef = useRef<Notification[]>(items);
   const lastMarkAllAtRef = useRef<string | null>(null);
   const lastMarkAllAtMsRef = useRef<number>(0);
+  const pendingReadRef = useRef<Map<string, { at: string; atMs: number }>>(new Map());
+  const lastOptimisticAtRef = useRef<string | null>(null);
+  const lastOptimisticCountRef = useRef<number | null>(null);
+  const unreadCountRef = useRef<number>(unreadCount);
 
   if (!instanceIdRef.current) {
     try {
@@ -63,6 +68,10 @@ export function useNotifications({
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  useEffect(() => {
+    unreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   const refresh = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -78,6 +87,14 @@ export function useNotifications({
         listNotifications(supabase, { userId, limit, unreadOnly }),
         countUnreadNotifications(supabase, userId)
       ]);
+
+      const nowMs = Date.now();
+      const pending = pendingReadRef.current;
+      if (pending.size > 0) {
+        for (const [id, info] of pending) {
+          if (nowMs - info.atMs > PENDING_READ_WINDOW_MS) pending.delete(id);
+        }
+      }
 
       const lastMarkAllAt = lastMarkAllAtRef.current;
       const lastMarkAllMs = lastMarkAllAtMsRef.current;
@@ -100,6 +117,28 @@ export function useNotifications({
           if (shouldOverrideCount) {
             nextCount = nextList.filter((n) => !n.read_at).length;
           }
+        }
+      }
+
+      if (pending.size > 0) {
+        nextList = nextList.map((n) => {
+          const pendingInfo = pending.get(n.id);
+          if (pendingInfo && nowMs - pendingInfo.atMs <= PENDING_READ_WINDOW_MS) {
+            return n.read_at ? n : { ...n, read_at: pendingInfo.at };
+          }
+          return n;
+        });
+        if (unreadOnly) {
+          nextList = nextList.filter((n) => !n.read_at);
+        }
+      }
+
+      const lastOptimisticAt = lastOptimisticAtRef.current;
+      const lastOptimisticCount = lastOptimisticCountRef.current;
+      if (lastOptimisticAt && lastOptimisticCount != null && nowMs - Date.parse(lastOptimisticAt) < PENDING_READ_WINDOW_MS) {
+        const hasNewUnread = nextList.some((n) => !n.read_at && n.created_at > lastOptimisticAt);
+        if (!hasNewUnread) {
+          nextCount = Math.min(nextCount, lastOptimisticCount);
         }
       }
 
@@ -243,6 +282,8 @@ export function useNotifications({
         setUnreadCount(0);
       lastMarkAllAtRef.current = detail.at;
       lastMarkAllAtMsRef.current = Date.now();
+        lastOptimisticAtRef.current = detail.at;
+        lastOptimisticCountRef.current = 0;
         return;
       }
 
@@ -277,6 +318,11 @@ export function useNotifications({
         });
       });
       if (wasUnread) setUnreadCount((prev) => Math.max(0, prev - 1));
+      if (wasUnread) {
+        pendingReadRef.current.set(id, { at: now, atMs: Date.now() });
+        lastOptimisticAtRef.current = now;
+        lastOptimisticCountRef.current = Math.max(0, unreadCountRef.current - 1);
+      }
 
       // Broadcast so other mounted notification widgets update instantly (no waiting for realtime/refresh).
       window.dispatchEvent(
@@ -300,6 +346,8 @@ export function useNotifications({
     setUnreadCount(0);
     lastMarkAllAtRef.current = now;
     lastMarkAllAtMsRef.current = Date.now();
+    lastOptimisticAtRef.current = now;
+    lastOptimisticCountRef.current = 0;
 
     // Broadcast so other mounted notification widgets update instantly (no waiting for realtime/refresh).
     window.dispatchEvent(
