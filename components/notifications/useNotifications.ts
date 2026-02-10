@@ -10,6 +10,16 @@ import {
   markNotificationRead
 } from "@/lib/db/repo/notifications";
 
+const NOTIFICATIONS_SYNC_EVENT = "dashboard:notifications-sync";
+
+type NotificationsSyncDetail = {
+  userId: string;
+  origin: string;
+  at: string;
+  kind: "mark_read" | "mark_all_read";
+  id?: string;
+};
+
 type UseNotificationsOptions = {
   userId?: string | null;
   limit?: number;
@@ -36,6 +46,21 @@ export function useNotifications({
   const didInitialRefreshRef = useRef(false);
   const latestIdRef = useRef<string | null>(null);
   const realtimeHealthyRef = useRef(false);
+  const instanceIdRef = useRef<string>("");
+  const itemsRef = useRef<Notification[]>(items);
+
+  if (!instanceIdRef.current) {
+    try {
+      instanceIdRef.current =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Math.random()}`;
+    } catch {
+      instanceIdRef.current = `${Math.random()}`;
+    }
+  }
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   const refresh = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -180,26 +205,57 @@ export function useNotifications({
     };
   }, [limit, onNewNotification, refresh, supabase, unreadOnly, userId]);
 
+  useEffect(() => {
+    if (!userId) return;
+    function onSync(e: Event) {
+      const detail = (e as CustomEvent<NotificationsSyncDetail>).detail;
+      if (!detail || detail.userId !== userId) return;
+      if (detail.origin === instanceIdRef.current) return;
+
+      if (detail.kind === "mark_all_read") {
+        setItems((prev) => (unreadOnly ? [] : prev.map((n) => (n.read_at ? n : { ...n, read_at: detail.at }))));
+        setUnreadCount(0);
+        return;
+      }
+
+      if (detail.kind === "mark_read" && detail.id) {
+        setItems((prev) => {
+          if (unreadOnly) return prev.filter((n) => n.id !== detail.id);
+          return prev.map((n) => (n.id === detail.id ? { ...n, read_at: n.read_at ?? detail.at } : n));
+        });
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+    }
+
+    window.addEventListener(NOTIFICATIONS_SYNC_EVENT, onSync as EventListener);
+    return () => window.removeEventListener(NOTIFICATIONS_SYNC_EVENT, onSync as EventListener);
+  }, [unreadOnly, userId]);
+
   const markRead = useCallback(
     async (id: string) => {
       if (!userId) return;
+      const now = new Date().toISOString();
+      const cur = itemsRef.current;
+      const existing = cur.find((n) => n.id === id) ?? null;
+      const wasUnread = unreadOnly ? true : existing ? !existing.read_at : true;
+
       setItems((prev) => {
         if (unreadOnly) {
           return prev.filter((n) => n.id !== id);
         }
         return prev.map((n) => {
           if (n.id !== id) return n;
-          return { ...n, read_at: n.read_at ?? new Date().toISOString() };
+          return { ...n, read_at: n.read_at ?? now };
         });
       });
-      // In unread-only mode, anything you click is by definition unread in this list.
-      // Decrement immediately so the badge feels instant.
-      if (unreadOnly) {
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      } else {
-        // Best-effort: decrement if we likely marked an unread item.
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
+      if (wasUnread) setUnreadCount((prev) => Math.max(0, prev - 1));
+
+      // Broadcast so other mounted notification widgets update instantly (no waiting for realtime/refresh).
+      window.dispatchEvent(
+        new CustomEvent<NotificationsSyncDetail>(NOTIFICATIONS_SYNC_EVENT, {
+          detail: { userId, origin: instanceIdRef.current, at: now, kind: "mark_read", id }
+        })
+      );
       try {
         await markNotificationRead(supabase, id, userId);
       } catch {
@@ -214,6 +270,13 @@ export function useNotifications({
     const now = new Date().toISOString();
     setItems((prev) => (unreadOnly ? [] : prev.map((n) => (n.read_at ? n : { ...n, read_at: now }))));
     setUnreadCount(0);
+
+    // Broadcast so other mounted notification widgets update instantly (no waiting for realtime/refresh).
+    window.dispatchEvent(
+      new CustomEvent<NotificationsSyncDetail>(NOTIFICATIONS_SYNC_EVENT, {
+        detail: { userId, origin: instanceIdRef.current, at: now, kind: "mark_all_read" }
+      })
+    );
     try {
       await markAllNotificationsRead(supabase, userId);
     } catch {
