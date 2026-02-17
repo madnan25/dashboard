@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SafeLink } from "@/components/ds/SafeLink";
 import * as React from "react";
 import { Surface } from "@/components/ds/Surface";
 
@@ -82,13 +82,9 @@ export function NavCard({
   }
 
   return (
-    <Link
-      href={href}
-      prefetch={false}
-      className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0"
-    >
+    <SafeLink href={href} className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0">
       {inner}
-    </Link>
+    </SafeLink>
   );
 }
 

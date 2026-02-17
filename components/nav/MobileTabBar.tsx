@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SafeLink } from "@/components/ds/SafeLink";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Surface } from "@/components/ds/Surface";
@@ -220,9 +220,9 @@ export function MobileTabBar() {
               }
 
               return (
-                <Link key={t.key} href={t.href} prefetch={false} className="min-w-0">
+                <SafeLink key={t.key} href={t.href} className="min-w-0">
                   {content}
-                </Link>
+                </SafeLink>
               );
             })}
           </nav>

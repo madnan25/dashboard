@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SafeLink } from "@/components/ds/SafeLink";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -119,7 +119,7 @@ export function TopNav() {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Link href="/" prefetch={false} className="group inline-flex items-center gap-2">
+            <SafeLink href="/" className="group inline-flex items-center gap-2">
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/90"
                 aria-hidden="true"
@@ -134,20 +134,16 @@ export function TopNav() {
             <span className="mx-2 hidden h-5 w-px bg-white/10 md:block" aria-hidden="true" />
 
             <div className="flex flex-wrap items-center gap-2">
-              <Link href="/projects" prefetch={false} className={`px-3 py-2 text-sm ${navPill} ${isActive("/projects") ? navPillActive : ""}`}>
+              <SafeLink href="/projects" className={`px-3 py-2 text-sm ${navPill} ${isActive("/projects") ? navPillActive : ""}`}>
                 Projects
-              </Link>
-              <Link
-                href="/master-calendar"
-                prefetch={false}
-                className={`px-3 py-2 text-sm ${navPill} ${isActive("/master-calendar") ? navPillActive : ""}`}
-              >
+              </SafeLink>
+              <SafeLink href="/master-calendar" className={`px-3 py-2 text-sm ${navPill} ${isActive("/master-calendar") ? navPillActive : ""}`}>
                 Calendar
-              </Link>
+              </SafeLink>
               {profile?.role == null ? null : canAccessTasks ? (
-                <Link href="/tasks" prefetch={false} className={`px-3 py-2 text-sm ${navPill} ${isActive("/tasks") ? navPillActive : ""}`}>
+                <SafeLink href="/tasks" className={`px-3 py-2 text-sm ${navPill} ${isActive("/tasks") ? navPillActive : ""}`}>
                   Tasks
-                </Link>
+                </SafeLink>
               ) : (
                 <span
                   className={`px-3 py-2 text-sm ${navPill} opacity-55 cursor-not-allowed`}
@@ -158,13 +154,9 @@ export function TopNav() {
                 </span>
               )}
               {canSeePlanning ? (
-                <Link
-                  href="/brand/data-entry"
-                  prefetch={false}
-                  className={`px-3 py-2 text-sm ${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}
-                >
+                <SafeLink href="/brand/data-entry" className={`px-3 py-2 text-sm ${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}>
                   Planning
-                </Link>
+                </SafeLink>
               ) : (
                 <span
                   className={`px-3 py-2 text-sm ${navPill} opacity-55 cursor-not-allowed`}
@@ -175,37 +167,29 @@ export function TopNav() {
                 </span>
               )}
               {isCmo ? (
-                <Link href="/cmo/projects" prefetch={false} className={`px-3 py-2 text-sm ${navPill} ${isActive("/cmo/projects") ? navPillActive : ""}`}>
+                <SafeLink href="/cmo/projects" className={`px-3 py-2 text-sm ${navPill} ${isActive("/cmo/projects") ? navPillActive : ""}`}>
                   CMO Console
-                </Link>
+                </SafeLink>
               ) : null}
               {canSeeIntelligenceDesk ? (
-                <Link
-                  href="/intelligence-desk"
-                  prefetch={false}
-                  className={`px-3 py-2 text-sm ${navPill} ${isActive("/intelligence-desk") ? navPillActive : ""}`}
-                >
+                <SafeLink href="/intelligence-desk" className={`px-3 py-2 text-sm ${navPill} ${isActive("/intelligence-desk") ? navPillActive : ""}`}>
                   Intelligence Desk
-                </Link>
+                </SafeLink>
               ) : null}
-              <Link href="/design" prefetch={false} className={`px-3 py-2 text-sm ${navPill} ${isActive("/design") ? navPillActive : ""}`}>
+              <SafeLink href="/design" className={`px-3 py-2 text-sm ${navPill} ${isActive("/design") ? navPillActive : ""}`}>
                 Design System
-              </Link>
+              </SafeLink>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {isMarketingTeam ? <NotificationBell userId={profile?.id ?? null} className={navPill} /> : null}
-            <Link
-              href="/account"
-              prefetch={false}
-              className={`inline-flex items-center gap-2 px-3 py-2 text-sm ${navPill} ${isActive("/account") ? navPillActive : ""}`}
-            >
+            <SafeLink href="/account" className={`inline-flex items-center gap-2 px-3 py-2 text-sm ${navPill} ${isActive("/account") ? navPillActive : ""}`}>
               <span className="max-w-[180px] truncate">{displayName}</span>
               <span className="ml-2 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-white/60">
                 {roleLabel(profile?.role ?? null)}
               </span>
-            </Link>
+            </SafeLink>
             <LogoutButton size="sm" variant="flat" className={navPill} />
           </div>
         </div>
