@@ -123,6 +123,17 @@ function decodeJwtSub(token: string): string | null {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|css|js|map)$).*)"]
+  matcher: [
+    {
+      source: "/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|css|js|map)$).*)",
+      // Avoid breaking App Router navigation: prefetch/RSC requests can be redirected by middleware
+      // and cause clicks to appear as "nothing happens".
+      // Skip middleware for prefetch requests (they include these headers).
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" }
+      ]
+    }
+  ]
 };
 
