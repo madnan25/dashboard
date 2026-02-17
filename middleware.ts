@@ -62,6 +62,16 @@ export async function middleware(request: NextRequest) {
   const user = userRes?.data?.user ?? null;
   const isAuthed = Boolean(user);
 
+  // Avoid breaking App Router navigation: RSC requests should not be redirected.
+  // These requests are used to fetch server components during client navigation.
+  const isRscRequest =
+    request.headers.get("RSC") === "1" || request.headers.has("next-router-state-tree");
+  if (isRscRequest) {
+    const resp = NextResponse.next();
+    for (const c of cookiesToSet) resp.cookies.set(c.name, c.value, c.options);
+    return resp;
+  }
+
   // If already authed, never show /login again.
   if (isAuthed && requestUrl.pathname === "/login") {
     const redirectToRaw = requestUrl.searchParams.get("redirectTo") ?? "/";
