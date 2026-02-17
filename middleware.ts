@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { getSupabaseEnv } from "@/lib/supabase/env";
+import { extractAccessTokenFromCookieEntries, isJwtNotExpired } from "@/lib/auth/supabaseCookies";
 
 const PUBLIC_PATHS = new Set<string>(["/login", "/auth/callback", "/logout"]);
 
@@ -12,17 +11,13 @@ function isPublicPath(pathname: string) {
 }
 
 export async function middleware(request: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const canonical = process.env.NEXT_PUBLIC_SITE_URL;
 
   // Allow the app to run locally even before env vars are configured.
   // Once env vars are set (Vercel/local), auth+RLS becomes enforced.
-  let env: { url: string; anonKey: string } | null = null;
-  try {
-    env = getSupabaseEnv();
-  } catch {
-    env = null;
-  }
-  if (!env) return NextResponse.next();
+  if (!url || !anonKey) return NextResponse.next();
 
   const requestUrl = request.nextUrl;
 
@@ -43,24 +38,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Use Supabase SSR in middleware so sessions can be refreshed (via refresh token)
-  // instead of treating users as logged-out when the access token expires.
-  const cookiesToSet: Array<{ name: string; value: string; options?: any }> = [];
-  const supabase = createServerClient(env.url, env.anonKey, {
-    auth: { flowType: "pkce" },
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(next) {
-        cookiesToSet.push(...next);
-      }
-    }
-  });
-
-  const userRes = await supabase.auth.getUser().catch(() => null);
-  const user = userRes?.data?.user ?? null;
-  const isAuthed = Boolean(user);
+  const accessToken = extractAccessTokenFromCookieEntries(request.cookies.getAll());
+  const isAuthed = accessToken ? isJwtNotExpired(accessToken) : false;
 
   // If already authed, never show /login again.
   if (isAuthed && requestUrl.pathname === "/login") {
@@ -69,42 +48,43 @@ export async function middleware(request: NextRequest) {
     const nextUrl = requestUrl.clone();
     nextUrl.pathname = redirectTo;
     nextUrl.search = "";
-    const resp = NextResponse.redirect(nextUrl);
-    for (const c of cookiesToSet) resp.cookies.set(c.name, c.value, c.options);
-    return resp;
+    return NextResponse.redirect(nextUrl);
   }
 
   if (!isAuthed && !isPublicPath(requestUrl.pathname)) {
     const loginUrl = requestUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectTo", requestUrl.pathname + requestUrl.search);
-    const resp = NextResponse.redirect(loginUrl);
-    for (const c of cookiesToSet) resp.cookies.set(c.name, c.value, c.options);
-    return resp;
+    return NextResponse.redirect(loginUrl);
   }
 
   // Tasks is marketing-team only (CMO is always allowed).
   if (isAuthed && (requestUrl.pathname === "/tasks" || requestUrl.pathname.startsWith("/tasks/"))) {
-    const userId = user?.id ?? null;
+    const userId = accessToken ? decodeJwtSub(accessToken) : null;
     if (!userId) {
       const nextUrl = requestUrl.clone();
       nextUrl.pathname = "/";
       nextUrl.search = "";
-      const resp = NextResponse.redirect(nextUrl);
-      for (const c of cookiesToSet) resp.cookies.set(c.name, c.value, c.options);
-      return resp;
+      return NextResponse.redirect(nextUrl);
     }
 
     try {
-      const profRes = await supabase
-        .from("profiles")
-        .select("role,is_marketing_team")
-        .eq("id", userId)
-        .maybeSingle();
+      const res = await fetch(
+        `${url}/rest/v1/profiles?select=role,is_marketing_team&id=eq.${encodeURIComponent(userId)}`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${accessToken}`
+          }
+        }
+      );
 
-      const p = profRes.data ?? null;
-      const role = (p as any)?.role ?? null;
-      const isMarketing = Boolean((p as any)?.is_marketing_team === true);
+      if (!res.ok) throw new Error("profile_fetch_failed");
+
+      const rows = (await res.json()) as Array<{ role?: string; is_marketing_team?: boolean }>;
+      const p = rows[0] ?? null;
+      const role = p?.role ?? null;
+      const isMarketing = Boolean(p?.is_marketing_team === true);
 
       const ok =
         role === "cmo" ||
@@ -115,23 +95,31 @@ export async function middleware(request: NextRequest) {
         const nextUrl = requestUrl.clone();
         nextUrl.pathname = "/";
         nextUrl.search = "";
-        const resp = NextResponse.redirect(nextUrl);
-        for (const c of cookiesToSet) resp.cookies.set(c.name, c.value, c.options);
-        return resp;
+        return NextResponse.redirect(nextUrl);
       }
     } catch {
       const nextUrl = requestUrl.clone();
       nextUrl.pathname = "/";
       nextUrl.search = "";
-      const resp = NextResponse.redirect(nextUrl);
-      for (const c of cookiesToSet) resp.cookies.set(c.name, c.value, c.options);
-      return resp;
+      return NextResponse.redirect(nextUrl);
     }
   }
 
-  const resp = NextResponse.next();
-  for (const c of cookiesToSet) resp.cookies.set(c.name, c.value, c.options);
-  return resp;
+  return NextResponse.next();
+}
+
+function decodeJwtSub(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const payload = parts[1]!;
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const json = atob(b64);
+    const data = JSON.parse(json) as { sub?: string };
+    return typeof data.sub === "string" ? data.sub : null;
+  } catch {
+    return null;
+  }
 }
 
 export const config = {
