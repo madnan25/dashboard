@@ -1,9 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Surface } from "@/components/ds/Surface";
-import { HardNavLink } from "@/components/ds/HardNavLink";
 
 export function NavCard({
   href,
@@ -84,8 +84,9 @@ export function NavCard({
   }
 
   return (
-    <HardNavLink
+    <Link
       href={href}
+      prefetch
       className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0"
       onMouseEnter={() => {
         // Make navigation feel instant: prefetch on intent (hover).
@@ -93,7 +94,7 @@ export function NavCard({
       }}
     >
       {inner}
-    </HardNavLink>
+    </Link>
   );
 }
 
