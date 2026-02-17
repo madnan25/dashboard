@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Surface } from "@/components/ds/Surface";
@@ -8,6 +7,7 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getCurrentProfile, type Profile } from "@/lib/dashboardDb";
+import { HardNavLink } from "@/components/ds/HardNavLink";
 
 function roleLabel(role: Profile["role"] | null) {
   switch (role) {
@@ -220,9 +220,9 @@ export function MobileTabBar() {
               }
 
               return (
-                <Link key={t.key} href={t.href} prefetch className="min-w-0">
+                <HardNavLink key={t.key} href={t.href} className="min-w-0">
                   {content}
-                </Link>
+                </HardNavLink>
               );
             })}
           </nav>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -9,6 +8,7 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getCurrentProfile, Profile } from "@/lib/dashboardDb";
+import { HardNavLink } from "@/components/ds/HardNavLink";
 
 function roleLabel(role: Profile["role"] | null) {
   switch (role) {
@@ -120,7 +120,7 @@ export function TopNav() {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Link href="/" prefetch onMouseEnter={() => router.prefetch("/")} className="group inline-flex items-center gap-2">
+            <HardNavLink href="/" onMouseEnter={() => router.prefetch("/")} className="group inline-flex items-center gap-2">
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/90"
                 aria-hidden="true"
@@ -130,36 +130,33 @@ export function TopNav() {
               <span className="text-sm font-semibold tracking-tight text-white/90 group-hover:text-white">
                 Dashboard
               </span>
-            </Link>
+            </HardNavLink>
 
             <span className="mx-2 hidden h-5 w-px bg-white/10 md:block" aria-hidden="true" />
 
             <div className="flex flex-wrap items-center gap-2">
-              <Link
+              <HardNavLink
                 href="/projects"
-                prefetch
                 onMouseEnter={() => router.prefetch("/projects")}
                 className={`px-3 py-2 text-sm ${navPill} ${isActive("/projects") ? navPillActive : ""}`}
               >
                 Projects
-              </Link>
-              <Link
+              </HardNavLink>
+              <HardNavLink
                 href="/master-calendar"
-                prefetch
                 onMouseEnter={() => router.prefetch("/master-calendar")}
                 className={`px-3 py-2 text-sm ${navPill} ${isActive("/master-calendar") ? navPillActive : ""}`}
               >
                 Calendar
-              </Link>
+              </HardNavLink>
               {profile?.role == null ? null : canAccessTasks ? (
-                <Link
+                <HardNavLink
                   href="/tasks"
-                  prefetch
                   onMouseEnter={() => router.prefetch("/tasks")}
                   className={`px-3 py-2 text-sm ${navPill} ${isActive("/tasks") ? navPillActive : ""}`}
                 >
                   Tasks
-                </Link>
+                </HardNavLink>
               ) : (
                 <span
                   className={`px-3 py-2 text-sm ${navPill} opacity-55 cursor-not-allowed`}
@@ -170,14 +167,13 @@ export function TopNav() {
                 </span>
               )}
               {canSeePlanning ? (
-                <Link
+                <HardNavLink
                   href="/brand/data-entry"
-                  prefetch
                   onMouseEnter={() => router.prefetch("/brand/data-entry")}
                   className={`px-3 py-2 text-sm ${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}
                 >
                   Planning
-                </Link>
+                </HardNavLink>
               ) : (
                 <span
                   className={`px-3 py-2 text-sm ${navPill} opacity-55 cursor-not-allowed`}
@@ -188,41 +184,37 @@ export function TopNav() {
                 </span>
               )}
               {isCmo ? (
-                <Link
+                <HardNavLink
                   href="/cmo/projects"
-                  prefetch
                   onMouseEnter={() => router.prefetch("/cmo/projects")}
                   className={`px-3 py-2 text-sm ${navPill} ${isActive("/cmo/projects") ? navPillActive : ""}`}
                 >
                   CMO Console
-                </Link>
+                </HardNavLink>
               ) : null}
               {canSeeIntelligenceDesk ? (
-                <Link
+                <HardNavLink
                   href="/intelligence-desk"
-                  prefetch
                   onMouseEnter={() => router.prefetch("/intelligence-desk")}
                   className={`px-3 py-2 text-sm ${navPill} ${isActive("/intelligence-desk") ? navPillActive : ""}`}
                 >
                   Intelligence Desk
-                </Link>
+                </HardNavLink>
               ) : null}
-              <Link
+              <HardNavLink
                 href="/design"
-                prefetch
                 onMouseEnter={() => router.prefetch("/design")}
                 className={`px-3 py-2 text-sm ${navPill} ${isActive("/design") ? navPillActive : ""}`}
               >
                 Design System
-              </Link>
+              </HardNavLink>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {isMarketingTeam ? <NotificationBell userId={profile?.id ?? null} className={navPill} /> : null}
-            <Link
+            <HardNavLink
               href="/account"
-              prefetch
               onMouseEnter={() => router.prefetch("/account")}
               className={`inline-flex items-center gap-2 px-3 py-2 text-sm ${navPill} ${isActive("/account") ? navPillActive : ""}`}
             >
@@ -230,7 +222,7 @@ export function TopNav() {
               <span className="ml-2 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-white/60">
                 {roleLabel(profile?.role ?? null)}
               </span>
-            </Link>
+            </HardNavLink>
             <LogoutButton size="sm" variant="flat" className={navPill} />
           </div>
         </div>
