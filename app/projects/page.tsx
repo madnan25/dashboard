@@ -4,6 +4,7 @@ import { Surface } from "@/components/ds/Surface";
 import { KpiCard } from "@/components/ds/KpiCard";
 import { createServerDbClient } from "@/lib/db/client/server";
 import { createDashboardRepo } from "@/lib/db/repo";
+import { withTimeout } from "@/lib/runtime/withTimeout";
 import type { Project } from "@/lib/db/types";
 import Link from "next/link";
 import { ProjectsOverviewControls, type OverviewMode } from "@/components/projects/ProjectsOverviewControls";
@@ -89,9 +90,9 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
 
   if (!envMissing) {
     try {
-      const supabase = await createServerDbClient();
+      const supabase = await withTimeout("createServerDbClient()", createServerDbClient(), 8000);
       const repo = createDashboardRepo(supabase);
-      projects = (await repo.listProjects()).filter((x) => x.is_active);
+      projects = (await withTimeout("repo.listProjects()", repo.listProjects(), 8000)).filter((x) => x.is_active);
 
       const projectIds = projects.map((p) => p.id);
       if (projectIds.length > 0) {
@@ -99,14 +100,19 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         const monthRatio = isCurrentMonth ? Math.min(1, Math.max(0, now.getDate() / daysInMonth(year, month))) : 1;
 
         async function fetchActualsMonth(y: number, m: number) {
-          const { data, error } = await supabase
-            .from("project_actuals")
-            .select(
-              "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_transfer_out, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_transfer_out, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
-            )
-            .eq("year", y)
-            .eq("month", m)
-            .in("project_id", projectIds);
+          const res = await withTimeout(
+            `project_actuals.select(${y}-${m})`,
+            supabase
+              .from("project_actuals")
+              .select(
+                "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_transfer_out, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_transfer_out, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
+              )
+              .eq("year", y)
+              .eq("month", m)
+              .in("project_id", projectIds),
+            12000
+          );
+          const { data, error } = res;
           if (error) throw error;
           return ((data as ActualRow[]) ?? []).map((r) => ({
             ...r,
@@ -128,12 +134,17 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         type TargetRow = { project_id: string; year: number; month: number; avg_sqft_per_deal: number };
 
         async function fetchTargetsMonth(y: number, m: number) {
-          const { data, error } = await supabase
-            .from("project_targets")
-            .select("project_id, year, month, avg_sqft_per_deal")
-            .eq("year", y)
-            .eq("month", m)
-            .in("project_id", projectIds);
+          const res = await withTimeout(
+            `project_targets.select(${y}-${m})`,
+            supabase
+              .from("project_targets")
+              .select("project_id, year, month, avg_sqft_per_deal")
+              .eq("year", y)
+              .eq("month", m)
+              .in("project_id", projectIds),
+            12000
+          );
+          const { data, error } = res;
           if (error) throw error;
           return ((data as TargetRow[]) ?? []).map((r) => ({
             ...r,
@@ -142,14 +153,19 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
         }
 
         async function fetchActualsYtd() {
-          const { data, error } = await supabase
-            .from("project_actuals")
-            .select(
-              "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_transfer_out, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_transfer_out, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
-            )
-            .eq("year", year)
-            .lte("month", month)
-            .in("project_id", projectIds);
+          const res = await withTimeout(
+            `project_actuals.select_ytd(${year}-lte-${month})`,
+            supabase
+              .from("project_actuals")
+              .select(
+                "project_id, year, month, sqft_won, sqft_won_transfer_in, sqft_won_transfer_out, sqft_won_misc, deals_won, deals_won_transfer_in, deals_won_transfer_out, deals_won_misc, qualified_leads, spend_digital, spend_inbound, spend_activations"
+              )
+              .eq("year", year)
+              .lte("month", month)
+              .in("project_id", projectIds),
+            12000
+          );
+          const { data, error } = res;
           if (error) throw error;
           return ((data as ActualRow[]) ?? []).map((r) => ({
             ...r,
@@ -181,12 +197,17 @@ export default async function ProjectsIndexPage(props: { searchParams?: Promise<
                 // For YTD, pull targets month-by-month so we can compute:
                 // qualified_pipeline = Σ (qualified_leads_month × avg_sqft_per_deal_month)
                 (async () => {
-                  const { data, error } = await supabase
-                    .from("project_targets")
-                    .select("project_id, year, month, avg_sqft_per_deal")
-                    .eq("year", year)
-                    .lte("month", month)
-                    .in("project_id", projectIds);
+                  const res = await withTimeout(
+                    `project_targets.select_ytd(${year}-lte-${month})`,
+                    supabase
+                      .from("project_targets")
+                      .select("project_id, year, month, avg_sqft_per_deal")
+                      .eq("year", year)
+                      .lte("month", month)
+                      .in("project_id", projectIds),
+                    12000
+                  );
+                  const { data, error } = res;
                   if (error) throw error;
                   return ((data as TargetRow[]) ?? []).map((r) => ({
                     ...r,
