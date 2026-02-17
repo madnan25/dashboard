@@ -129,7 +129,7 @@ export function TopNav() {
               <span className="text-sm font-semibold tracking-tight text-white/90 group-hover:text-white">
                 Dashboard
               </span>
-            </Link>
+            </SafeLink>
 
             <span className="mx-2 hidden h-5 w-px bg-white/10 md:block" aria-hidden="true" />
 
