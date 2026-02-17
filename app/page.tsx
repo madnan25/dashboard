@@ -69,10 +69,6 @@ export default async function HomePage() {
       (profile.role === "brand_manager" || profile.role === "member" || profile.is_marketing_team === true));
   const canSeeTeamSections = isMarketingManagerProfile(profile);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/1b91cf07-cede-4e5e-bddb-5ac83c7a36c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'nav-block',hypothesisId:'H1',location:'app/page.tsx:58',message:'home_render_profile',data:{hasProfile:Boolean(profile),role:profile?.role??null,isMarketingTeam:Boolean(isMarketingTeam)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion agent log
-
   return (
     <main className="min-h-screen px-4 md:px-6 pb-10">
       <div className="mx-auto w-full max-w-6xl space-y-6">
