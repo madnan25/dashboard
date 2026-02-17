@@ -46,6 +46,15 @@ export function TopNav() {
         if (cancelled) return;
         setEmail(userRes.user?.email ?? null);
         setProfile(p);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1b91cf07-cede-4e5e-bddb-5ac83c7a36c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'nav-block',hypothesisId:'H1',location:'components/nav/TopNav.tsx:45',message:'topnav_loaded_profile',data:{hasUser:Boolean(userRes.user),hasProfile:Boolean(p),role:p?.role??null,isMarketingTeam:Boolean(p?.is_marketing_team===true)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
+        console.log("[dbg nav-block] topnav_loaded_profile", {
+          hasUser: Boolean(userRes.user),
+          hasProfile: Boolean(p),
+          role: p?.role ?? null,
+          isMarketingTeam: Boolean(p?.is_marketing_team === true)
+        });
       } catch {
         // ignore
       }

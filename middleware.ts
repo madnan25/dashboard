@@ -39,6 +39,10 @@ export async function middleware(request: NextRequest) {
 
   const requestUrl = request.nextUrl;
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/1b91cf07-cede-4e5e-bddb-5ac83c7a36c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'nav-block',hypothesisId:'H1',location:'middleware.ts:42',message:'middleware_enter',data:{pathname:requestUrl.pathname,search:requestUrl.search,hasEnv:Boolean(url&&anonKey),isPublic:isPublicPath(requestUrl.pathname)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
+
   // Canonical host: if user is on the Vercel domain, redirect to custom domain.
   // This helps keep magic-link redirects + cookies consistent.
   if (canonical) {
@@ -70,10 +74,16 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!isAuthed && !isPublicPath(requestUrl.pathname)) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1b91cf07-cede-4e5e-bddb-5ac83c7a36c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'nav-block',hypothesisId:'H1',location:'middleware.ts:72',message:'redirect_to_login',data:{pathname:requestUrl.pathname},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
     const loginUrl = requestUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectTo", requestUrl.pathname + requestUrl.search);
-    return NextResponse.redirect(loginUrl);
+    const resp = NextResponse.redirect(loginUrl);
+    resp.headers.set("x-debug-mw", "redirect_to_login");
+    resp.headers.set("x-debug-path", requestUrl.pathname);
+    return resp;
   }
 
   // Tasks is marketing-team only (CMO is always allowed).
@@ -101,37 +111,64 @@ export async function middleware(request: NextRequest) {
         const rows = (await res.json()) as Array<{ role?: string; is_marketing_team?: boolean }>;
         const p = rows[0] ?? null;
         const role = p?.role ?? null;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1b91cf07-cede-4e5e-bddb-5ac83c7a36c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'nav-block',hypothesisId:'H3',location:'middleware.ts:104',message:'tasks_gate_profile',data:{role, is_marketing_team:Boolean(p?.is_marketing_team===true), resOk:true},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
         const ok =
           role === "cmo" ||
           role === "admin_viewer" ||
           (role !== "sales_ops" && (role === "brand_manager" || role === "member" || p?.is_marketing_team === true));
 
         if (!ok) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/1b91cf07-cede-4e5e-bddb-5ac83c7a36c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'nav-block',hypothesisId:'H3',location:'middleware.ts:109',message:'tasks_gate_blocked',data:{role},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion agent log
           const nextUrl = requestUrl.clone();
           nextUrl.pathname = "/";
           nextUrl.search = "";
-          return NextResponse.redirect(nextUrl);
+          const resp = NextResponse.redirect(nextUrl);
+          resp.headers.set("x-debug-mw", "tasks_blocked_role");
+          resp.headers.set("x-debug-path", requestUrl.pathname);
+          resp.headers.set("x-debug-role", role || "null");
+          return resp;
         }
       } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1b91cf07-cede-4e5e-bddb-5ac83c7a36c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'nav-block',hypothesisId:'H2',location:'middleware.ts:115',message:'tasks_gate_profile_fetch_failed',data:{status:res.status},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
         // If profile fetch fails, fall back to safe behavior: block tasks.
         const nextUrl = requestUrl.clone();
         nextUrl.pathname = "/";
         nextUrl.search = "";
-        return NextResponse.redirect(nextUrl);
+        const resp = NextResponse.redirect(nextUrl);
+        resp.headers.set("x-debug-mw", "tasks_blocked_profile_fetch_failed");
+        resp.headers.set("x-debug-path", requestUrl.pathname);
+        resp.headers.set("x-debug-status", String(res.status));
+        return resp;
       }
     } catch {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1b91cf07-cede-4e5e-bddb-5ac83c7a36c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'nav-block',hypothesisId:'H2',location:'middleware.ts:122',message:'tasks_gate_exception',data:{},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       const nextUrl = requestUrl.clone();
       nextUrl.pathname = "/";
       nextUrl.search = "";
-      return NextResponse.redirect(nextUrl);
+      const resp = NextResponse.redirect(nextUrl);
+      resp.headers.set("x-debug-mw", "tasks_blocked_exception");
+      resp.headers.set("x-debug-path", requestUrl.pathname);
+      return resp;
     }
   }
 
-  return NextResponse.next({
+  const resp = NextResponse.next({
     request: {
       headers: request.headers
     }
   });
+  resp.headers.set("x-debug-mw", "next");
+  resp.headers.set("x-debug-path", requestUrl.pathname);
+  resp.headers.set("x-debug-authed", isAuthed ? "1" : "0");
+  return resp;
 }
 
 export const config = {
