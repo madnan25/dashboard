@@ -28,8 +28,11 @@ export async function middleware(request: NextRequest) {
 
   // Avoid breaking App Router navigation: RSC requests should not be redirected or have auth refreshed.
   // These requests are internal fetches for server components during client navigation.
+  const accept = request.headers.get("accept") ?? "";
   const isRscRequest =
-    request.headers.get("RSC") === "1" || request.headers.has("next-router-state-tree");
+    request.headers.get("RSC") === "1" ||
+    request.headers.has("next-router-state-tree") ||
+    accept.includes("text/x-component");
   if (isRscRequest) return NextResponse.next();
 
   // Canonical host: if user is on the Vercel domain, redirect to custom domain.
