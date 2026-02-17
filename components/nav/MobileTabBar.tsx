@@ -220,7 +220,7 @@ export function MobileTabBar() {
               }
 
               return (
-                <Link key={t.key} href={t.href} prefetch className="min-w-0">
+                <Link key={t.key} href={t.href} prefetch={false} className="min-w-0">
                   {content}
                 </Link>
               );

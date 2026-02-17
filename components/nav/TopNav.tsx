@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Surface } from "@/components/ds/Surface";
@@ -31,7 +31,6 @@ function roleLabel(role: Profile["role"] | null) {
 
 export function TopNav() {
   const pathname = usePathname();
-  const router = useRouter();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -120,7 +119,7 @@ export function TopNav() {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Link href="/" prefetch onMouseEnter={() => router.prefetch("/")} className="group inline-flex items-center gap-2">
+            <Link href="/" prefetch={false} className="group inline-flex items-center gap-2">
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/90"
                 aria-hidden="true"
@@ -135,29 +134,18 @@ export function TopNav() {
             <span className="mx-2 hidden h-5 w-px bg-white/10 md:block" aria-hidden="true" />
 
             <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/projects"
-                prefetch
-                onMouseEnter={() => router.prefetch("/projects")}
-                className={`px-3 py-2 text-sm ${navPill} ${isActive("/projects") ? navPillActive : ""}`}
-              >
+              <Link href="/projects" prefetch={false} className={`px-3 py-2 text-sm ${navPill} ${isActive("/projects") ? navPillActive : ""}`}>
                 Projects
               </Link>
               <Link
                 href="/master-calendar"
-                prefetch
-                onMouseEnter={() => router.prefetch("/master-calendar")}
+                prefetch={false}
                 className={`px-3 py-2 text-sm ${navPill} ${isActive("/master-calendar") ? navPillActive : ""}`}
               >
                 Calendar
               </Link>
               {profile?.role == null ? null : canAccessTasks ? (
-                <Link
-                  href="/tasks"
-                  prefetch
-                  onMouseEnter={() => router.prefetch("/tasks")}
-                  className={`px-3 py-2 text-sm ${navPill} ${isActive("/tasks") ? navPillActive : ""}`}
-                >
+                <Link href="/tasks" prefetch={false} className={`px-3 py-2 text-sm ${navPill} ${isActive("/tasks") ? navPillActive : ""}`}>
                   Tasks
                 </Link>
               ) : (
@@ -172,8 +160,7 @@ export function TopNav() {
               {canSeePlanning ? (
                 <Link
                   href="/brand/data-entry"
-                  prefetch
-                  onMouseEnter={() => router.prefetch("/brand/data-entry")}
+                  prefetch={false}
                   className={`px-3 py-2 text-sm ${navPill} ${isActive("/brand/data-entry") ? navPillActive : ""}`}
                 >
                   Planning
@@ -188,31 +175,20 @@ export function TopNav() {
                 </span>
               )}
               {isCmo ? (
-                <Link
-                  href="/cmo/projects"
-                  prefetch
-                  onMouseEnter={() => router.prefetch("/cmo/projects")}
-                  className={`px-3 py-2 text-sm ${navPill} ${isActive("/cmo/projects") ? navPillActive : ""}`}
-                >
+                <Link href="/cmo/projects" prefetch={false} className={`px-3 py-2 text-sm ${navPill} ${isActive("/cmo/projects") ? navPillActive : ""}`}>
                   CMO Console
                 </Link>
               ) : null}
               {canSeeIntelligenceDesk ? (
                 <Link
                   href="/intelligence-desk"
-                  prefetch
-                  onMouseEnter={() => router.prefetch("/intelligence-desk")}
+                  prefetch={false}
                   className={`px-3 py-2 text-sm ${navPill} ${isActive("/intelligence-desk") ? navPillActive : ""}`}
                 >
                   Intelligence Desk
                 </Link>
               ) : null}
-              <Link
-                href="/design"
-                prefetch
-                onMouseEnter={() => router.prefetch("/design")}
-                className={`px-3 py-2 text-sm ${navPill} ${isActive("/design") ? navPillActive : ""}`}
-              >
+              <Link href="/design" prefetch={false} className={`px-3 py-2 text-sm ${navPill} ${isActive("/design") ? navPillActive : ""}`}>
                 Design System
               </Link>
             </div>
@@ -222,8 +198,7 @@ export function TopNav() {
             {isMarketingTeam ? <NotificationBell userId={profile?.id ?? null} className={navPill} /> : null}
             <Link
               href="/account"
-              prefetch
-              onMouseEnter={() => router.prefetch("/account")}
+              prefetch={false}
               className={`inline-flex items-center gap-2 px-3 py-2 text-sm ${navPill} ${isActive("/account") ? navPillActive : ""}`}
             >
               <span className="max-w-[180px] truncate">{displayName}</span>
