@@ -7,7 +7,7 @@ import { AuthBootstrapper } from "@/components/auth/AuthBootstrapper";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <HeroUIProvider>
+    <HeroUIProvider locale="en-US">
       <AuthBootstrapper />
       <ScrollToTop />
       <NotificationsProvider>{children}</NotificationsProvider>

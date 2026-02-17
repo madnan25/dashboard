@@ -15,8 +15,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@heroui/react": "^2.0.0",
-    "@heroui/theme": "^2.0.0",
+    "@heroui/react": "^2.8.9",
+    "@heroui/theme": "^2.4.26",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.88.0",
     "framer-motion": "^11.0.0",
