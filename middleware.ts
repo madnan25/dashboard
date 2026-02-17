@@ -26,6 +26,12 @@ export async function middleware(request: NextRequest) {
 
   const requestUrl = request.nextUrl;
 
+  // Avoid breaking App Router navigation: RSC requests should not be redirected or have auth refreshed.
+  // These requests are internal fetches for server components during client navigation.
+  const isRscRequest =
+    request.headers.get("RSC") === "1" || request.headers.has("next-router-state-tree");
+  if (isRscRequest) return NextResponse.next();
+
   // Canonical host: if user is on the Vercel domain, redirect to custom domain.
   // This helps keep magic-link redirects + cookies consistent.
   if (canonical) {
@@ -61,16 +67,6 @@ export async function middleware(request: NextRequest) {
   const userRes = await supabase.auth.getUser().catch(() => null);
   const user = userRes?.data?.user ?? null;
   const isAuthed = Boolean(user);
-
-  // Avoid breaking App Router navigation: RSC requests should not be redirected.
-  // These requests are used to fetch server components during client navigation.
-  const isRscRequest =
-    request.headers.get("RSC") === "1" || request.headers.has("next-router-state-tree");
-  if (isRscRequest) {
-    const resp = NextResponse.next();
-    for (const c of cookiesToSet) resp.cookies.set(c.name, c.value, c.options);
-    return resp;
-  }
 
   // If already authed, never show /login again.
   if (isAuthed && requestUrl.pathname === "/login") {
