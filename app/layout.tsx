@@ -5,6 +5,9 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { TopNav } from "@/components/nav/TopNav";
 import { MobileTabBar } from "@/components/nav/MobileTabBar";
+import { createServerDbClient } from "@/lib/db/client/server";
+import { createDashboardRepo } from "@/lib/db/repo";
+import { isMarketingTeamProfile } from "@/components/tasks/taskModel";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -43,11 +46,21 @@ export const metadata: Metadata = {
   }
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  let marketingUserId: string | null = null;
+  try {
+    const supabase = await createServerDbClient();
+    const repo = createDashboardRepo(supabase);
+    const profile = await repo.getCurrentProfile();
+    if (profile && isMarketingTeamProfile(profile)) marketingUserId = profile.id;
+  } catch {
+    marketingUserId = null;
+  }
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={inter.className}>
@@ -132,7 +145,7 @@ export default function RootLayout({
         />
         <div className="app-backdrop" aria-hidden="true" />
         <div className="app-content">
-          <Providers>
+          <Providers marketingUserId={marketingUserId}>
             <TopNav />
             <div className="pt-[calc(14px+env(safe-area-inset-top))] pb-[calc(88px+env(safe-area-inset-bottom))] md:pt-0 md:pb-0">
               {children}

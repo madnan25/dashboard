@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SafeLink } from "@/components/ds/SafeLink";
 import { Surface } from "@/components/ds/Surface";
 import { NotificationList } from "@/components/notifications/NotificationList";
 import { useNotificationsContext } from "@/components/notifications/NotificationsProvider";
@@ -82,7 +82,7 @@ export function NotificationBell({
   if (variant === "tab") {
     const active = pathname === "/notifications" || pathname.startsWith("/notifications/");
     return (
-      <Link href="/notifications" className="min-w-0">
+      <SafeLink href="/notifications" className="min-w-0">
         <div
           className={[
             "flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2.5",
@@ -100,7 +100,7 @@ export function NotificationBell({
           </div>
           <div className={active ? "text-[11px] font-semibold text-white" : "text-[11px] font-medium text-white/70"}>Alerts</div>
         </div>
-      </Link>
+      </SafeLink>
     );
   }
 
@@ -163,9 +163,13 @@ export function NotificationBell({
             <div className="mt-3">
               <NotificationList items={visibleItems} onMarkRead={markRead} onItemClick={() => setIsOpen(false)} />
               <div className="mt-3 flex justify-end">
-                <Link href="/notifications" onClick={() => setIsOpen(false)} className="text-[11px] text-white/60 hover:text-white/85">
+                <SafeLink
+                  href="/notifications"
+                  onClick={() => setIsOpen(false)}
+                  className="text-[11px] text-white/60 hover:text-white/85"
+                >
                   View all
-                </Link>
+                </SafeLink>
               </div>
               {loading ? <div className="mt-2 text-[11px] text-white/45">Refreshing...</div> : null}
             </div>
