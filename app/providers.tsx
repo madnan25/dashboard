@@ -2,7 +2,6 @@
 
 import { HeroUIProvider } from "@heroui/react";
 import { ScrollToTop } from "@/components/nav/ScrollToTop";
-import { NotificationsProvider } from "@/components/notifications/NotificationsProvider";
 import { AuthBootstrapper } from "@/components/auth/AuthBootstrapper";
 import { ClientErrorReporter } from "@/components/system/ClientErrorReporter";
 
@@ -12,7 +11,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ClientErrorReporter />
       <AuthBootstrapper />
       <ScrollToTop />
-      <NotificationsProvider>{children}</NotificationsProvider>
+      {children}
     </HeroUIProvider>
   );
 }
